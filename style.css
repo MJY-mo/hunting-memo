@@ -1,0 +1,60 @@
+/* Tailwind CSSがベースですが、カスタムスタイルをここに追加します */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overscroll-behavior-y: none; /* iOSでのバウンススクロールを無効化 */
+    max-width: 640px; /* max-w-lg */
+    margin: 0 auto; /* 中央揃え */
+    background-color: #f3f4f6; /* bg-gray-100 */
+}
+
+/* アクティブなタブ */
+.tab-active {
+    color: #059669; /* text-emerald-600 */
+    border-top: 2px solid #059669; /* border-emerald-600 */
+    font-weight: 600; /* font-semibold */
+}
+
+/* 非アクティブなタブ */
+.tab-inactive {
+    color: #6b7280; /* text-gray-500 */
+    border-top: 2px solid transparent;
+}
+
+/* フォームの共通スタイル */
+.form-group {
+    @apply mb-4;
+}
+.form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+}
+.form-input,
+.form-select {
+    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm;
+}
+
+/* ボタンの共通スタイル */
+.btn {
+    @apply inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white cursor-pointer;
+}
+.btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
+}
+.btn-secondary {
+    @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
+}
+.btn-danger {
+    @apply bg-red-600 hover:bg-red-700;
+}
+.btn-loading {
+    @apply opacity-75 cursor-not-allowed;
+}
+
+/* 罠カード */
+.trap-card {
+    @apply bg-white shadow rounded-lg p-4 mb-3 flex justify-between items-center cursor-pointer hover:bg-gray-50;
+}
+
+/* エラーメッセージ */
+.error-box {
+    @apply bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg;
+}
