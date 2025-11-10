@@ -1,60 +1,129 @@
-/* Tailwind CSSがベースですが、カスタムスタイルをここに追加します */
+/* Tailwind CSSがベースですが、@apply を使わずに標準CSSで記述します */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    overscroll-behavior-y: none; /* iOSでのバウンススクロールを無効化 */
+    overscroll-behavior-y: none;
     max-width: 640px; /* max-w-lg */
-    margin: 0 auto; /* 中央揃え */
+    margin: 0 auto;
     background-color: #f3f4f6; /* bg-gray-100 */
 }
 
-/* アクティブなタブ */
+/* --- タブバー --- */
 .tab-active {
     color: #059669; /* text-emerald-600 */
-    border-top: 2px solid #059669; /* border-emerald-600 */
+    border-top: 2px solid #059669;
     font-weight: 600; /* font-semibold */
 }
-
-/* 非アクティブなタブ */
 .tab-inactive {
     color: #6b7280; /* text-gray-500 */
     border-top: 2px solid transparent;
 }
 
-/* フォームの共通スタイル */
+/* --- フォーム共通スタイル (UI改善で追加) --- */
+.card {
+    background-color: #ffffff;
+    border-radius: 0.5rem; /* rounded-lg */
+    padding: 1rem; /* p-4 */
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* shadow-lg */
+}
+
 .form-group {
-    @apply mb-4;
+    margin-bottom: 1rem; /* mb-4 */
 }
 .form-label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+    display: block;
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 500; /* font-medium */
+    color: rgb(55 65 81); /* text-gray-700 */
+    margin-bottom: 0.25rem; /* mb-1 */
 }
 .form-input,
 .form-select {
-    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm;
+    display: block;
+    width: 100%;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    border: 1px solid rgb(209 213 219); /* border-gray-300 */
+    border-radius: 0.375rem; /* rounded-md */
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); /* shadow-sm */
+    font-size: 0.875rem; /* sm:text-sm */
+}
+.form-input:focus,
+.form-select:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    border-color: rgb(59 130 246); /* focus:border-blue-500 */
+    box-shadow: 0 0 0 2px rgb(59 130 246 / 0.5); /* focus:ring-blue-500 */
 }
 
-/* ボタンの共通スタイル */
+/* --- ボタン共通スタイル (UI改善で追加) --- */
 .btn {
-    @apply inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white cursor-pointer;
+    display: inline-flex;
+    justify-content: center;
+    padding: 0.5rem 1rem; /* py-2 px-4 */
+    border: 1px solid transparent;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); /* shadow-sm */
+    font-size: 0.875rem; /* text-sm */
+    font-weight: 500; /* font-medium */
+    border-radius: 0.375rem; /* rounded-md */
+    cursor: pointer;
+    transition-property: background-color;
+    transition-duration: 150ms;
 }
 .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500;
+    background-color: rgb(37 99 235); /* bg-blue-600 */
+    color: white;
+}
+.btn-primary:hover {
+    background-color: rgb(29 78 216); /* hover:bg-blue-700 */
 }
 .btn-secondary {
-    @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
+    background-color: rgb(229 231 235); /* bg-gray-200 */
+    color: rgb(55 65 81); /* text-gray-700 */
+    border-color: rgb(209 213 219); /* border-gray-300 */
+}
+.btn-secondary:hover {
+    background-color: rgb(209 213 219); /* hover:bg-gray-300 */
 }
 .btn-danger {
-    @apply bg-red-600 hover:bg-red-700;
+    background-color: rgb(220 38 38); /* bg-red-600 */
+    color: white;
+}
+.btn-danger:hover {
+    background-color: rgb(185 28 28); /* hover:bg-red-700 */
 }
 .btn-loading {
-    @apply opacity-75 cursor-not-allowed;
+    opacity: 0.75;
+    cursor: not-allowed;
 }
 
-/* 罠カード */
+
+/* --- ★★★ 罠カード (修正箇所) ★★★ --- */
+/* (これが鳥図鑑のリスト表示と同じスタイルです) */
 .trap-card {
-    @apply bg-white shadow rounded-lg p-4 mb-3 flex justify-between items-center cursor-pointer hover:bg-gray-50;
+    background-color: #ffffff;
+    /* shadow-lg */
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    border-radius: 0.5rem; /* rounded-lg */
+    padding: 1rem; /* p-4 */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.15s ease-out;
 }
+.trap-card:hover {
+    background-color: rgb(249 250 251); /* hover:bg-gray-50 */
+}
+/* 罠一覧は space-y-3 でカード間のマージンを確保 (trap.js側で指定) */
 
-/* エラーメッセージ */
+
+/* --- エラーメッセージ --- */
 .error-box {
-    @apply bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg;
+    background-color: #fee2e2; /* bg-red-100 */
+    border: 1px solid #f87171; /* border-red-400 */
+    color: #b91c1c; /* text-red-700 */
+    padding: 1rem; /* px-4 py-3 */
+    border-radius: 0.5rem; /* rounded-lg */
 }
