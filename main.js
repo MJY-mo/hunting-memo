@@ -33,7 +33,6 @@ window.addEventListener('load', () => {
     db.open().then(async () => {
         console.log("Database opened successfully.");
         
-        // ★★★ 新規 (2/4) ★★★
         // 2. デフォルトの罠種類をDBに投入 (存在しない場合のみ)
         await populateDefaultTrapTypes();
         
@@ -49,18 +48,10 @@ window.addEventListener('load', () => {
 });
 
 /**
- * ★★★ 新規 (2/4) ★★★
  * アプリ起動時に、デフォルトの罠種類をDBに登録する
  */
 async function populateDefaultTrapTypes() {
     try {
-        // Dexieのトランザクションを使って、複数のデータを効率的に追加
-        // .add() はプライマリキーが重複すると失敗する (ConstraintError)
-        // .bulkAdd() も同様だが、ここでは put (追加または上書き) を使い、
-        // 確実にデータが存在するようにします。
-        // ただし、'name'はユニークなので .add() の方が適切かもしれません。
-        // ここでは .add() を使い、重複エラーは無視 (catch) します。
-        
         await db.trap_types.bulkAdd([
             { name: 'くくり罠' },
             { name: '箱罠' }
@@ -68,7 +59,6 @@ async function populateDefaultTrapTypes() {
         console.log("Default trap types populated (if they didn't exist).");
     } catch (err) {
         if (err.name === 'BulkError') {
-            // 'BulkError' の場合、一部または全部が重複エラー (ConstraintError)
             console.log("Default trap types already exist (BulkError ignored).");
         } else {
             console.error("Failed to populate default trap types:", err);
@@ -129,6 +119,7 @@ function updateHeader(title, showBack = false) {
     backButton.classList.toggle('hidden', !showBack);
     
     // 戻るボタンのデフォルト動作（タブ一覧に戻る）
+    // (各画面（例: trap.js, gun.js）で、必要に応じてこの onclick は上書きされます)
     if (showBack) {
         backButton.onclick = () => {
             if (appState.currentPage === 'trap') {
@@ -138,8 +129,12 @@ function updateHeader(title, showBack = false) {
                     navigateTo('trap', showClosedTrapPage, '罠設置履歴');
                 }
             }
-            // ★★★ 修正 (2/4) ★★★ (設定タブからの戻る動作)
-            else if (appState.currentPage === 'gun') navigateTo('gun', showGunPage, '銃');
+            // ★★★ 新規 (2/2) ★★★
+            // 「銃」タブのサブページからメインメニューに戻る
+            else if (appState.currentPage === 'gun') {
+                navigateTo('gun', showGunPage, '銃');
+            }
+            // ★★★ ここまで ★★★
             else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
             else if (appState.currentPage === 'settings') navigateTo('settings', showSettingsPage, '設定');
             else navigateTo('trap', showTrapPage, '罠 (設置中)'); // デフォルトに戻る
