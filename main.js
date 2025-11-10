@@ -207,4 +207,3 @@ function formatDate(dateString) {
         return dateString; // パース失敗時は元の文字列を返す
     }
 }
-```eof
