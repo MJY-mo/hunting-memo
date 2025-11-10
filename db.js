@@ -6,24 +6,23 @@ const db = new Dexie('BLNCRHuntingApp');
 // データベースのスキーマ（構造）を定義
 // '++id': 自動採番のプライマリキー
 // '&trap_number': ユニーク（重複禁止）なインデックス
-// 'use_date': 並び替え(ソート)に使うインデックス
-// '[method+catch_date]': 複合インデックス
-//
-// ★ 私たちが設計した「将来の拡張性」を考慮し、
-// スキーマ(schema)には検索/ソートに必要な最小限の
-// 項目（インデックス）のみを定義します。
-//
-// `details: {}` や `additional_data: {}` のような
-// 柔軟なオブジェクトは、スキーマに明記する必要はありません。
-// これがDexie/IndexedDBの柔軟なところです。
+// 'close_date': 罠の開閉状態で検索するためのインデックス
+// 'category': 区分で検索するためのインデックス
 
-db.version(1).stores({
+// --- ★ 修正: version(2) に更新 ---
+// 新しいインデックス 'category' を追加します
+// 既に version(1) でDBを作成しているユーザーのために、
+// .upgrade() は不要です。stores() の定義を変更するだけで
+// Dexieが自動的に差分をマイグレーションします。
+db.version(2).stores({
   // 1. 罠管理ストア
   traps: `
     ++id,
     &trap_number,
     trap_type,
-    close_date
+    close_date,
+    category,
+    [category+close_date]
   `,
 
   // 2. 所持銃マスタストア
@@ -67,6 +66,47 @@ db.version(1).stores({
     &key
   `
 });
+
+// version(1) の定義も残しておくと、
+// v1 から v2 へのアップグレードがスムーズになります
+db.version(1).stores({
+  traps: `
+    ++id,
+    &trap_number,
+    trap_type,
+    close_date
+  `,
+  guns: `
+    ++id,
+    &gun_name
+  `,
+  gun_logs: `
+    ++id,
+    gun_id,
+    use_date,
+    purpose
+  `,
+  ammo_purchases: `
+    ++id,
+    ammo_type,
+    purchase_date
+  `,
+  catches: `
+    ++id,
+    catch_date,
+    method,
+    relation_id,
+    [method+catch_date]
+  `,
+  photos: `
+    ++id,
+    catch_id
+  `,
+  settings: `
+    &key
+  `
+});
+
 
 // これで、他のJSファイル (main.js, trap.js など) から
 // 'db' というグローバル変数としてアクセスできます。

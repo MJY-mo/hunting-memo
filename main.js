@@ -18,10 +18,11 @@ const appState = {
     currentPage: 'trap', // 現在表示中のタブ
     currentTrapId: null, // 編集中の罠ID
     currentGunLogId: null, // 編集中の銃使用履歴ID
-    // 将来的に他の状態も追加
+    
+    // ★ 修正: 絞り込み条件と表示ページを分離
+    trapView: 'open', // 'open' (開いている罠) または 'closed' (過去の罠)
     trapFilters: { // 罠の絞り込み状態
-        status: 'all',
-        type: 'all'
+        type: 'all'    // all, くくり罠, 箱罠, ...
     }
 };
 
@@ -47,7 +48,11 @@ window.addEventListener('load', () => {
 // --- タブ切り替えロジック ---
 function setupTabs() {
     // 各タブが押されたら、navigateTo 関数を正しい引数で呼び出す
-    tabs.trap.addEventListener('click', () => navigateTo('trap', showTrapPage, '罠'));
+    tabs.trap.addEventListener('click', () => {
+        // ★ 修正: 罠タブが押されたら、必ず「開いている罠」ページに戻る
+        appState.trapView = 'open'; 
+        navigateTo('trap', showTrapPage, '罠');
+    });
     tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
     tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
@@ -91,7 +96,14 @@ function updateHeader(title, showBack = false) {
     // (各画面（例: trap.js）で、必要に応じてこの onclick は上書きされます)
     if (showBack) {
         backButton.onclick = () => {
-            if (appState.currentPage === 'trap') navigateTo('trap', showTrapPage, '罠');
+            // ★ 修正: 罠タブの場合、現在の表示状態('open'/'closed')に応じて戻る
+            if (appState.currentPage === 'trap') {
+                if (appState.trapView === 'open') {
+                    navigateTo('trap', showTrapPage, '罠');
+                } else {
+                    navigateTo('trap', showClosedTrapPage, '過去の罠');
+                }
+            }
             else if (appState.currentPage === 'gun') navigateTo('gun', showGunPage, '銃');
             else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
             else if (appState.currentPage === 'settings') navigateTo('settings', showSettingsPage, '設定');
@@ -180,4 +192,3 @@ function formatDate(dateString) {
         return dateString; // パース失敗時は元の文字列を返す
     }
 }
-// ▲▲▲ この } が不足していたようです ▲▲▲
