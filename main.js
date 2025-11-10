@@ -18,7 +18,6 @@ const appState = {
     currentPage: 'trap', // 現在表示中のタブ
     currentTrapId: null, // 編集中の罠ID
     currentGunLogId: null, // 編集中の銃使用履歴ID
-    
     // ★ 修正: 絞り込み条件と表示ページを分離
     trapView: 'open', // 'open' (開いている罠) または 'closed' (過去の罠)
     trapFilters: { // 罠の絞り込み状態
@@ -38,7 +37,7 @@ window.addEventListener('load', () => {
         setupTabs();
         // 3. 初期タブ（「罠」タブ）を表示
         // 起動時に「罠」タブを表示する (navigateTo を使うように変更)
-        navigateTo('trap', showTrapPage, '罠');
+        navigateTo('trap', showTrapPage, '罠 (設置中)');
     }).catch(err => {
         console.error("Failed to open database:", err);
         app.innerHTML = `<div class="error-box">データベースの起動に失敗しました。アプリが使用できません。</div>`;
@@ -51,7 +50,7 @@ function setupTabs() {
     tabs.trap.addEventListener('click', () => {
         // ★ 修正: 罠タブが押されたら、必ず「開いている罠」ページに戻る
         appState.trapView = 'open'; 
-        navigateTo('trap', showTrapPage, '罠');
+        navigateTo('trap', showTrapPage, '罠 (設置中)');
     });
     tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
@@ -80,7 +79,12 @@ function navigateTo(pageId, pageFunction, title) {
     updateHeader(title, false);
     
     // 該当するページの描画関数を実行
-    pageFunction();
+    try {
+        pageFunction();
+    } catch (err) {
+        console.error(`Failed to execute page function for ${pageId}:`, err);
+        app.innerHTML = `<div class="error-box">ページの描画に失敗しました: ${err.message}</div>`;
+    }
 }
 
 /**
@@ -99,7 +103,7 @@ function updateHeader(title, showBack = false) {
             // ★ 修正: 罠タブの場合、現在の表示状態('open'/'closed')に応じて戻る
             if (appState.currentPage === 'trap') {
                 if (appState.trapView === 'open') {
-                    navigateTo('trap', showTrapPage, '罠');
+                    navigateTo('trap', showTrapPage, '罠 (設置中)');
                 } else {
                     navigateTo('trap', showClosedTrapPage, '過去の罠');
                 }
@@ -107,7 +111,7 @@ function updateHeader(title, showBack = false) {
             else if (appState.currentPage === 'gun') navigateTo('gun', showGunPage, '銃');
             else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
             else if (appState.currentPage === 'settings') navigateTo('settings', showSettingsPage, '設定');
-            else navigateTo('trap', showTrapPage, '罠'); // デフォルトに戻る
+            else navigateTo('trap', showTrapPage, '罠 (設置中)'); // デフォルトに戻る
         };
     }
 
@@ -182,13 +186,25 @@ function escapeHTML(str) {
 function formatDate(dateString) {
     if (!dateString) return '未設定';
     try {
+        // YYYY-MM-DD 形式を正しくパースする
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+            const year = parts[0];
+            const month = parts[1];
+            const day = parts[2];
+            return `${year}/${month}/${day}`;
+        }
+        // パースできない場合は元の文字列か、簡易的な変換を試みる
         const date = new Date(dateString);
-        // タイムゾーンの問題を避けるため、UTCとして日付を読み取る
-        const year = date.getUTCFullYear();
-        const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
-        const day = date.getUTCDate().toString().padStart(2, '0');
+        if (isNaN(date.getTime())) return dateString; // 無効な日付
+        
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
         return `${year}/${month}/${day}`;
+
     } catch (e) {
         return dateString; // パース失敗時は元の文字列を返す
     }
 }
+```eof

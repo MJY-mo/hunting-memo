@@ -111,3 +111,4 @@ db.version(1).stores({
 // これで、他のJSファイル (main.js, trap.js など) から
 // 'db' というグローバル変数としてアクセスできます。
 console.log("Database schema defined (db.js)");
+```eof
