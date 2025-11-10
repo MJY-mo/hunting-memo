@@ -9,6 +9,7 @@ async function showTrapPage() {
     // updateHeader('罠', false);
     
     // 現在の絞り込み条件（グローバル状態として保持）
+    // (鳥類図鑑アプリの appState.listControls に相当)
     if (!appState.trapFilters) {
         appState.trapFilters = {
             status: 'all', // all, open, closed
@@ -52,15 +53,15 @@ async function showTrapPage() {
             +
         </button>
     `;
-
+    
+    // ★ 修正: 絞り込みセレクタが描画された *後* にリスナーを登録
+    
     // 絞り込みのセレクトボックスに現在の状態を反映
     document.getElementById('filter-status').value = appState.trapFilters.status;
     document.getElementById('filter-type').value = appState.trapFilters.type;
 
-    // 罠一覧を描画
-    await renderTrapList();
-
     // --- イベントリスナーを設定 ---
+    // (id='add-trap-btn' がHTMLに存在するので、エラーは解消されます)
     document.getElementById('add-trap-btn').addEventListener('click', () => {
         // 新規登録フォームを表示
         showTrapEditForm(null); 
@@ -75,6 +76,9 @@ async function showTrapPage() {
         appState.trapFilters.type = e.target.value;
         renderTrapList(); // 絞り込みして再描画
     });
+
+    // 罠一覧を描画
+    await renderTrapList();
 }
 
 /**
@@ -82,7 +86,7 @@ async function showTrapPage() {
  */
 async function renderTrapList() {
     const container = document.getElementById('trap-list-container');
-    if (!container) return;
+    if (!container) return; // ページ切り替えなどでコンテナがない場合は何もしない
 
     try {
         // Dexieの 'traps' テーブルから 'trap_number' でソートして全件取得
@@ -192,68 +196,74 @@ async function showTrapEditForm(trapId) {
     backButton.onclick = () => showTrapPage();
 
     // フォームのHTMLを描画
-    // ★ UI改善: 各セクションを card (白背景の囲み) でグループ化
+    // ★★★ UI改善: フォーム全体を1つのカードで囲み、セクション間は <hr> で区切る ★★★
     app.innerHTML = `
-        <form id="trap-form" class="space-y-6">
+        <form id="trap-form" class="card space-y-4">
             
             <!-- 基本情報セクション -->
-            <div class="card space-y-4">
-                <h3 class="text-lg font-semibold border-b pb-2">基本情報</h3>
-                <div class="form-group">
-                    <label for="trap_number" class="form-label">罠ナンバー (必須・重複不可)</label>
-                    <input type="text" id="trap_number" name="trap_number" value="${escapeHTML(trap.trap_number)}" class="form-input" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="trap_type" class="form-label">種類</label>
-                    <select id="trap_type" name="trap_type" class="form-select">
-                        <option value="くくり罠" ${trap.trap_type === 'くくり罠' ? 'selected' : ''}>くくり罠</option>
-                        <option value="箱罠" ${trap.trap_type === '箱罠' ? 'selected' : ''}>箱罠</option>
-                    </select>
-                </div>
-                
-                <div class="grid grid-cols-2 gap-3">
+            <div>
+                <h3 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h3>
+                <div class="space-y-4"> <!-- 各フォーム要素の間のスペース -->
                     <div class="form-group">
-                        <label for="setup_date" class="form-label">開け日（設置日）</label>
-                        <input type="date" id="setup_date" name="setup_date" value="${escapeHTML(trap.setup_date || '')}" class="form-input">
+                        <label for="trap_number" class="form-label">罠ナンバー (必須・重複不可)</label>
+                        <input type="text" id="trap_number" name="trap_number" value="${escapeHTML(trap.trap_number)}" class="form-input" required>
                     </div>
-                    <div class="form-group">
-                        <label for="close_date" class="form-label">閉め日（回収日）</label>
-                        <input type="date" id="close_date" name="close_date" value="${escapeHTML(trap.close_date || '')}" class="form-input">
-                    </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="bait" class="form-label">誘引（エサなど）</label>
-                    <input type="text" id="bait" name="bait" value="${escapeHTML(trap.additional_data.bait || '')}" class="form-input" placeholder="米ぬか、くず野菜など">
+                    <div class="form-group">
+                        <label for="trap_type" class="form-label">種類</label>
+                        <select id="trap_type" name="trap_type" class="form-select">
+                            <option value="くくり罠" ${trap.trap_type === 'くくり罠' ? 'selected' : ''}>くくり罠</option>
+                            <option value="箱罠" ${trap.trap_type === '箱罠' ? 'selected' : ''}>箱罠</option>
+                        </select>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="form-group">
+                            <label for="setup_date" class="form-label">開け日（設置日）</label>
+                            <input type="date" id="setup_date" name="setup_date" value="${escapeHTML(trap.setup_date || '')}" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="close_date" class="form-label">閉め日（回収日）</label>
+                            <input type="date" id="close_date" name="close_date" value="${escapeHTML(trap.close_date || '')}" class="form-input">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bait" class="form-label">誘引（エサなど）</label>
+                        <input type="text" id="bait" name="bait" value="${escapeHTML(trap.additional_data.bait || '')}" class="form-input" placeholder="米ぬか、くず野菜など">
+                    </div>
                 </div>
             </div>
 
             <!-- 位置情報セクション -->
-            <div class="card space-y-4">
-                <h3 class="text-lg font-semibold border-b pb-2">位置情報</h3>
-                <button type="button" id="get-location-btn" class="btn btn-secondary w-full">📍 現在地を取得</button>
-                <p id="location-status" class="text-sm text-gray-500 text-center"></p>
+            <hr class="my-4">
+            <div>
+                <h3 class="text-lg font-semibold border-b pb-2 mb-4">位置情報</h3>
+                <div class="space-y-4">
+                    <button type="button" id="get-location-btn" class="btn btn-secondary w-full">📍 現在地を取得</button>
+                    <p id="location-status" class="text-sm text-gray-500 text-center"></p>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <div class="form-group">
-                        <label for="latitude" class="form-label">緯度</label>
-                        <input type="number" step="any" id="latitude" name="latitude" value="${escapeHTML(trap.latitude || '')}" class="form-input" placeholder="35.123456">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="form-group">
+                            <label for="latitude" class="form-label">緯度</label>
+                            <input type="number" step="any" id="latitude" name="latitude" value="${escapeHTML(trap.latitude || '')}" class="form-input" placeholder="35.123456">
+                        </div>
+                        <div class="form-group">
+                            <label for="longitude" class="form-label">経度</label>
+                            <input type="number" step="any" id="longitude" name="longitude" value="${escapeHTML(trap.longitude || '')}" class="form-input" placeholder="139.123456">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="longitude" class="form-label">経度</label>
-                        <input type="number" step="any" id="longitude" name="longitude" value="${escapeHTML(trap.longitude || '')}" class="form-input" placeholder="139.123456">
-                    </div>
-                </div>
 
-                <div class="form-group">
-                    <label for="location_memo" class="form-label">位置メモ</label>
-                    <input type="text" id="location_memo" name="location_memo" value="${escapeHTML(trap.additional_data.location_memo || '')}" class="form-input" placeholder="沢沿いの獣道、左岸など">
+                    <div class="form-group">
+                        <label for="location_memo" class="form-label">位置メモ</label>
+                        <input type="text" id="location_memo" name="location_memo" value="${escapeHTML(trap.additional_data.location_memo || '')}" class="form-input" placeholder="沢沿いの獣道、左岸など">
+                    </div>
                 </div>
             </div>
             
             <!-- 操作ボタンセクション -->
-            <div class="card space-y-4">
+            <hr class="my-4">
+            <div class="space-y-4">
                 <!-- 保存・キャンセルボタン -->
                 <div class="grid grid-cols-2 gap-3">
                     <button type="button" id="cancel-btn" class="btn btn-secondary">キャンセル</button>
