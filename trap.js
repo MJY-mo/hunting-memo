@@ -35,12 +35,12 @@ async function showTrapPage() {
         </div>
 
         <button id="add-trap-btn" title="新しい罠を登録"
-            class="fixed bottom-20 right-5 z-10 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-blue-700">
+            class="fixed bottom-36 right-5 z-10 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-blue-700">
             +
         </button>
         
-        <button id="show-closed-btn" title="過去の罠を見る"
-            class="fixed bottom-36 right-5 z-10 w-14 h-14 bg-gray-500 text-white rounded-full shadow-lg flex items-center justify-center text-xl hover:bg-gray-600">
+        <button id="show-closed-btn" title="罠設置履歴を見る"
+            class="fixed bottom-20 right-5 z-10 w-14 h-14 bg-gray-500 text-white rounded-full shadow-lg flex items-center justify-center text-xl hover:bg-gray-600">
             履歴
         </button>
     `;
@@ -54,13 +54,10 @@ async function showTrapPage() {
     document.getElementById('add-trap-btn').addEventListener('click', async () => {
         // ★ 修正: 開いている罠の数をチェック
         try {
-            // --- ★★★ 修正 (1/3) ★★★ ---
-            // .where().or() という無効な構文、および 'null' が 'invalid key' となるエラーを回避するため、
-            // .filter() を使った安全なカウント方法に変更します。
+            // .filter() を使った安全なカウント方法
             const openTrapsCount = await db.traps
                 .filter(trap => trap.close_date === null || trap.close_date === '')
                 .count();
-            // --- 修正ここまで ---
             
             if (openTrapsCount >= MAX_OPEN_TRAPS) {
                 alert(`開いている罠が上限（${MAX_OPEN_TRAPS}個）に達しています。新しい罠を登録するには、既存の罠を「閉め日」に設定（回収済みに）してください。`);
@@ -95,8 +92,8 @@ async function showTrapPage() {
 async function showClosedTrapPage() {
     // main.js のグローバル状態を更新
     appState.trapView = 'closed';
-    // ヘッダーを「過去の罠」に設定
-    updateHeader('過去の罠', false);
+    // ★ 修正: ヘッダータイトルを変更
+    updateHeader('罠設置履歴', false);
 
     // 絞り込み条件の初期化
     if (!appState.trapFilters) {
@@ -121,7 +118,7 @@ async function showClosedTrapPage() {
         </div>
         
         <button id="show-open-btn" title="開いている罠を見る"
-            class="fixed bottom-20 right-5 z-10 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-xl hover:bg-blue-700">
+            class="fixed bottom-20 right-5 z-10 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-sm font-semibold hover:bg-blue-700">
             設置中
         </button>
     `;
@@ -155,14 +152,10 @@ async function renderTrapList() {
     if (!container) return; 
 
     try {
-        // --- ★★★ 修正 (2/3) ★★★ ---
-        // .where().anyOf([null, ...]) が "invalid key" エラーを起こすため、
-        // .filter() を使った安全な絞り込みに変更します。
-        // (close_date が null または 空文字 のものを検索)
+        // .filter() を使った安全な絞り込み
         let query = db.traps.filter(trap => 
             trap.close_date === null || trap.close_date === ''
         );
-        // --- 修正ここまで ---
 
         // ★ 修正: 絞り込みロジック (種類のみ)
         const { type } = appState.trapFilters;
@@ -182,22 +175,22 @@ async function renderTrapList() {
         container.innerHTML = traps.map(trap => {
             const statusClass = 'bg-green-100 text-green-700';
             const statusText = '設置中';
-            // ★ 修正: 「区分」を表示
             const categoryText = trap.category ? trap.category : '未分類';
 
+            // --- ★★★ 修正: 2行表示レイアウト ---
             return `
                 <div class="trap-card" data-id="${trap.id}">
-                    <div>
-                        <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(trap.trap_number)}</h3>
-                        <p class="text-sm text-gray-600">${escapeHTML(trap.trap_type)}</p>
-                        <p class="text-sm text-gray-500">${escapeHTML(categoryText)}</p>
-                        <p class="text-xs text-gray-500 mt-1">設置日: ${formatDate(trap.setup_date)}</p>
+                    <div class="flex-grow min-w-0"> <h3 class="text-lg font-semibold text-blue-600 truncate">${escapeHTML(trap.trap_number)}</h3>
+                        <p class="text-sm text-gray-500 truncate">
+                            ${escapeHTML(trap.trap_type)} / ${escapeHTML(categoryText)} / 設置: ${formatDate(trap.setup_date)}
+                        </p>
                     </div>
-                    <span class="text-sm font-bold px-3 py-1 rounded-full ${statusClass}">
+                    <span class="text-sm font-bold px-3 py-1 rounded-full ${statusClass} flex-shrink-0 ml-2">
                         ${statusText}
                     </span>
                 </div>
             `;
+            // --- 修正ここまで ---
         }).join('');
 
         // 描画された各カードにクリックイベントを設定
@@ -224,7 +217,6 @@ async function renderClosedTrapList() {
 
     try {
         // ★ 修正: DBクエリで「閉じている罠」のみを取得
-        // (close_date が null でも空文字でもない)
         let query = db.traps.filter(trap => 
             trap.close_date !== null && trap.close_date !== ''
         );
@@ -248,19 +240,20 @@ async function renderClosedTrapList() {
             const statusText = '回収済';
             const categoryText = trap.category ? trap.category : '未分類';
 
+            // --- ★★★ 修正: 2行表示レイアウト ---
             return `
                 <div class="trap-card" data-id="${trap.id}">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-600">${escapeHTML(trap.trap_number)}</h3>
-                        <p class="text-sm text-gray-600">${escapeHTML(trap.trap_type)}</p>
-                        <p class="text-sm text-gray-500">${escapeHTML(categoryText)}</p>
-                        <p class="text-xs text-gray-500 mt-1">回収日: ${formatDate(trap.close_date)}</p>
+                    <div class="flex-grow min-w-0"> <h3 class="text-lg font-semibold text-gray-600 truncate">${escapeHTML(trap.trap_number)}</h3>
+                        <p class="text-sm text-gray-500 truncate">
+                            ${escapeHTML(trap.trap_type)} / ${escapeHTML(categoryText)} / 回収: ${formatDate(trap.close_date)}
+                        </p>
                     </div>
-                    <span class="text-sm font-bold px-3 py-1 rounded-full ${statusClass}">
+                    <span class="text-sm font-bold px-3 py-1 rounded-full ${statusClass} flex-shrink-0 ml-2">
                         ${statusText}
                     </span>
                 </div>
             `;
+            // --- 修正ここまで ---
         }).join('');
 
         // 描画された各カードにクリックイベントを設定
@@ -307,7 +300,7 @@ async function showTrapEditForm(trapId) {
         try {
             trap = await db.traps.get(trapId);
             if (!trap) {
-                alert('罠データが見つかりません。');
+                alert('罠データが見つません。');
                 (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
                 return;
             }
@@ -468,14 +461,10 @@ async function showTrapEditForm(trapId) {
 
         try {
             if (isNew) {
-                // ★ 修正: 30個の上限を再チェック (保存直前)
-                // --- ★★★ 修正 (3/3) ★★★ ---
-                // .where().or() という無効な構文を、.filter() を使った
-                // 正しいカウント方法に変更します。
+                // .filter() を使った正しいカウント方法
                 const openTrapsCount = await db.traps
                     .filter(trap => trap.close_date === null || trap.close_date === '')
                     .count();
-                // --- 修正ここまで ---
                 
                 if (openTrapsCount >= MAX_OPEN_TRAPS && (data.close_date === null || data.close_date === '')) {
                      alert(`開いている罠が上限（${MAX_OPEN_TRAPS}個）に達しています。`);
