@@ -54,10 +54,13 @@ async function showTrapPage() {
     document.getElementById('add-trap-btn').addEventListener('click', async () => {
         // ★ 修正: 開いている罠の数をチェック
         try {
+            // --- ★★★ 修正 (1/3) ★★★ ---
+            // .where().or() という無効な構文、および 'null' が 'invalid key' となるエラーを回避するため、
+            // .filter() を使った安全なカウント方法に変更します。
             const openTrapsCount = await db.traps
-                .where('close_date').equals(null) // 'close_date' が null
-                .or('close_date').equals('')       // または空文字
+                .filter(trap => trap.close_date === null || trap.close_date === '')
                 .count();
+            // --- 修正ここまで ---
             
             if (openTrapsCount >= MAX_OPEN_TRAPS) {
                 alert(`開いている罠が上限（${MAX_OPEN_TRAPS}個）に達しています。新しい罠を登録するには、既存の罠を「閉め日」に設定（回収済みに）してください。`);
@@ -152,11 +155,13 @@ async function renderTrapList() {
     if (!container) return; 
 
     try {
-        // --- ★★★ 修正: クエリ構文のバグを修正 ★★★ ---
-        // 無効な .or(...) 構文から、正しい .anyOf(...) 構文に変更します。
-        // (close_date が null または 空文字 の両方を正しく検索します)
-        let query = db.traps
-            .where('close_date').anyOf([null, '']);
+        // --- ★★★ 修正 (2/3) ★★★ ---
+        // .where().anyOf([null, ...]) が "invalid key" エラーを起こすため、
+        // .filter() を使った安全な絞り込みに変更します。
+        // (close_date が null または 空文字 のものを検索)
+        let query = db.traps.filter(trap => 
+            trap.close_date === null || trap.close_date === ''
+        );
         // --- 修正ここまで ---
 
         // ★ 修正: 絞り込みロジック (種類のみ)
@@ -204,6 +209,7 @@ async function renderTrapList() {
         });
 
     } catch (err) {
+        // エラーログはコンソールに詳細を出す
         console.error("Failed to render trap list:", err);
         container.innerHTML = `<div class="error-box">罠一覧の読み込みに失敗しました。</div>`;
     }
@@ -463,10 +469,13 @@ async function showTrapEditForm(trapId) {
         try {
             if (isNew) {
                 // ★ 修正: 30個の上限を再チェック (保存直前)
+                // --- ★★★ 修正 (3/3) ★★★ ---
+                // .where().or() という無効な構文を、.filter() を使った
+                // 正しいカウント方法に変更します。
                 const openTrapsCount = await db.traps
-                    .where('close_date').equals(null)
-                    .or('close_date').equals('')
+                    .filter(trap => trap.close_date === null || trap.close_date === '')
                     .count();
+                // --- 修正ここまで ---
                 
                 if (openTrapsCount >= MAX_OPEN_TRAPS && (data.close_date === null || data.close_date === '')) {
                      alert(`開いている罠が上限（${MAX_OPEN_TRAPS}個）に達しています。`);
