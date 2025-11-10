@@ -9,13 +9,50 @@ const db = new Dexie('BLNCRHuntingApp');
 // 'close_date': 罠の開閉状態で検索するためのインデックス
 // 'category': 区分で検索するためのインデックス
 
-// --- ★ 修正: version(2) に更新 ---
-// 新しいインデックス 'category' を追加します
-// 既に version(1) でDBを作成しているユーザーのために、
-// .upgrade() は不要です。stores() の定義を変更するだけで
-// Dexieが自動的に差分をマイグレーションします。
+
+// --- ★ 修正: version(1) を先に定義します ---
+db.version(1).stores({
+  traps: `
+    ++id,
+    &trap_number,
+    trap_type,
+    close_date
+  `,
+  guns: `
+    ++id,
+    &gun_name
+  `,
+  gun_logs: `
+    ++id,
+    gun_id,
+    use_date,
+    purpose
+  `,
+  ammo_purchases: `
+    ++id,
+    ammo_type,
+    purchase_date
+  `,
+  catches: `
+    ++id,
+    catch_date,
+    method,
+    relation_id,
+    [method+catch_date]
+  `,
+  photos: `
+    ++id,
+    catch_id
+  `,
+  settings: `
+    &key
+  `
+});
+
+// --- ★ 修正: version(2) を v1 の後に定義します ---
+// (v1 から v2 へのアップグレードが正しく動作するようになります)
 db.version(2).stores({
-  // 1. 罠管理ストア
+  // 1. 罠管理ストア (categoryインデックスを追加)
   traps: `
     ++id,
     &trap_number,
@@ -62,46 +99,6 @@ db.version(2).stores({
   `,
 
   // 7. 設定ストア
-  settings: `
-    &key
-  `
-});
-
-// version(1) の定義も残しておくと、
-// v1 から v2 へのアップグレードがスムーズになります
-db.version(1).stores({
-  traps: `
-    ++id,
-    &trap_number,
-    trap_type,
-    close_date
-  `,
-  guns: `
-    ++id,
-    &gun_name
-  `,
-  gun_logs: `
-    ++id,
-    gun_id,
-    use_date,
-    purpose
-  `,
-  ammo_purchases: `
-    ++id,
-    ammo_type,
-    purchase_date
-  `,
-  catches: `
-    ++id,
-    catch_date,
-    method,
-    relation_id,
-    [method+catch_date]
-  `,
-  photos: `
-    ++id,
-    catch_id
-  `,
   settings: `
     &key
   `

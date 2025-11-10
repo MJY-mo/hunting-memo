@@ -19,7 +19,6 @@ async function showTrapPage() {
 
     // メインコンテンツ（app）を描画
     app.innerHTML = `
-        <!-- 絞り込みUI (種類のみ) -->
         <div class="card mb-4">
             <div>
                 <label for="filter-type" class="form-label">種類で絞り込み</label>
@@ -31,18 +30,15 @@ async function showTrapPage() {
             </div>
         </div>
 
-        <!-- 開いている罠一覧リスト -->
         <div id="trap-list-container" class="space-y-3">
             <p class="text-gray-500 text-center py-4">罠データを読み込み中...</p>
         </div>
 
-        <!-- 新規追加ボタン (FAB) -->
         <button id="add-trap-btn" title="新しい罠を登録"
             class="fixed bottom-20 right-5 z-10 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-blue-700">
             +
         </button>
         
-        <!-- ★ 過去の罠ページへの移動ボタン -->
         <button id="show-closed-btn" title="過去の罠を見る"
             class="fixed bottom-36 right-5 z-10 w-14 h-14 bg-gray-500 text-white rounded-full shadow-lg flex items-center justify-center text-xl hover:bg-gray-600">
             履歴
@@ -106,7 +102,6 @@ async function showClosedTrapPage() {
 
     // メインコンテンツ（app）を描画
     app.innerHTML = `
-        <!-- 絞り込みUI (種類のみ) -->
         <div class="card mb-4">
             <div>
                 <label for="filter-type" class="form-label">種類で絞り込み</label>
@@ -118,12 +113,10 @@ async function showClosedTrapPage() {
             </div>
         </div>
 
-        <!-- 閉じている罠一覧リスト -->
         <div id="trap-list-container" class="space-y-3">
             <p class="text-gray-500 text-center py-4">過去の罠データを読み込み中...</p>
         </div>
         
-        <!-- ★ 開いている罠ページへの移動ボタン -->
         <button id="show-open-btn" title="開いている罠を見る"
             class="fixed bottom-20 right-5 z-10 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-xl hover:bg-blue-700">
             設置中
@@ -159,11 +152,12 @@ async function renderTrapList() {
     if (!container) return; 
 
     try {
-        // ★ 修正: DBクエリで「開いている罠」のみを取得
-        // (close_date が null または空文字)
+        // --- ★★★ 修正: クエリ構文のバグを修正 ★★★ ---
+        // 無効な .or(...) 構文から、正しい .anyOf(...) 構文に変更します。
+        // (close_date が null または 空文字 の両方を正しく検索します)
         let query = db.traps
-            .where('close_date').equals(null)
-            .or('close_date').equals('');
+            .where('close_date').anyOf([null, '']);
+        // --- 修正ここまで ---
 
         // ★ 修正: 絞り込みロジック (種類のみ)
         const { type } = appState.trapFilters;
@@ -191,7 +185,6 @@ async function renderTrapList() {
                     <div>
                         <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(trap.trap_number)}</h3>
                         <p class="text-sm text-gray-600">${escapeHTML(trap.trap_type)}</p>
-                        <!-- ★ 修正: 区分を追加 -->
                         <p class="text-sm text-gray-500">${escapeHTML(categoryText)}</p>
                         <p class="text-xs text-gray-500 mt-1">設置日: ${formatDate(trap.setup_date)}</p>
                     </div>
@@ -332,7 +325,6 @@ async function showTrapEditForm(trapId) {
     app.innerHTML = `
         <form id="trap-form" class="card space-y-4">
             
-            <!-- 基本情報セクション -->
             <div>
                 <h3 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h3>
                 <div class="space-y-4">
@@ -341,7 +333,6 @@ async function showTrapEditForm(trapId) {
                         <input type="text" id="trap_number" name="trap_number" value="${escapeHTML(trap.trap_number)}" class="form-input" required>
                     </div>
 
-                    <!-- ★ 修正: 区分セレクトボックスを追加 -->
                     <div class="form-group">
                         <label for="category" class="form-label">区分</label>
                         <select id="category" name="category" class="form-select">
@@ -378,7 +369,6 @@ async function showTrapEditForm(trapId) {
                 </div>
             </div>
 
-            <!-- 位置情報セクション -->
             <hr class="my-4">
             <div>
                 <h3 class="text-lg font-semibold border-b pb-2 mb-4">位置情報</h3>
@@ -404,7 +394,6 @@ async function showTrapEditForm(trapId) {
                 </div>
             </div>
             
-            <!-- 操作ボタンセクション -->
             <hr class="my-4">
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-3">
