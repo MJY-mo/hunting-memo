@@ -18,7 +18,6 @@ const appState = {
     currentPage: 'trap', // 現在表示中のタブ
     currentTrapId: null, // 編集中の罠ID
     currentGunLogId: null, // 編集中の銃使用履歴ID
-    // ★ 修正: 絞り込み条件と表示ページを分離
     trapView: 'open', // 'open' (開いている罠) または 'closed' (過去の罠)
     trapFilters: { // 罠の絞り込み状態
         type: 'all'    // all, くくり罠, 箱罠, ...
@@ -31,12 +30,17 @@ window.addEventListener('load', () => {
     console.log("Window loaded. Initializing app...");
     
     // 1. データベースを開く試行
-    db.open().then(() => {
+    db.open().then(async () => {
         console.log("Database opened successfully.");
-        // 2. タブ切り替えのリスナーを設定
+        
+        // ★★★ 新規 (2/4) ★★★
+        // 2. デフォルトの罠種類をDBに投入 (存在しない場合のみ)
+        await populateDefaultTrapTypes();
+        
+        // 3. タブ切り替えのリスナーを設定
         setupTabs();
-        // 3. 初期タブ（「罠」タブ）を表示
-        // 起動時に「罠」タブを表示する (navigateTo を使うように変更)
+        
+        // 4. 初期タブ（「罠」タブ）を表示
         navigateTo('trap', showTrapPage, '罠 (設置中)');
     }).catch(err => {
         console.error("Failed to open database:", err);
@@ -44,11 +48,39 @@ window.addEventListener('load', () => {
     });
 });
 
+/**
+ * ★★★ 新規 (2/4) ★★★
+ * アプリ起動時に、デフォルトの罠種類をDBに登録する
+ */
+async function populateDefaultTrapTypes() {
+    try {
+        // Dexieのトランザクションを使って、複数のデータを効率的に追加
+        // .add() はプライマリキーが重複すると失敗する (ConstraintError)
+        // .bulkAdd() も同様だが、ここでは put (追加または上書き) を使い、
+        // 確実にデータが存在するようにします。
+        // ただし、'name'はユニークなので .add() の方が適切かもしれません。
+        // ここでは .add() を使い、重複エラーは無視 (catch) します。
+        
+        await db.trap_types.bulkAdd([
+            { name: 'くくり罠' },
+            { name: '箱罠' }
+        ]);
+        console.log("Default trap types populated (if they didn't exist).");
+    } catch (err) {
+        if (err.name === 'BulkError') {
+            // 'BulkError' の場合、一部または全部が重複エラー (ConstraintError)
+            console.log("Default trap types already exist (BulkError ignored).");
+        } else {
+            console.error("Failed to populate default trap types:", err);
+        }
+    }
+}
+
+
 // --- タブ切り替えロジック ---
 function setupTabs() {
     // 各タブが押されたら、navigateTo 関数を正しい引数で呼び出す
     tabs.trap.addEventListener('click', () => {
-        // ★ 修正: 罠タブが押されたら、必ず「開いている罠」ページに戻る
         appState.trapView = 'open'; 
         navigateTo('trap', showTrapPage, '罠 (設置中)');
     });
@@ -97,17 +129,16 @@ function updateHeader(title, showBack = false) {
     backButton.classList.toggle('hidden', !showBack);
     
     // 戻るボタンのデフォルト動作（タブ一覧に戻る）
-    // (各画面（例: trap.js）で、必要に応じてこの onclick は上書きされます)
     if (showBack) {
         backButton.onclick = () => {
-            // ★ 修正: 罠タブの場合、現在の表示状態('open'/'closed')に応じて戻る
             if (appState.currentPage === 'trap') {
                 if (appState.trapView === 'open') {
                     navigateTo('trap', showTrapPage, '罠 (設置中)');
                 } else {
-                    navigateTo('trap', showClosedTrapPage, '過去の罠');
+                    navigateTo('trap', showClosedTrapPage, '罠設置履歴');
                 }
             }
+            // ★★★ 修正 (2/4) ★★★ (設定タブからの戻る動作)
             else if (appState.currentPage === 'gun') navigateTo('gun', showGunPage, '銃');
             else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
             else if (appState.currentPage === 'settings') navigateTo('settings', showSettingsPage, '設定');

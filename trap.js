@@ -24,9 +24,7 @@ async function showTrapPage() {
                 <label for="filter-type" class="form-label">種類で絞り込み</label>
                 <select id="filter-type" class="form-select mt-1">
                     <option value="all">すべての種類</option>
-                    <option value="くくり罠">くくり罠</option>
-                    <option value="箱罠">箱罠</option>
-                </select>
+                    </select>
             </div>
         </div>
 
@@ -45,16 +43,15 @@ async function showTrapPage() {
         </button>
     `;
     
-    // 絞り込みのセレクトボックスに現在の状態を反映
-    document.getElementById('filter-type').value = appState.trapFilters.type;
-
+    // ★★★ 新規 (4/4) ★★★
+    // 罠の種類のプルダウンを描画
+    await renderTrapTypeOptions('filter-type', appState.trapFilters.type, true);
+    
     // --- イベントリスナーを設定 ---
     
     // ＋ボタン（新規追加）
     document.getElementById('add-trap-btn').addEventListener('click', async () => {
-        // ★ 修正: 開いている罠の数をチェック
         try {
-            // .filter() を使った安全なカウント方法
             const openTrapsCount = await db.traps
                 .filter(trap => trap.close_date === null || trap.close_date === '')
                 .count();
@@ -62,7 +59,6 @@ async function showTrapPage() {
             if (openTrapsCount >= MAX_OPEN_TRAPS) {
                 alert(`開いている罠が上限（${MAX_OPEN_TRAPS}個）に達しています。新しい罠を登録するには、既存の罠を「閉め日」に設定（回収済みに）してください。`);
             } else {
-                // 上限以下の場合のみフォームを表示
                 showTrapEditForm(null); 
             }
         } catch (err) {
@@ -107,9 +103,7 @@ async function showClosedTrapPage() {
                 <label for="filter-type" class="form-label">種類で絞り込み</label>
                 <select id="filter-type" class="form-select mt-1">
                     <option value="all">すべての種類</option>
-                    <option value="くくり罠">くくり罠</option>
-                    <option value="箱罠">箱罠</option>
-                </select>
+                    </select>
             </div>
         </div>
 
@@ -123,8 +117,9 @@ async function showClosedTrapPage() {
         </button>
     `;
     
-    // 絞り込みのセレクトボックスに現在の状態を反映
-    document.getElementById('filter-type').value = appState.trapFilters.type;
+    // ★★★ 新規 (4/4) ★★★
+    // 罠の種類のプルダウンを描画
+    await renderTrapTypeOptions('filter-type', appState.trapFilters.type, true);
 
     // --- イベントリスナーを設定 ---
     
@@ -141,6 +136,51 @@ async function showClosedTrapPage() {
 
     // 過去の罠一覧を描画
     await renderClosedTrapList();
+}
+
+
+/**
+ * ★★★ 新規 (4/4) ★★★
+ * 罠の種類の <option> タグをDBから描画するヘルパー関数
+ * @param {string} selectId - <select> タグのID
+ * @param {string} selectedValue - 現在選択されている値
+ * @param {boolean} includeAll - 「すべての種類」オプションを含めるか
+ */
+async function renderTrapTypeOptions(selectId, selectedValue, includeAll = false) {
+    const selectEl = document.getElementById(selectId);
+    if (!selectEl) return;
+
+    try {
+        const types = await db.trap_types.orderBy('name').toArray();
+        
+        let optionsHtml = '';
+        if (includeAll) {
+            optionsHtml += `<option value="all">すべての種類</option>`;
+        }
+
+        optionsHtml += types.map(type => `
+            <option value="${escapeHTML(type.name)}">
+                ${escapeHTML(type.name)}
+            </option>
+        `).join('');
+        
+        // 「すべての種類」がある場合は、<option>を上書き
+        if (includeAll) {
+            selectEl.innerHTML = optionsHtml;
+        } else {
+            // フォーム画面などでは、既存の<option>に追加（もしあれば）
+            // ※今回はフォーム側も動的生成するので、上書きでOK
+            selectEl.innerHTML = optionsHtml;
+        }
+
+        // 現在の値を設定
+        selectEl.value = selectedValue;
+
+    } catch (err) {
+        console.error("Failed to render trap type options:", err);
+        // エラーでも最低限の動作を継続
+        selectEl.innerHTML = `<option value="">DB読込エラー</option>`;
+    }
 }
 
 
@@ -177,7 +217,7 @@ async function renderTrapList() {
             const statusText = '設置中';
             const categoryText = trap.category ? trap.category : '未分類';
 
-            // --- ★★★ 修正: 2行表示レイアウト ---
+            // --- ★ 修正: 2行表示レイアウト ---
             return `
                 <div class="trap-card" data-id="${trap.id}">
                     <div class="flex-grow min-w-0"> <h3 class="text-lg font-semibold text-blue-600 truncate">${escapeHTML(trap.trap_number)}</h3>
@@ -190,7 +230,6 @@ async function renderTrapList() {
                     </span>
                 </div>
             `;
-            // --- 修正ここまで ---
         }).join('');
 
         // 描画された各カードにクリックイベントを設定
@@ -216,18 +255,15 @@ async function renderClosedTrapList() {
     if (!container) return;
 
     try {
-        // ★ 修正: DBクエリで「閉じている罠」のみを取得
         let query = db.traps.filter(trap => 
             trap.close_date !== null && trap.close_date !== ''
         );
 
-        // ★ 修正: 絞り込みロジック (種類のみ)
         const { type } = appState.trapFilters;
         if (type !== 'all') {
             query = query.filter(trap => trap.trap_type === type);
         }
         
-        // 閉じている罠は、閉じた日が新しい順にソート
         let traps = await query.reverse().sortBy('close_date');
 
         if (traps.length === 0) {
@@ -240,10 +276,11 @@ async function renderClosedTrapList() {
             const statusText = '回収済';
             const categoryText = trap.category ? trap.category : '未分類';
 
-            // --- ★★★ 修正: 2行表示レイアウト ---
+            // --- ★ 修正: 2行表示レイアウト ---
             return `
                 <div class="trap-card" data-id="${trap.id}">
-                    <div class="flex-grow min-w-0"> <h3 class="text-lg font-semibold text-gray-600 truncate">${escapeHTML(trap.trap_number)}</h3>
+                    <div class="flex-grow min-w-0">
+                        <h3 class="text-lg font-semibold text-gray-600 truncate">${escapeHTML(trap.trap_number)}</h3>
                         <p class="text-sm text-gray-500 truncate">
                             ${escapeHTML(trap.trap_type)} / ${escapeHTML(categoryText)} / 回収: ${formatDate(trap.close_date)}
                         </p>
@@ -253,10 +290,8 @@ async function renderClosedTrapList() {
                     </span>
                 </div>
             `;
-            // --- 修正ここまで ---
         }).join('');
 
-        // 描画された各カードにクリックイベントを設定
         container.querySelectorAll('.trap-card').forEach(card => {
             card.addEventListener('click', () => {
                 const trapId = Number(card.dataset.id);
@@ -278,13 +313,26 @@ async function renderClosedTrapList() {
 async function showTrapEditForm(trapId) {
     const isNew = (trapId === null);
     let trap = {}; 
+    let defaultTrapType = 'くくり罠'; // デフォルト値
+
+    // ★★★ 新規 (4/4) ★★★
+    // DBから「罠の種類」の先頭1件を取得し、デフォルト値とする
+    try {
+        const firstType = await db.trap_types.orderBy('name').first();
+        if (firstType) {
+            defaultTrapType = firstType.name;
+        }
+    } catch (e) {
+        console.error("Failed to get default trap type", e);
+    }
+    // ★★★ ここまで ★★★
 
     if (isNew) {
         // 新規登録時のデフォルト値
         trap = {
             trap_number: '',
-            trap_type: 'くくり罠',
-            category: '狩猟', // ★ 修正: category のデフォルト値
+            trap_type: defaultTrapType, // ★ 修正
+            category: '狩猟',
             setup_date: new Date().toISOString().split('T')[0], // 本日の日付
             close_date: '',
             latitude: '',
@@ -300,12 +348,13 @@ async function showTrapEditForm(trapId) {
         try {
             trap = await db.traps.get(trapId);
             if (!trap) {
-                alert('罠データが見つません。');
+                alert('罠データが見つかりません。');
                 (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
                 return;
             }
             if (!trap.additional_data) trap.additional_data = {};
             if (!trap.category) trap.category = '狩猟'; // 古いデータ用のフォールバック
+            if (!trap.trap_type) trap.trap_type = defaultTrapType; // 古いデータ用
             updateHeader(`罠の編集: ${trap.trap_number}`, true);
         } catch (err) {
             console.error("Failed to get trap data:", err);
@@ -315,7 +364,7 @@ async function showTrapEditForm(trapId) {
         }
     }
 
-    // ★ 修正: 戻るボタンの動作を現在のビュー（open/closed）に合わせる
+    // 戻るボタンの動作を現在のビュー（open/closed）に合わせる
     backButton.onclick = () => {
         (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
     };
@@ -345,9 +394,7 @@ async function showTrapEditForm(trapId) {
                     <div class="form-group">
                         <label for="trap_type" class="form-label">種類</label>
                         <select id="trap_type" name="trap_type" class="form-select">
-                            <option value="くくり罠" ${trap.trap_type === 'くくり罠' ? 'selected' : ''}>くくり罠</option>
-                            <option value="箱罠" ${trap.trap_type === '箱罠' ? 'selected' : ''}>箱罠</option>
-                        </select>
+                            </select>
                     </div>
                     
                     <div class="grid grid-cols-2 gap-3">
@@ -406,14 +453,18 @@ async function showTrapEditForm(trapId) {
         </form>
     `;
 
+    // ★★★ 新規 (4/4) ★★★
+    // フォームの「種類」プルダウンを描画（「すべて」は含めない）
+    await renderTrapTypeOptions('trap_type', trap.trap_type, false);
+
     // --- フォームのイベントリスナーを設定 ---
     document.getElementById('cancel-btn').addEventListener('click', () => {
-        // ★ 修正: 現在のビューに戻る
         (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
     });
 
     // GPS取得ボタン
     document.getElementById('get-location-btn').addEventListener('click', async (e) => {
+        // (省略: 変更なし)
         const btn = e.currentTarget;
         const statusEl = document.getElementById('location-status');
         btn.disabled = true;
@@ -435,6 +486,7 @@ async function showTrapEditForm(trapId) {
 
     // 保存ボタン
     document.getElementById('trap-form').addEventListener('submit', async (e) => {
+        // (省略: 変更なし)
         e.preventDefault();
         const form = e.target;
         const saveBtn = document.getElementById('save-trap-btn');
@@ -444,11 +496,10 @@ async function showTrapEditForm(trapId) {
 
         const formData = new FormData(form);
         
-        // データを整形
         const data = {
             trap_number: formData.get('trap_number'),
-            trap_type: formData.get('trap_type'),
-            category: formData.get('category'), // ★ 修正: category を追加
+            trap_type: formData.get('trap_type'), // ★ 変更なし (動的プルダウンから取得)
+            category: formData.get('category'),
             setup_date: formData.get('setup_date'),
             close_date: formData.get('close_date') === '' ? null : formData.get('close_date'),
             latitude: formData.get('latitude') === '' ? null : Number(formData.get('latitude')),
@@ -461,7 +512,6 @@ async function showTrapEditForm(trapId) {
 
         try {
             if (isNew) {
-                // .filter() を使った正しいカウント方法
                 const openTrapsCount = await db.traps
                     .filter(trap => trap.close_date === null || trap.close_date === '')
                     .count();
@@ -477,7 +527,6 @@ async function showTrapEditForm(trapId) {
                 await db.traps.put(data);
             }
             
-            // ★ 修正: 戻る場所を判断 (保存した罠の状態に応じて)
             const isClosed = (data.close_date !== null && data.close_date !== '');
             if (isClosed) {
                 showClosedTrapPage();
@@ -488,7 +537,7 @@ async function showTrapEditForm(trapId) {
         } catch (err) {
             if (err.name === 'ConstraintError') {
                 alert(`保存失敗: 罠ナンバー「${data.trap_number}」は既に使用されています。`);
-            } else if (err.message !== "Trap limit reached") { // 上限エラーは既にalert済み
+            } else if (err.message !== "Trap limit reached") {
                 console.error("Failed to save trap:", err);
                 alert(`保存に失敗しました: ${err.message}`);
             }
@@ -501,6 +550,7 @@ async function showTrapEditForm(trapId) {
     // 削除ボタン（編集時のみ）
     if (!isNew) {
         document.getElementById('delete-trap-btn').addEventListener('click', async () => {
+            // (省略: 変更なし)
             if (window.confirm(`罠「${trap.trap_number}」を本当に削除しますか？\n（この罠に関連する捕獲記録は削除されません）`)) {
                 try {
                     await db.traps.delete(trapId);

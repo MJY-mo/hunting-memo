@@ -50,7 +50,6 @@ db.version(1).stores({
 });
 
 // --- ★ 修正: version(2) を v1 の後に定義します ---
-// (v1 から v2 へのアップグレードが正しく動作するようになります)
 db.version(2).stores({
   // 1. 罠管理ストア (categoryインデックスを追加)
   traps: `
@@ -61,47 +60,32 @@ db.version(2).stores({
     category,
     [category+close_date]
   `,
+  // (他のストアは変更なし)
+  guns: `++id, &gun_name`,
+  gun_logs: `++id, gun_id, use_date, purpose`,
+  ammo_purchases: `++id, ammo_type, purchase_date`,
+  catches: `++id, catch_date, method, relation_id, [method+catch_date]`,
+  photos: `++id, catch_id`,
+  settings: `&key`
+});
 
-  // 2. 所持銃マスタストア
-  guns: `
-    ++id,
-    &gun_name
+// --- ★★★ 新規: version(3) を追加 ★★★ ---
+// (罠の種類マスタストアを追加)
+db.version(3).stores({
+  // 1. 罠の種類マスタストア
+  // '&name': 種類名 (ユニーク)
+  trap_types: `
+    &name
   `,
 
-  // 3. 銃使用履歴ストア
-  gun_logs: `
-    ++id,
-    gun_id,
-    use_date,
-    purpose
-  `,
-
-  // 4. 弾購入履歴ストア
-  ammo_purchases: `
-    ++id,
-    ammo_type,
-    purchase_date
-  `,
-
-  // 5. 捕獲個体ストア
-  catches: `
-    ++id,
-    catch_date,
-    method,
-    relation_id,
-    [method+catch_date]
-  `,
-
-  // 6. 写真ストア
-  photos: `
-    ++id,
-    catch_id
-  `,
-
-  // 7. 設定ストア
-  settings: `
-    &key
-  `
+  // (既存のストアは変更なし・定義を省略すると維持されます)
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  gun_logs: `++id, gun_id, use_date, purpose`,
+  ammo_purchases: `++id, ammo_type, purchase_date`,
+  catches: `++id, catch_date, method, relation_id, [method+catch_date]`,
+  photos: `++id, catch_id`,
+  settings: `&key`
 });
 
 
