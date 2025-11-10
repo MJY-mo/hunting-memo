@@ -10,7 +10,7 @@ const db = new Dexie('BLNCRHuntingApp');
 // 'category': 区分で検索するためのインデックス
 
 
-// --- ★ 修正: version(1) を先に定義します ---
+// --- version(1) ---
 db.version(1).stores({
   traps: `
     ++id,
@@ -49,7 +49,7 @@ db.version(1).stores({
   `
 });
 
-// --- ★ 修正: version(2) を v1 の後に定義します ---
+// --- version(2) ---
 db.version(2).stores({
   // 1. 罠管理ストア (categoryインデックスを追加)
   traps: `
@@ -69,20 +69,61 @@ db.version(2).stores({
   settings: `&key`
 });
 
-// --- ★★★ 新規: version(3) を追加 ★★★ ---
-// (罠の種類マスタストアを追加)
+// --- version(3) ---
 db.version(3).stores({
   // 1. 罠の種類マスタストア
-  // '&name': 種類名 (ユニーク)
   trap_types: `
     &name
   `,
-
-  // (既存のストアは変更なし・定義を省略すると維持されます)
+  // (既存のストアは変更なし)
   traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
   guns: `++id, &gun_name`,
   gun_logs: `++id, gun_id, use_date, purpose`,
   ammo_purchases: `++id, ammo_type, purchase_date`,
+  catches: `++id, catch_date, method, relation_id, [method+catch_date]`,
+  photos: `++id, catch_id`,
+  settings: `&key`
+});
+
+// --- version(4) ---
+db.version(4).stores({
+  // 3. 銃使用履歴ストア
+  gun_logs: `
+    ++id,
+    gun_id,
+    use_date,
+    purpose,
+    location,
+    companion,
+    ammo_data
+  `,
+  
+  // (既存のストアは変更なし)
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  ammo_purchases: `++id, ammo_type, purchase_date`, // v4でも維持
+  catches: `++id, catch_date, method, relation_id, [method+catch_date]`,
+  photos: `++id, catch_id`,
+  settings: `&key`
+});
+
+// --- ★★★ 新規: version(5) を追加 ★★★ ---
+// (弾購入履歴ストアに 'purchase_count' を追加)
+db.version(5).stores({
+  // 4. 弾購入履歴ストア
+  ammo_purchases: `
+    ++id,
+    ammo_type,
+    purchase_date,
+    purchase_count
+  `,
+
+  // (既存のストアは変更なし・定義を省略すると維持されます)
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
   catches: `++id, catch_date, method, relation_id, [method+catch_date]`,
   photos: `++id, catch_id`,
   settings: `&key`
