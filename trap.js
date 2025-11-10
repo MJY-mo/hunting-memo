@@ -4,9 +4,10 @@
  * 「罠」タブがクリックされたときに main.js から呼ばれるメイン関数
  */
 async function showTrapPage() {
-    // ... 既存のコード ...
-    // (appState.trapFilters の定義など)
-// ... 既存のコード ...
+    // 戻るボタンを非表示にし、ヘッダーを「罠」に設定
+    updateHeader('罠', false);
+    
+    // 現在の絞り込み条件（グローバル状態として保持）
     if (!appState.trapFilters) {
         appState.trapFilters = {
             status: 'all', // all, open, closed
@@ -33,7 +34,6 @@ async function showTrapPage() {
                         <option value="all">すべて</option>
                         <option value="くくり罠">くくり罠</option>
                         <option value="箱罠">箱罠</option>
-                        <!-- 将来的に他の種類を追加可能 -->
                     </select>
                 </div>
             </div>
@@ -43,52 +43,53 @@ async function showTrapPage() {
         <div id="trap-list-container" class="space-y-3">
             <p class="text-gray-500">罠データを読み込み中...</p>
         </div>
-// ... 既存のコード ...
+
+        <!-- ★★★ 修正: 削除されていた「＋」ボタンを戻しました ★★★ -->
+        <button id="add-trap-btn" title="新しい罠を登録"
+            class="fixed bottom-20 right-5 z-10 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-3xl hover:bg-blue-700">
+            +
+        </button>
     `;
 
     // 絞り込みのセレクトボックスに現在の状態を反映
-// ... 既存のコード ...
     document.getElementById('filter-status').value = appState.trapFilters.status;
     document.getElementById('filter-type').value = appState.trapFilters.type;
 
     // 罠一覧を描画
-// ... 既存のコード ...
     await renderTrapList();
 
     // --- イベントリスナーを設定 ---
-// ... 既存のコード ...
+    // (id='add-trap-btn' がHTMLに存在するので、エラーは解消されます)
     document.getElementById('add-trap-btn').addEventListener('click', () => {
         // 新規登録フォームを表示
         showTrapEditForm(null); 
     });
 
     document.getElementById('filter-status').addEventListener('change', (e) => {
-// ... 既存のコード ...
         appState.trapFilters.status = e.target.value;
         renderTrapList(); // 絞り込みして再描画
     });
     
     document.getElementById('filter-type').addEventListener('change', (e) => {
-// ... 既存のコード ...
         appState.trapFilters.type = e.target.value;
         renderTrapList(); // 絞り込みして再描画
     });
 }
 
 /**
-// ... 既存のコード ...
  * 罠一覧をDBから読み込み、フィルタリングして描画する関数
  */
-async function renderTrapList() {
 // ... 既存のコード ...
+async function renderTrapList() {
     const container = document.getElementById('trap-list-container');
+// ... 既存のコード ...
     if (!container) return;
 
     try {
         let traps = await db.traps.orderBy('trap_number').toArray();
 
-// ... 既存のコード ...
         // --- 絞り込みロジック (ユーザー要望) ---
+// ... 既存のコード ...
         const { status, type } = appState.trapFilters;
 
         if (status !== 'all') {
@@ -99,8 +100,8 @@ async function renderTrapList() {
             });
         }
         
-        if (type !== 'all') {
 // ... 既存のコード ...
+        if (type !== 'all') {
             traps = traps.filter(trap => trap.trap_type === type);
         }
         // --- 絞り込みここまで ---
@@ -118,6 +119,7 @@ async function renderTrapList() {
             const statusText = isClosed ? '閉' : '開';
 
             // --- ここが「横長のタイルバー表示」のHTMLです (style.cssの.trap-cardを参照) ---
+// ... 既存のコード ...
             return `
                 <div class="trap-card" data-id="${trap.id}">
                     <div>
@@ -165,14 +167,21 @@ async function showTrapEditForm(trapId) {
         trap = {
             trap_number: '',
 // ... 既存のコード ...
+            trap_type: 'くくり罠',
+            setup_date: new Date().toISOString().split('T')[0], // 本日の日付
+            close_date: '',
+// ... 既存のコード ...
+            latitude: '',
+            longitude: '',
             additional_data: {
+// ... 既存のコード ...
                 bait: '',
                 location_memo: ''
             }
         };
         updateHeader('新規の罠', true);
-    } else {
 // ... 既存のコード ...
+    } else {
         // 編集時はDBからデータを取得
         try {
             trap = await db.traps.get(trapId);
@@ -180,6 +189,7 @@ async function showTrapEditForm(trapId) {
             if (!trap) {
                 alert('罠データが見つかりません。');
                 showTrapPage(); // 一覧に戻る
+// ... 既存のコード ...
                 return;
             }
             // 拡張用データがない場合に備える
@@ -191,6 +201,7 @@ async function showTrapEditForm(trapId) {
             console.error("Failed to get trap data:", err);
             alert('罠データの取得に失敗しました。');
             showTrapPage();
+// ... 既存のコード ...
             return;
         }
     }
@@ -200,38 +211,47 @@ async function showTrapEditForm(trapId) {
     backButton.onclick = () => showTrapPage();
 
     // フォームのHTMLを描画
-    // ★★★ UI改善: 各セクションを card (白背景の囲み) でグループ化 ★★★
+    // ★ UI改善: 各セクションを card (白背景の囲み) でグループ化
+// ... 既存のコード ...
     app.innerHTML = `
         <form id="trap-form" class="space-y-6">
             
             <!-- 基本情報セクション -->
             <div class="card space-y-4">
+// ... 既存のコード ...
                 <h3 class="text-lg font-semibold border-b pb-2">基本情報</h3>
                 <div class="form-group">
                     <label for="trap_number" class="form-label">罠ナンバー (必須・重複不可)</label>
+// ... 既存のコード ...
                     <input type="text" id="trap_number" name="trap_number" value="${escapeHTML(trap.trap_number)}" class="form-input" required>
                 </div>
 
                 <div class="form-group">
+// ... 既存のコード ...
                     <label for="trap_type" class="form-label">種類</label>
                     <select id="trap_type" name="trap_type" class="form-select">
                         <option value="くくり罠" ${trap.trap_type === 'くくり罠' ? 'selected' : ''}>くくり罠</option>
+// ... 既存のコード ...
                         <option value="箱罠" ${trap.trap_type === '箱罠' ? 'selected' : ''}>箱罠</option>
                     </select>
                 </div>
                 
                 <div class="grid grid-cols-2 gap-3">
+// ... 既存のコード ...
                     <div class="form-group">
                         <label for="setup_date" class="form-label">開け日（設置日）</label>
                         <input type="date" id="setup_date" name="setup_date" value="${escapeHTML(trap.setup_date || '')}" class="form-input">
+// ... 既存のコード ...
                     </div>
                     <div class="form-group">
                         <label for="close_date" class="form-label">閉め日（回収日）</label>
                         <input type="date" id="close_date" name="close_date" value="${escapeHTML(trap.close_date || '')}" class="form-input">
+// ... 既存のコード ...
                     </div>
                 </div>
 
                 <div class="form-group">
+// ... 既存のコード ...
                     <label for="bait" class="form-label">誘引（エサなど）</label>
                     <input type="text" id="bait" name="bait" value="${escapeHTML(trap.additional_data.bait || '')}" class="form-input" placeholder="米ぬか、くず野菜など">
                 </div>
@@ -245,16 +265,20 @@ async function showTrapEditForm(trapId) {
 
                 <div class="grid grid-cols-2 gap-3">
                     <div class="form-group">
+// ... 既存のコード ...
                         <label for="latitude" class="form-label">緯度</label>
                         <input type="number" step="any" id="latitude" name="latitude" value="${escapeHTML(trap.latitude || '')}" class="form-input" placeholder="35.123456">
                     </div>
+// ... 既存のコード ...
                     <div class="form-group">
                         <label for="longitude" class="form-label">経度</label>
                         <input type="number" step="any" id="longitude" name="longitude" value="${escapeHTML(trap.longitude || '')}" class="form-input" placeholder="139.123456">
+// ... 既存のコード ...
                     </div>
                 </div>
 
                 <div class="form-group">
+// ... 既存のコード ...
                     <label for="location_memo" class="form-label">位置メモ</label>
                     <input type="text" id="location_memo" name="location_memo" value="${escapeHTML(trap.additional_data.location_memo || '')}" class="form-input" placeholder="沢沿いの獣道、左岸など">
                 </div>
@@ -262,13 +286,16 @@ async function showTrapEditForm(trapId) {
             
             <!-- 操作ボタンセクション -->
             <div class="card space-y-4">
+// ... 既存のコード ...
                 <!-- 保存・キャンセルボタン -->
                 <div class="grid grid-cols-2 gap-3">
                     <button type="button" id="cancel-btn" class="btn btn-secondary">キャンセル</button>
                     <button type="submit" id="save-trap-btn" class="btn btn-primary">保存</button>
+// ... 既存のコード ...
                 </div>
 
                 <!-- 削除ボタン（編集時のみ） -->
+// ... 既存のコード ...
                 ${!isNew ? `
                     <button type="button" id="delete-trap-btn" class="btn btn-danger w-full">この罠を削除</button>
                 ` : ''}
