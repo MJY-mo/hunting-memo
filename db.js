@@ -211,7 +211,7 @@ db.version(8).stores({
   settings: `&key`
 });
 
-// --- ★★★ 新規: version(9) を追加 ★★★ ---
+// --- ★★★ 修正: version(9) の upgrade 関数 ★★★ ---
 db.version(9).stores({
   // 9. チェックリストのセット
   checklist_lists: `
@@ -239,9 +239,11 @@ db.version(9).stores({
 }).upgrade(async (tx) => {
     // v8 -> v9 への移行
     // 1. 'デフォルトリスト' を作成
+    // (tx.checklist_lists は v9 のテーブル定義)
     const defaultListId = await tx.checklist_lists.add({ name: 'デフォルトリスト' });
 
-    // 2. v8の checklist_items (PKがname) データを読み取り
+    // 2. v8の checklist_items データを読み取り
+    // (tx.table('checklist_items') は v8 のテーブル定義)
     const oldItems = [];
     await tx.table('checklist_items').each(item => {
         oldItems.push({
@@ -254,9 +256,11 @@ db.version(9).stores({
     // 3. v8のストアをクリア
     await tx.table('checklist_items').clear();
     
-    // 4. v9のストア（PKが++id）にデータをバルク追加
+    // 4. v9のストアにデータをバルク追加
     if (oldItems.length > 0) {
-        await tx.table('checklist_items').bulkAdd(oldItems);
+        // ★★★ 修正: tx.table(...) ではなく tx.checklist_items (...) を使う ★★★
+        // (tx.checklist_items は v9 のテーブル定義)
+        await tx.checklist_items.bulkAdd(oldItems);
     }
     console.log("Upgraded checklist_items from v8 to v9 and migrated data to 'デフォルトリスト'.");
 });
