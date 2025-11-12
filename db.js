@@ -192,18 +192,15 @@ db.version(7).stores({
     });
 });
 
-// --- ★★★ 新規: version(8) を追加 ★★★ ---
-// (所持品チェックリストの項目マスタストアを追加)
+// --- version(8) ---
 db.version(8).stores({
   // 8. 所持品チェックリスト項目ストア
-  // &name: 項目名 (Primary Key, Unique)
-  // checked: チェック状態 (Boolean)
   checklist_items: `
     &name,
     checked
   `,
 
-  // (既存のストアは変更なし・定義を省略すると維持されます)
+  // (既存のストアは変更なし)
   catches: `++id, catch_date, method, relation_id, species, gender, age, location_detail, [method+catch_date]`,
   photos: `++id, catch_id, image_data`,
   ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
@@ -212,6 +209,56 @@ db.version(8).stores({
   traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
   guns: `++id, &gun_name`,
   settings: `&key`
+});
+
+// --- ★★★ 新規: version(9) を追加 ★★★ ---
+db.version(9).stores({
+  // 9. チェックリストのセット
+  checklist_lists: `
+    ++id,
+    &name
+  `,
+  // 8. checklist_items を変更 (PKを++idに、list_idを追加)
+  checklist_items: `
+    ++id,
+    list_id,
+    name,
+    checked,
+    [list_id+name]
+  `,
+  
+  // (既存のストアは変更なし)
+  catches: `++id, catch_date, method, relation_id, species, gender, age, location_detail, [method+catch_date]`,
+  photos: `++id, catch_id, image_data`,
+  ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  settings: `&key`
+}).upgrade(async (tx) => {
+    // v8 -> v9 への移行
+    // 1. 'デフォルトリスト' を作成
+    const defaultListId = await tx.checklist_lists.add({ name: 'デフォルトリスト' });
+
+    // 2. v8の checklist_items (PKがname) データを読み取り
+    const oldItems = [];
+    await tx.table('checklist_items').each(item => {
+        oldItems.push({
+            list_id: defaultListId,
+            name: item.name,
+            checked: item.checked
+        });
+    });
+    
+    // 3. v8のストアをクリア
+    await tx.table('checklist_items').clear();
+    
+    // 4. v9のストア（PKが++id）にデータをバルク追加
+    if (oldItems.length > 0) {
+        await tx.table('checklist_items').bulkAdd(oldItems);
+    }
+    console.log("Upgraded checklist_items from v8 to v9 and migrated data to 'デフォルトリスト'.");
 });
 
 

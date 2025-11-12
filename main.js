@@ -9,8 +9,9 @@ const headerActions = document.getElementById('headerActions');
 const tabs = {
     trap: document.getElementById('tab-trap'),
     gun: document.getElementById('tab-gun'),
-    // ★ 修正: 「catch」をここに移動
     catch: document.getElementById('tab-catch'),
+    // ★★★ 新規 (2/4) ★★★
+    checklist: document.getElementById('tab-checklist'),
     info: document.getElementById('tab-info'),
     settings: document.getElementById('tab-settings'),
 };
@@ -20,7 +21,8 @@ const appState = {
     currentPage: 'trap', // 現在表示中のタブ
     currentTrapId: null, // 編集中の罠ID
     currentGunLogId: null, // 編集中の銃使用履歴ID
-    // ★ 捕獲記録の表示状態
+    
+    // 捕獲記録の表示状態
     currentCatchMethod: 'all', // 'all', 'trap', 'gun'
     currentCatchRelationId: null, // trapId または gunLogId
     
@@ -83,14 +85,15 @@ function setupTabs() {
     tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
     tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
-    
-    // ★★★ 新規 (1/5) ★★★
     tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲記録'));
+    
+    // ★★★ 新規 (2/4) ★★★
+    tabs.checklist.addEventListener('click', () => navigateTo('checklist', showChecklistPage, 'チェックリスト'));
 }
 
 /**
  * 画面を切り替える（タブが押されたときに呼ばれる）
- * @param {string} pageId - 'trap', 'gun', 'info', 'settings', 'catch'
+ * @param {string} pageId - 'trap', 'gun', 'info', 'settings', 'catch', 'checklist'
  * @param {function} pageFunction - 実行する描画関数 (例: showTrapPage)
  * @param {string} title - ヘッダーに表示するタイトル
  */
@@ -141,9 +144,12 @@ function updateHeader(title, showBack = false) {
             else if (appState.currentPage === 'gun') {
                 navigateTo('gun', showGunPage, '銃');
             }
-            // ★★★ 新規 (1/5) ★★★
             else if (appState.currentPage === 'catch') {
                 navigateTo('catch', showCatchPage, '捕獲記録');
+            }
+            // ★★★ 新規 (2/4) ★★★
+            else if (appState.currentPage === 'checklist') {
+                navigateTo('checklist', showChecklistPage, 'チェックリスト');
             }
             // ★★★ ここまで ★★★
             else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
@@ -157,7 +163,7 @@ function updateHeader(title, showBack = false) {
 }
 
 // --- 共通ヘルパー関数 ---
-// (GPS, escapeHTML, formatDate は変更なしのため省略)
+// (GPS, escapeHTML, formatDate, resizeImage は変更なしのため省略)
 /**
  * GPS位置情報を取得する (ユーザーの要望)
  * (trap.js などから呼び出して使う)
