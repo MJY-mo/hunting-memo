@@ -14,7 +14,6 @@ function showCatchPage() {
  * @param {number | null} relationId - 関連するID (trapId または gunLogId)
  */
 async function showCatchListPage(method, relationId) {
-    // (変更なし)
     // グローバルな状態を保存 (編集画面から戻る時に使う)
     appState.currentPage = 'catch';
     appState.currentCatchMethod = method;
@@ -23,31 +22,27 @@ async function showCatchListPage(method, relationId) {
     let title = '捕獲記録 (すべて)';
     let headerNote = ''; // ヘッダー下の注釈
 
-    // フィルタリングの準備
-    let query = db.catches;
+    // ★★★ 修正: クエリの構築方法を .orderBy().filter() に変更 ★★★
+    
+    // 1. 最初に日付でソートするクエリを作成
+    let query = db.catches.orderBy('catch_date');
+
+    // 2. method と relationId に応じて絞り込み (filter) を行う
     if (method === 'trap') {
         const trap = await db.traps.get(relationId);
         title = `罠 [${trap.trap_number}] の捕獲`;
         headerNote = `<p class="text-sm text-gray-500 mb-3 -mt-3 text-center">罠: ${escapeHTML(trap.trap_number)}</p>`;
-        // ★ 修正: where句のみを適用
-        query = db.catches.where('method').equals('trap');
+        
+        query = query.filter(log => log.method === 'trap' && log.relation_id === relationId);
+
     } else if (method === 'gun') {
         const gunLog = await db.gun_logs.get(relationId);
         title = `銃使用履歴 [${formatDate(gunLog.use_date)}] の捕獲`;
         headerNote = `<p class="text-sm text-gray-500 mb-3 -mt-3 text-center">銃使用日: ${formatDate(gunLog.use_date)}</p>`;
-        // ★ 修正: where句のみを適用
-        query = db.catches.where('method').equals('gun');
+        
+        query = query.filter(log => log.method === 'gun' && log.relation_id === relationId);
     }
-    
-    // ★ 修正: orderBy を .and() の *前* に適用
-    let sortedQuery = query.orderBy('catch_date');
-
-    // ★ 修正: .and() フィルタを sortedQuery に適用
-    if (method === 'trap') {
-        sortedQuery = sortedQuery.and(log => log.relation_id === relationId);
-    } else if (method === 'gun') {
-        sortedQuery = sortedQuery.and(log => log.relation_id === relationId);
-    }
+    // ★★★ 修正ここまで ★★★
 
     // タブが 'catch' でない場合 (罠や銃の編集画面から飛んできた場合)、
     // 戻るボタンを表示し、タブを 'catch' に強制的に設定
@@ -82,8 +77,8 @@ async function showCatchListPage(method, relationId) {
         </div>
     `;
 
-    // ★ 修正: ソート済みの sortedQuery を渡す
-    await renderCatchList(sortedQuery);
+    // 絞り込み/ソート済みのクエリを渡す
+    await renderCatchList(query);
 
     // 新規登録ボタンのイベント
     if (method !== 'all') {
@@ -98,7 +93,6 @@ async function showCatchListPage(method, relationId) {
  * @param {Dexie.Collection} query - 実行するクエリ (★既にソート済み)
  */
 async function renderCatchList(query) {
-    // (変更なし)
     const container = document.getElementById('catch-list-container');
     if (!container) return;
 
@@ -111,7 +105,7 @@ async function renderCatchList(query) {
         const guns = await db.guns.toArray();
         const gunMap = new Map(guns.map(g => [g.id, g.gun_name]));
 
-        // ★ 修正: query は既に orderBy 済みなので、.reverse() だけ呼ぶ
+        // ★★★ 修正: query は既に orderBy 済みなので、.reverse() だけ呼ぶ ★★★
         const logs = await query.reverse().toArray();
         
         if (logs.length === 0) {
@@ -395,12 +389,19 @@ async function showCatchEditForm(catchId, method, relationId) {
             existingPhotos.forEach(photo => {
                 // 削除対象に含まれていなければ表示
                 if (!photosToDelete.includes(photo.id)) {
-                    const url = URL.createObjectURL(photo.image_data);
+                    let url;
+                    try {
+                        url = URL.createObjectURL(photo.image_data);
+                    } catch (e) {
+                        console.error("Failed to create ObjectURL for existing photo:", e);
+                        return; // Blobが不正ならスキップ
+                    }
+                    
                     const div = document.createElement('div');
                     div.className = 'relative';
                     div.innerHTML = `
                         <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="既存の写真">
-                        <button class_name="absolute top-0 right-0 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm" data-photoid="${photo.id}">×</button>
+                        <button class="absolute top-0 right-0 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm" data-photoid="${photo.id}">×</button>
                     `;
                     div.querySelector('button').onclick = (e) => {
                         e.preventDefault();
@@ -435,7 +436,10 @@ async function showCatchEditForm(catchId, method, relationId) {
         // (非同期で実行)
         setTimeout(() => {
             photoPreviewContainer.querySelectorAll('img').forEach(img => {
-                URL.revokeObjectURL(img.src);
+                // img.src が "blob:..." で始まっているか確認
+                if (img.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(img.src);
+                }
             });
         }, 1000);
     };
@@ -448,11 +452,15 @@ async function showCatchEditForm(catchId, method, relationId) {
         photoStatus.textContent = `写真${files.length}件をリサイズ中...`;
         
         try {
+            const resizePromises = [];
             for (const file of files) {
                 // main.js の resizeImage を呼び出す
-                const resizedBlob = await resizeImage(file, 800);
-                newPhotoBlobs.push(resizedBlob);
+                resizePromises.push(resizeImage(file, 800));
             }
+            
+            const resizedBlobs = await Promise.all(resizePromises);
+            newPhotoBlobs.push(...resizedBlobs); // 処理済みのBlobを配列に追加
+            
             photoStatus.textContent = `写真${files.length}件を追加しました。`;
             await renderPhotoList(); // プレビューを更新
             
