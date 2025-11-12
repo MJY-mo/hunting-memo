@@ -271,7 +271,7 @@ async function showGunEditForm(gunId) {
 // ===============================================
 // ★ 銃使用履歴 (OUT)
 // ===============================================
-// (変更なしのため省略)
+// (変更なし)
 /**
  * 「銃使用履歴」リストページを表示する
  */
@@ -448,6 +448,16 @@ async function showGunLogEditForm(logId) {
                     </div>
                 <button type="button" id="add-ammo-row-btn" class="btn btn-secondary w-full">＋ 弾種を追加</button>
             </div>
+
+            ${!isNew && (log.purpose === '狩猟' || log.purpose === '許可捕獲') ? `
+            <hr class="my-4">
+            <div>
+                <h3 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h3>
+                <button type="button" id="show-catch-log-btn" class="btn btn-secondary w-full">
+                    🐾 この使用履歴の捕獲記録を表示/登録
+                </button>
+            </div>
+            ` : ''}
             
             <hr class="my-4">
             <div class="space-y-4">
@@ -468,6 +478,7 @@ async function showGunLogEditForm(logId) {
     await renderGunOptions('gun_id', log.gun_id);
 
     // 2. 使用弾数リストを描画・管理
+    // (変更なし)
     const ammoContainer = document.getElementById('ammo-list-container');
     
     // 弾リストを描画する内部関数
@@ -522,6 +533,7 @@ async function showGunLogEditForm(logId) {
     });
 
     // 4. 保存ボタン
+    // (変更なし)
     document.getElementById('gun-log-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -561,6 +573,7 @@ async function showGunLogEditForm(logId) {
 
     // 5. 削除ボタン（編集時のみ）
     if (!isNew) {
+        // (変更なし)
         document.getElementById('delete-gun-log-btn').addEventListener('click', async () => {
             if (window.confirm(`この使用履歴を本当に削除しますか？`)) {
                 try {
@@ -573,6 +586,15 @@ async function showGunLogEditForm(logId) {
                 }
             }
         });
+
+        // ★★★ 新規 (3/5): 捕獲記録ボタンのリスナー ★★★
+        const catchBtn = document.getElementById('show-catch-log-btn');
+        if (catchBtn) {
+            catchBtn.addEventListener('click', () => {
+                // catch.js の showCatchListPage 関数を呼び出す
+                showCatchListPage('gun', logId);
+            });
+        }
     }
 }
 
@@ -612,10 +634,11 @@ async function renderGunOptions(selectId, selectedId) {
     }
 }
 
-// ===============================================
-// ★★★ 新規 (2/3): 弾の購入履歴 (IN) ★★★
-// ===============================================
 
+// ===============================================
+// ★ 弾の購入履歴 (IN)
+// ===============================================
+// (変更なしのため省略)
 /**
  * 「弾の購入履歴」リストページを表示する
  */
@@ -825,9 +848,9 @@ async function showAmmoPurchaseEditForm(logId) {
 
 
 // ===============================================
-// ★★★ 修正 (3/3): 弾の出納簿 (IN/OUT) ★★★
+// ★ 弾の出納簿 (IN/OUT)
 // ===============================================
-
+// (変更なし)
 /**
  * 「弾の出納簿」ページを表示する
  * (購入(IN)と使用(OUT)を弾種ごとに集計し、差引残高を表示する)

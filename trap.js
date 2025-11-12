@@ -7,6 +7,7 @@ const MAX_OPEN_TRAPS = 30; // 開いている罠の上限
  * 「罠」タブのメイン関数 (デフォルト = 開いている罠)
  */
 async function showTrapPage() {
+    // (変更なし)
     // main.js のグローバル状態を更新
     appState.trapView = 'open';
     // ヘッダーを「罠 (設置中)」に設定
@@ -86,6 +87,7 @@ async function showTrapPage() {
  * ★ 新規: 過去の罠（閉じている罠）のページ
  */
 async function showClosedTrapPage() {
+    // (変更なし)
     // main.js のグローバル状態を更新
     appState.trapView = 'closed';
     // ★ 修正: ヘッダータイトルを変更
@@ -147,6 +149,7 @@ async function showClosedTrapPage() {
  * @param {boolean} includeAll - 「すべての種類」オプションを含めるか
  */
 async function renderTrapTypeOptions(selectId, selectedValue, includeAll = false) {
+    // (変更なし)
     const selectEl = document.getElementById(selectId);
     if (!selectEl) return;
 
@@ -188,6 +191,7 @@ async function renderTrapTypeOptions(selectId, selectedValue, includeAll = false
  * 罠一覧（開いている罠）をDBから描画する関数
  */
 async function renderTrapList() {
+    // (変更なし)
     const container = document.getElementById('trap-list-container');
     if (!container) return; 
 
@@ -251,6 +255,7 @@ async function renderTrapList() {
  * ★ 新規: 過去の罠一覧（閉じている罠）を描画する関数
  */
 async function renderClosedTrapList() {
+    // (変更なし)
     const container = document.getElementById('trap-list-container');
     if (!container) return;
 
@@ -315,7 +320,6 @@ async function showTrapEditForm(trapId) {
     let trap = {}; 
     let defaultTrapType = 'くくり罠'; // デフォルト値
 
-    // ★★★ 新規 (4/4) ★★★
     // DBから「罠の種類」の先頭1件を取得し、デフォルト値とする
     try {
         const firstType = await db.trap_types.orderBy('name').first();
@@ -325,9 +329,9 @@ async function showTrapEditForm(trapId) {
     } catch (e) {
         console.error("Failed to get default trap type", e);
     }
-    // ★★★ ここまで ★★★
 
     if (isNew) {
+        // (変更なし)
         // 新規登録時のデフォルト値
         trap = {
             trap_number: '',
@@ -344,6 +348,7 @@ async function showTrapEditForm(trapId) {
         };
         updateHeader('新規の罠', true);
     } else {
+        // (変更なし)
         // 編集時はDBからデータを取得
         try {
             trap = await db.traps.get(trapId);
@@ -421,7 +426,6 @@ async function showTrapEditForm(trapId) {
                 <div class="space-y-4">
                     <button type="button" id="get-location-btn" class="btn btn-secondary w-full">📍 現在地を取得</button>
                     <p id="location-status" class="text-sm text-gray-500 text-center"></p>
-
                     <div class="grid grid-cols-2 gap-3">
                         <div class="form-group">
                             <label for="latitude" class="form-label">緯度</label>
@@ -432,13 +436,22 @@ async function showTrapEditForm(trapId) {
                             <input type="number" step="any" id="longitude" name="longitude" value="${escapeHTML(trap.longitude || '')}" class="form-input" placeholder="139.123456">
                         </div>
                     </div>
-
                     <div class="form-group">
                         <label for="location_memo" class="form-label">位置メモ</label>
                         <input type="text" id="location_memo" name="location_memo" value="${escapeHTML(trap.additional_data.location_memo || '')}" class="form-input" placeholder="沢沿いの獣道、左岸など">
                     </div>
                 </div>
             </div>
+            
+            ${!isNew ? `
+            <hr class="my-4">
+            <div>
+                <h3 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h3>
+                <button type="button" id="show-catch-log-btn" class="btn btn-secondary w-full">
+                    🐾 この罠の捕獲記録を表示/登録
+                </button>
+            </div>
+            ` : ''}
             
             <hr class="my-4">
             <div class="space-y-4">
@@ -453,18 +466,18 @@ async function showTrapEditForm(trapId) {
         </form>
     `;
 
-    // ★★★ 新規 (4/4) ★★★
     // フォームの「種類」プルダウンを描画（「すべて」は含めない）
     await renderTrapTypeOptions('trap_type', trap.trap_type, false);
 
     // --- フォームのイベントリスナーを設定 ---
+    // (変更なし)
     document.getElementById('cancel-btn').addEventListener('click', () => {
         (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
     });
 
+    // (変更なし)
     // GPS取得ボタン
     document.getElementById('get-location-btn').addEventListener('click', async (e) => {
-        // (省略: 変更なし)
         const btn = e.currentTarget;
         const statusEl = document.getElementById('location-status');
         btn.disabled = true;
@@ -484,9 +497,9 @@ async function showTrapEditForm(trapId) {
         }
     });
 
+    // (変更なし)
     // 保存ボタン
     document.getElementById('trap-form').addEventListener('submit', async (e) => {
-        // (省略: 変更なし)
         e.preventDefault();
         const form = e.target;
         const saveBtn = document.getElementById('save-trap-btn');
@@ -498,7 +511,7 @@ async function showTrapEditForm(trapId) {
         
         const data = {
             trap_number: formData.get('trap_number'),
-            trap_type: formData.get('trap_type'), // ★ 変更なし (動的プルダウンから取得)
+            trap_type: formData.get('trap_type'), 
             category: formData.get('category'),
             setup_date: formData.get('setup_date'),
             close_date: formData.get('close_date') === '' ? null : formData.get('close_date'),
@@ -523,7 +536,7 @@ async function showTrapEditForm(trapId) {
                 
                 await db.traps.add(data);
             } else {
-                data.id = trapId;
+                data.id = trapId; // 忘れずにIDをセット
                 await db.traps.put(data);
             }
             
@@ -549,8 +562,8 @@ async function showTrapEditForm(trapId) {
 
     // 削除ボタン（編集時のみ）
     if (!isNew) {
+        // (変更なし)
         document.getElementById('delete-trap-btn').addEventListener('click', async () => {
-            // (省略: 変更なし)
             if (window.confirm(`罠「${trap.trap_number}」を本当に削除しますか？\n（この罠に関連する捕獲記録は削除されません）`)) {
                 try {
                     await db.traps.delete(trapId);
@@ -561,6 +574,12 @@ async function showTrapEditForm(trapId) {
                     alert(`削除に失敗しました: ${err.message}`);
                 }
             }
+        });
+
+        // ★★★ 新規 (2/5): 捕獲記録ボタンのリスナー ★★★
+        document.getElementById('show-catch-log-btn').addEventListener('click', () => {
+            // catch.js の showCatchListPage 関数を呼び出す
+            showCatchListPage('trap', trapId);
         });
     }
 }

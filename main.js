@@ -11,6 +11,8 @@ const tabs = {
     gun: document.getElementById('tab-gun'),
     info: document.getElementById('tab-info'),
     settings: document.getElementById('tab-settings'),
+    // ★★★ 新規 (1/5) ★★★
+    catch: document.getElementById('tab-catch'),
 };
 
 // アプリケーションの状態管理
@@ -18,6 +20,10 @@ const appState = {
     currentPage: 'trap', // 現在表示中のタブ
     currentTrapId: null, // 編集中の罠ID
     currentGunLogId: null, // 編集中の銃使用履歴ID
+    // ★ 捕獲記録の表示状態
+    currentCatchMethod: 'all', // 'all', 'trap', 'gun'
+    currentCatchRelationId: null, // trapId または gunLogId
+    
     trapView: 'open', // 'open' (開いている罠) または 'closed' (過去の罠)
     trapFilters: { // 罠の絞り込み状態
         type: 'all'    // all, くくり罠, 箱罠, ...
@@ -77,11 +83,14 @@ function setupTabs() {
     tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
     tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
+    
+    // ★★★ 新規 (1/5) ★★★
+    tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲記録'));
 }
 
 /**
  * 画面を切り替える（タブが押されたときに呼ばれる）
- * @param {string} pageId - 'trap', 'gun', 'info', 'settings'
+ * @param {string} pageId - 'trap', 'gun', 'info', 'settings', 'catch'
  * @param {function} pageFunction - 実行する描画関数 (例: showTrapPage)
  * @param {string} title - ヘッダーに表示するタイトル
  */
@@ -90,7 +99,7 @@ function navigateTo(pageId, pageFunction, title) {
     
     // すべてのタブを非アクティブ化
     Object.values(tabs).forEach(tab => {
-        tab.classList.replace('tab-active', 'tab-inactive');
+        if (tab) tab.classList.replace('tab-active', 'tab-inactive');
     });
     // 押されたタブをアクティブ化
     if (tabs[pageId]) {
@@ -119,7 +128,7 @@ function updateHeader(title, showBack = false) {
     backButton.classList.toggle('hidden', !showBack);
     
     // 戻るボタンのデフォルト動作（タブ一覧に戻る）
-    // (各画面（例: trap.js, gun.js）で、必要に応じてこの onclick は上書きされます)
+    // (各画面で、必要に応じてこの onclick は上書きされます)
     if (showBack) {
         backButton.onclick = () => {
             if (appState.currentPage === 'trap') {
@@ -129,10 +138,12 @@ function updateHeader(title, showBack = false) {
                     navigateTo('trap', showClosedTrapPage, '罠設置履歴');
                 }
             }
-            // ★★★ 新規 (2/2) ★★★
-            // 「銃」タブのサブページからメインメニューに戻る
             else if (appState.currentPage === 'gun') {
                 navigateTo('gun', showGunPage, '銃');
+            }
+            // ★★★ 新規 (1/5) ★★★
+            else if (appState.currentPage === 'catch') {
+                navigateTo('catch', showCatchPage, '捕獲記録');
             }
             // ★★★ ここまで ★★★
             else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
@@ -146,7 +157,7 @@ function updateHeader(title, showBack = false) {
 }
 
 // --- 共通ヘルパー関数 ---
-
+// (変更なしのため省略)
 /**
  * GPS位置情報を取得する (ユーザーの要望)
  * (trap.js などから呼び出して使う)

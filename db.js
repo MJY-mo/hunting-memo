@@ -108,8 +108,7 @@ db.version(4).stores({
   settings: `&key`
 });
 
-// --- ★★★ 新規: version(5) を追加 ★★★ ---
-// (弾購入履歴ストアに 'purchase_count' を追加)
+// --- version(5) ---
 db.version(5).stores({
   // 4. 弾購入履歴ストア
   ammo_purchases: `
@@ -119,12 +118,39 @@ db.version(5).stores({
     purchase_count
   `,
 
-  // (既存のストアは変更なし・定義を省略すると維持されます)
+  // (既存のストアは変更なし)
   gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
   trap_types: `&name`,
   traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
   guns: `++id, &gun_name`,
   catches: `++id, catch_date, method, relation_id, [method+catch_date]`,
+  photos: `++id, catch_id`,
+  settings: `&key`
+});
+
+
+// --- ★★★ 新規: version(6) を追加 ★★★ ---
+// (捕獲個体ストアに 'species' 'gender' 'age' 'hit_location' を追加)
+db.version(6).stores({
+  // 5. 捕獲個体ストア
+  catches: `
+    ++id,
+    catch_date,
+    method,
+    relation_id,
+    species,
+    gender,
+    age,
+    hit_location,
+    [method+catch_date]
+  `,
+
+  // (既存のストアは変更なし・定義を省略すると維持されます)
+  ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
   photos: `++id, catch_id`,
   settings: `&key`
 });
