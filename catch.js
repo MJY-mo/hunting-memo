@@ -14,6 +14,7 @@ function showCatchPage() {
  * @param {number | null} relationId - 関連するID (trapId または gunLogId)
  */
 async function showCatchListPage(method, relationId) {
+    // (変更なし)
     // グローバルな状態を保存 (編集画面から戻る時に使う)
     appState.currentPage = 'catch';
     appState.currentCatchMethod = method;
@@ -38,10 +39,10 @@ async function showCatchListPage(method, relationId) {
         query = db.catches.where('method').equals('gun');
     }
     
-    // ★★★ 修正: orderBy を .and() の *前* に適用 ★★★
+    // ★ 修正: orderBy を .and() の *前* に適用
     let sortedQuery = query.orderBy('catch_date');
 
-    // ★★★ 修正: .and() フィルタを sortedQuery に適用 ★★★
+    // ★ 修正: .and() フィルタを sortedQuery に適用
     if (method === 'trap') {
         sortedQuery = sortedQuery.and(log => log.relation_id === relationId);
     } else if (method === 'gun') {
@@ -81,7 +82,7 @@ async function showCatchListPage(method, relationId) {
         </div>
     `;
 
-    // ★★★ 修正: ソート済みの sortedQuery を渡す ★★★
+    // ★ 修正: ソート済みの sortedQuery を渡す
     await renderCatchList(sortedQuery);
 
     // 新規登録ボタンのイベント
@@ -97,6 +98,7 @@ async function showCatchListPage(method, relationId) {
  * @param {Dexie.Collection} query - 実行するクエリ (★既にソート済み)
  */
 async function renderCatchList(query) {
+    // (変更なし)
     const container = document.getElementById('catch-list-container');
     if (!container) return;
 
@@ -109,7 +111,7 @@ async function renderCatchList(query) {
         const guns = await db.guns.toArray();
         const gunMap = new Map(guns.map(g => [g.id, g.gun_name]));
 
-        // ★★★ 修正: query は既に orderBy 済みなので、.reverse() だけ呼ぶ ★★★
+        // ★ 修正: query は既に orderBy 済みなので、.reverse() だけ呼ぶ
         const logs = await query.reverse().toArray();
         
         if (logs.length === 0) {
@@ -170,6 +172,12 @@ async function showCatchEditForm(catchId, method, relationId) {
     const isNew = (catchId === null);
     let log = {}; 
 
+    // ★★★ 新規 (写真管理用) ★★★
+    // フォーム内で一時的に保持するBlobの配列
+    let newPhotoBlobs = []; 
+    // 削除対象の既存Photo IDの配列
+    let photosToDelete = [];
+
     // デフォルト値
     log = {
         catch_date: new Date().toISOString().split('T')[0], // 本日の日付
@@ -178,7 +186,8 @@ async function showCatchEditForm(catchId, method, relationId) {
         species: '',
         gender: '不明',
         age: '不明',
-        hit_location: ''
+        // ★ 修正: 'hit_location' -> 'location_detail'
+        location_detail: '' 
     };
 
     if (isNew) {
@@ -204,6 +213,17 @@ async function showCatchEditForm(catchId, method, relationId) {
     backButton.onclick = () => {
         showCatchListPage(method, relationId);
     };
+
+    // ★★★ 修正: ラベルを動的に変更 (ご要望 1 & 2) ★★★
+    let locationLabel = '詳細位置';
+    let locationPlaceholder = '';
+    if (log.method === 'gun') {
+        locationLabel = '着弾位置';
+        locationPlaceholder = '例: 頸部、胸部';
+    } else if (log.method === 'trap') {
+        locationLabel = 'かかった位置';
+        locationPlaceholder = '例: 右前脚、首';
+    }
 
     app.innerHTML = `
         <form id="catch-form" class="card space-y-4">
@@ -242,19 +262,23 @@ async function showCatchEditForm(catchId, method, relationId) {
                         </div>
                     </div>
 
-                    ${log.method === 'gun' ? `
                     <div class="form-group">
-                        <label for="hit_location" class="form-label">着弾位置</label>
-                        <input type="text" id="hit_location" name="hit_location" value="${escapeHTML(log.hit_location || '')}" class="form-input" placeholder="例: 頸部、胸部">
+                        <label for="location_detail" class="form-label">${locationLabel} (着弾位置/かかった位置)</label>
+                        <input type="text" id="location_detail" name="location_detail" value="${escapeHTML(log.location_detail || '')}" class="form-input" placeholder="${locationPlaceholder}">
                     </div>
-                    ` : ''}
                 </div>
             </div>
 
             <hr class="my-4">
             <div>
                 <h3 class="text-lg font-semibold border-b pb-2 mb-4">写真</h3>
-                <p class="text-gray-500 text-sm">(写真の添付機能は未実装です)</p>
+                <div id="photo-preview-container" class="grid grid-cols-3 gap-2 mb-3">
+                    </div>
+                <div class="form-group">
+                    <label for="photo-upload" class="btn btn-secondary w-full">＋ 写真を選択</label>
+                    <input type="file" id="photo-upload" class="hidden" accept="image/*" multiple>
+                </div>
+                <p id="photo-status" class="text-sm text-gray-500 text-center"></p>
             </div>
             
             <hr class="my-4">
@@ -294,19 +318,38 @@ async function showCatchEditForm(catchId, method, relationId) {
             species: formData.get('species').trim(),
             gender: formData.get('gender'),
             age: formData.get('age'),
-            hit_location: (log.method === 'gun') ? formData.get('hit_location') : '',
-            // method と relation_id は隠しパラメータとして保持
+            // ★ 修正: 'location_detail' を保存
+            location_detail: formData.get('location_detail'),
             method: log.method,
             relation_id: log.relation_id
         };
 
         try {
+            let savedCatchId = catchId;
+            
             if (isNew) {
-                await db.catches.add(data);
+                // 新規の場合は、add() して新しいIDを取得
+                savedCatchId = await db.catches.add(data);
             } else {
+                // 編集の場合は、put()
                 data.id = catchId; // 忘れずにIDをセット
                 await db.catches.put(data);
             }
+            
+            // ★★★ 新規 (写真保存処理) ★★★
+            // 1. 削除対象の写真をDBから削除
+            if (photosToDelete.length > 0) {
+                await db.photos.bulkDelete(photosToDelete);
+            }
+            // 2. 新規追加のBlobをDBに保存
+            if (newPhotoBlobs.length > 0) {
+                const photosToAdd = newPhotoBlobs.map(blob => ({
+                    catch_id: savedCatchId,
+                    image_data: blob
+                }));
+                await db.photos.bulkAdd(photosToAdd);
+            }
+            
             showCatchListPage(method, relationId); // 保存後にリストに戻る
 
         } catch (err) {
@@ -321,10 +364,13 @@ async function showCatchEditForm(catchId, method, relationId) {
     // 3. 削除ボタン（編集時のみ）
     if (!isNew) {
         document.getElementById('delete-btn').addEventListener('click', async () => {
-            if (window.confirm(`この捕獲記録（${log.species}）を本当に削除しますか？`)) {
+            if (window.confirm(`この捕獲記録（${log.species}）を本当に削除しますか？\n（関連する写真もすべて削除されます）`)) {
                 try {
+                    // ★ 修正: 関連する写真も削除
+                    await db.photos.where('catch_id').equals(catchId).delete();
                     await db.catches.delete(catchId);
-                    alert('捕獲記録を削除しました。');
+                    
+                    alert('捕獲記録と関連写真を削除しました。');
                     showCatchListPage(method, relationId);
                 } catch (err) {
                     console.error("Failed to delete catch log:", err);
@@ -332,5 +378,95 @@ async function showCatchEditForm(catchId, method, relationId) {
                 }
             }
         });
+    }
+
+    // ★★★ 新規 (写真機能のリスナー) ★★★
+    const photoInput = document.getElementById('photo-upload');
+    const photoPreviewContainer = document.getElementById('photo-preview-container');
+    const photoStatus = document.getElementById('photo-status');
+    
+    // 写真プレビューを描画する内部関数
+    const renderPhotoList = async () => {
+        photoPreviewContainer.innerHTML = ''; // いったんクリア
+        
+        // 1. 既存の写真をDBから読み込む
+        if (!isNew) {
+            const existingPhotos = await db.photos.where('catch_id').equals(catchId).toArray();
+            existingPhotos.forEach(photo => {
+                // 削除対象に含まれていなければ表示
+                if (!photosToDelete.includes(photo.id)) {
+                    const url = URL.createObjectURL(photo.image_data);
+                    const div = document.createElement('div');
+                    div.className = 'relative';
+                    div.innerHTML = `
+                        <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="既存の写真">
+                        <button class_name="absolute top-0 right-0 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm" data-photoid="${photo.id}">×</button>
+                    `;
+                    div.querySelector('button').onclick = (e) => {
+                        e.preventDefault();
+                        if (window.confirm('この写真を削除しますか？')) {
+                            photosToDelete.push(photo.id); // 削除リストに追加
+                            div.remove(); // 画面から削除
+                        }
+                    };
+                    photoPreviewContainer.appendChild(div);
+                }
+            });
+        }
+        
+        // 2. 新規追加のBlobを表示 (newPhotoBlobs)
+        newPhotoBlobs.forEach((blob, index) => {
+            const url = URL.createObjectURL(blob);
+            const div = document.createElement('div');
+            div.className = 'relative opacity-80'; // 新規追加は少し薄く
+            div.innerHTML = `
+                <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="新規の写真">
+                <button class="absolute top-0 right-0 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm" data-blobindex="${index}">×</button>
+            `;
+            div.querySelector('button').onclick = (e) => {
+                e.preventDefault();
+                newPhotoBlobs.splice(index, 1); // 配列から削除
+                renderPhotoList(); // リストを再描画
+            };
+            photoPreviewContainer.appendChild(div);
+        });
+
+        // メモリリーク防止のため、表示に使ったObject URLをクリーンアップ
+        // (非同期で実行)
+        setTimeout(() => {
+            photoPreviewContainer.querySelectorAll('img').forEach(img => {
+                URL.revokeObjectURL(img.src);
+            });
+        }, 1000);
+    };
+
+    // 写真ファイルが選択された時の処理
+    photoInput.addEventListener('change', async (e) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        
+        photoStatus.textContent = `写真${files.length}件をリサイズ中...`;
+        
+        try {
+            for (const file of files) {
+                // main.js の resizeImage を呼び出す
+                const resizedBlob = await resizeImage(file, 800);
+                newPhotoBlobs.push(resizedBlob);
+            }
+            photoStatus.textContent = `写真${files.length}件を追加しました。`;
+            await renderPhotoList(); // プレビューを更新
+            
+        } catch (err) {
+            console.error("Photo processing failed:", err);
+            photoStatus.textContent = '写真の処理に失敗しました。';
+        }
+        
+        // inputをリセットして、同じファイルを選び直せるようにする
+        photoInput.value = null;
+    });
+
+    // 初期描画（編集時のみ）
+    if (!isNew) {
+        renderPhotoList();
     }
 }

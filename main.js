@@ -9,11 +9,10 @@ const headerActions = document.getElementById('headerActions');
 const tabs = {
     trap: document.getElementById('tab-trap'),
     gun: document.getElementById('tab-gun'),
+    // ★ 修正: 「catch」をここに移動
     catch: document.getElementById('tab-catch'),
     info: document.getElementById('tab-info'),
     settings: document.getElementById('tab-settings'),
- 
-   
 };
 
 // アプリケーションの状態管理
@@ -158,7 +157,7 @@ function updateHeader(title, showBack = false) {
 }
 
 // --- 共通ヘルパー関数 ---
-// (変更なしのため省略)
+// (GPS, escapeHTML, formatDate は変更なしのため省略)
 /**
  * GPS位置情報を取得する (ユーザーの要望)
  * (trap.js などから呼び出して使う)
@@ -244,4 +243,93 @@ function formatDate(dateString) {
     } catch (e) {
         return dateString; // パース失敗時は元の文字列を返す
     }
+}
+
+
+/**
+ * ★★★ 新規: 画像リサイズ関数 ★★★
+ * ファイルをリサイズし、EXIFの向きを補正して Blob を返す
+ * @param {File} file - 画像ファイル
+ * @param {number} [maxSize=800] - 最大辺のピクセル数
+ * @returns {Promise<Blob>} - リサイズされた JPEG Blob
+ */
+function resizeImage(file, maxSize = 800) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                // EXIFから向き情報を取得
+                EXIF.getData(img, function() {
+                    const orientation = EXIF.getTag(this, "Orientation");
+                    
+                    let width = img.width;
+                    let height = img.height;
+
+                    // リサイズ計算
+                    if (width > height) {
+                        if (width > maxSize) {
+                            height = Math.round(height * (maxSize / width));
+                            width = maxSize;
+                        }
+                    } else {
+                        if (height > maxSize) {
+                            width = Math.round(width * (maxSize / height));
+                            height = maxSize;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // EXIFの向きに応じて canvas のサイズと描画を調整
+                    if (orientation && orientation >= 5 && orientation <= 8) {
+                        // 90度回転
+                        canvas.width = height;
+                        canvas.height = width;
+                    } else {
+                        // 通常
+                        canvas.width = width;
+                        canvas.height = height;
+                    }
+
+                    // 向きを補正
+                    switch (orientation) {
+                        case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
+                        case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
+                        case 4: ctx.transform(1, 0, 0, -1, 0, height); break;
+                        case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+                        case 6: ctx.transform(0, 1, -1, 0, height, 0); break;
+                        case 7: ctx.transform(0, -1, -1, 0, height, width); break;
+                        case 8: ctx.transform(0, -1, 1, 0, 0, width); break;
+                        default: break;
+                    }
+
+                    // 90度回転(5-8)の場合、描画する画像サイズも入れ替える
+                    if (orientation >= 5 && orientation <= 8) {
+                        ctx.drawImage(img, 0, 0, height, width);
+                    } else {
+                        ctx.drawImage(img, 0, 0, width, height);
+                    }
+
+                    // 高画質なJPEG Blobとして出力 (品質80%)
+                    canvas.toBlob(
+                        (blob) => {
+                            if (!blob) {
+                                reject(new Error('Canvas to Blob conversion failed'));
+                                return;
+                            }
+                            resolve(blob);
+                        },
+                        'image/jpeg',
+                        0.8
+                    );
+                });
+            };
+            img.onerror = (e) => reject(new Error('Image loading failed'));
+            img.src = e.target.result; // FileReaderの結果をImageのsrcに
+        };
+        reader.onerror = (e) => reject(new Error('File reading failed'));
+        reader.readAsDataURL(file); // EXIF.js が Data URL を必要とするため
+    });
 }
