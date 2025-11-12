@@ -9,10 +9,11 @@ const headerActions = document.getElementById('headerActions');
 const tabs = {
     trap: document.getElementById('tab-trap'),
     gun: document.getElementById('tab-gun'),
+    catch: document.getElementById('tab-catch'),
     info: document.getElementById('tab-info'),
     settings: document.getElementById('tab-settings'),
-    // ★★★ 新規 (1/5) ★★★
-    catch: document.getElementById('tab-catch'),
+ 
+   
 };
 
 // アプリケーションの状態管理
