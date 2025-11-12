@@ -28,14 +28,26 @@ async function showCatchListPage(method, relationId) {
         const trap = await db.traps.get(relationId);
         title = `罠 [${trap.trap_number}] の捕獲`;
         headerNote = `<p class="text-sm text-gray-500 mb-3 -mt-3 text-center">罠: ${escapeHTML(trap.trap_number)}</p>`;
-        query = db.catches.where('method').equals('trap').and(log => log.relation_id === relationId);
+        // ★ 修正: where句のみを適用
+        query = db.catches.where('method').equals('trap');
     } else if (method === 'gun') {
         const gunLog = await db.gun_logs.get(relationId);
         title = `銃使用履歴 [${formatDate(gunLog.use_date)}] の捕獲`;
         headerNote = `<p class="text-sm text-gray-500 mb-3 -mt-3 text-center">銃使用日: ${formatDate(gunLog.use_date)}</p>`;
-        query = db.catches.where('method').equals('gun').and(log => log.relation_id === relationId);
+        // ★ 修正: where句のみを適用
+        query = db.catches.where('method').equals('gun');
     }
     
+    // ★★★ 修正: orderBy を .and() の *前* に適用 ★★★
+    let sortedQuery = query.orderBy('catch_date');
+
+    // ★★★ 修正: .and() フィルタを sortedQuery に適用 ★★★
+    if (method === 'trap') {
+        sortedQuery = sortedQuery.and(log => log.relation_id === relationId);
+    } else if (method === 'gun') {
+        sortedQuery = sortedQuery.and(log => log.relation_id === relationId);
+    }
+
     // タブが 'catch' でない場合 (罠や銃の編集画面から飛んできた場合)、
     // 戻るボタンを表示し、タブを 'catch' に強制的に設定
     const showBack = (method !== 'all');
@@ -69,8 +81,8 @@ async function showCatchListPage(method, relationId) {
         </div>
     `;
 
-    // リストを描画
-    await renderCatchList(query);
+    // ★★★ 修正: ソート済みの sortedQuery を渡す ★★★
+    await renderCatchList(sortedQuery);
 
     // 新規登録ボタンのイベント
     if (method !== 'all') {
@@ -82,7 +94,7 @@ async function showCatchListPage(method, relationId) {
 
 /**
  * 捕獲個体リストをDBから読み込んで描画する
- * @param {Dexie.Collection} query - 実行するクエリ
+ * @param {Dexie.Collection} query - 実行するクエリ (★既にソート済み)
  */
 async function renderCatchList(query) {
     const container = document.getElementById('catch-list-container');
@@ -97,7 +109,8 @@ async function renderCatchList(query) {
         const guns = await db.guns.toArray();
         const gunMap = new Map(guns.map(g => [g.id, g.gun_name]));
 
-        const logs = await query.orderBy('catch_date').reverse().toArray();
+        // ★★★ 修正: query は既に orderBy 済みなので、.reverse() だけ呼ぶ ★★★
+        const logs = await query.reverse().toArray();
         
         if (logs.length === 0) {
             container.innerHTML = `<p class="text-gray-500 text-center py-4">捕獲記録はありません。</p>`;
