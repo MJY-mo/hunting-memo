@@ -80,7 +80,6 @@ function renderGunMenu() {
         showAmmoLedgerPage();
     });
 
-    // ★★★ 修正 (1/2): イベントリスナーを追加 ★★★
     document.getElementById('manage-checklist-btn').addEventListener('click', () => {
         showChecklistPage();
     });
@@ -956,6 +955,7 @@ async function showChecklistPage() {
         showGunPage();
     };
 
+    // ★★★ 修正: アコーディオン（<details>）で管理セクションを囲む ★★★
     app.innerHTML = `
         <div class="space-y-4">
             <div class="card">
@@ -969,19 +969,23 @@ async function showChecklistPage() {
             </div>
             
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">チェック項目の管理</h2>
-                
-                <form id="add-item-form" class="flex space-x-2 mb-4">
-                    <div class="form-group flex-grow">
-                        <label for="new-item-name" class="sr-only">新しい項目</label>
-                        <input type="text" id="new-item-name" class="form-input" placeholder="例: 銃許可証" required>
+                <details>
+                    <summary class="text-lg font-semibold cursor-pointer select-none">
+                        チェック項目の管理 (タップで開く)
+                    </summary>
+                    <div class="mt-4 pt-4 border-t space-y-4">
+                        <form id="add-item-form" class="flex space-x-2">
+                            <div class="form-group flex-grow mb-0"> <label for="new-item-name" class="sr-only">新しい項目</label>
+                                <input type="text" id="new-item-name" class="form-input" placeholder="例: 銃許可証" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary h-fit mt-1">追加</button>
+                        </form>
+                        
+                        <div id="item-management-list" class="space-y-2">
+                            <p class="text-gray-500">読み込み中...</p>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary h-fit mt-1">追加</button>
-                </form>
-                
-                <div id="item-management-list" class="space-y-2">
-                    <p class="text-gray-500">読み込み中...</p>
-                </div>
+                </details>
             </div>
         </div>
     `;
@@ -1058,7 +1062,7 @@ async function renderChecklist() {
         }
 
         container.innerHTML = items.map(item => `
-            <label class="flex items-center space-x-3 p-2 rounded hover:bg-gray-50">
+            <label class="flex items-center space-x-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
                 <input type="checkbox" class="form-checkbox h-5 w-5 text-blue-600 rounded" data-name="${escapeHTML(item.name)}" ${item.checked ? 'checked' : ''}>
                 <span class="text-gray-700">${escapeHTML(item.name)}</span>
             </label>
