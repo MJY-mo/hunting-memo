@@ -102,7 +102,7 @@ db.version(4).stores({
   trap_types: `&name`,
   traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
   guns: `++id, &gun_name`,
-  ammo_purchases: `++id, ammo_type, purchase_date`, // v4でも維持
+  ammo_purchases: `++id, ammo_type, purchase_date`,
   catches: `++id, catch_date, method, relation_id, [method+catch_date]`,
   photos: `++id, catch_id`,
   settings: `&key`
@@ -154,9 +154,7 @@ db.version(6).stores({
 });
 
 
-// --- ★★★ 新規: version(7) を追加 ★★★ ---
-// (catchesの'hit_location'を'location_detail'に変更)
-// (photosに'image_data' (Blob) を追加)
+// --- version(7) ---
 db.version(7).stores({
   // 5. 捕獲個体ストア
   catches: `
@@ -177,7 +175,7 @@ db.version(7).stores({
     image_data
   `,
 
-  // (既存のストアは変更なし・定義を省略すると維持されます)
+  // (既存のストアは変更なし)
   ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
   gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
   trap_types: `&name`,
@@ -192,6 +190,28 @@ db.version(7).stores({
             delete catchItem.hit_location;
         }
     });
+});
+
+// --- ★★★ 新規: version(8) を追加 ★★★ ---
+// (所持品チェックリストの項目マスタストアを追加)
+db.version(8).stores({
+  // 8. 所持品チェックリスト項目ストア
+  // &name: 項目名 (Primary Key, Unique)
+  // checked: チェック状態 (Boolean)
+  checklist_items: `
+    &name,
+    checked
+  `,
+
+  // (既存のストアは変更なし・定義を省略すると維持されます)
+  catches: `++id, catch_date, method, relation_id, species, gender, age, location_detail, [method+catch_date]`,
+  photos: `++id, catch_id, image_data`,
+  ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  settings: `&key`
 });
 
 

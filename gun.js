@@ -54,8 +54,8 @@ function renderGunMenu() {
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">その他</h2>
                 <ul class="space-y-2">
                     <li>
-                        <button id="manage-checklist-btn" class="btn btn-secondary w-full" disabled>
-                            所持品チェックリスト (未実装)
+                        <button id="manage-checklist-btn" class="btn btn-secondary w-full">
+                            所持品チェックリスト
                         </button>
                     </li>
                 </ul>
@@ -72,14 +72,17 @@ function renderGunMenu() {
         showGunLogListPage();
     });
 
-    // ★★★ 新規 (1/3) ★★★
     document.getElementById('manage-ammo-purchase-btn').addEventListener('click', () => {
         showAmmoPurchaseListPage();
     });
 
-    // ★ 修正: ID変更
     document.getElementById('manage-ammo-ledger-btn').addEventListener('click', () => {
         showAmmoLedgerPage();
+    });
+
+    // ★★★ 修正 (1/2): イベントリスナーを追加 ★★★
+    document.getElementById('manage-checklist-btn').addEventListener('click', () => {
+        showChecklistPage();
     });
 }
 
@@ -271,7 +274,7 @@ async function showGunEditForm(gunId) {
 // ===============================================
 // ★ 銃使用履歴 (OUT)
 // ===============================================
-// (変更なし)
+// (変更なしのため省略)
 /**
  * 「銃使用履歴」リストページを表示する
  */
@@ -478,7 +481,6 @@ async function showGunLogEditForm(logId) {
     await renderGunOptions('gun_id', log.gun_id);
 
     // 2. 使用弾数リストを描画・管理
-    // (変更なし)
     const ammoContainer = document.getElementById('ammo-list-container');
     
     // 弾リストを描画する内部関数
@@ -533,7 +535,6 @@ async function showGunLogEditForm(logId) {
     });
 
     // 4. 保存ボタン
-    // (変更なし)
     document.getElementById('gun-log-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -573,7 +574,6 @@ async function showGunLogEditForm(logId) {
 
     // 5. 削除ボタン（編集時のみ）
     if (!isNew) {
-        // (変更なし)
         document.getElementById('delete-gun-log-btn').addEventListener('click', async () => {
             if (window.confirm(`この使用履歴を本当に削除しますか？`)) {
                 try {
@@ -587,7 +587,7 @@ async function showGunLogEditForm(logId) {
             }
         });
 
-        // ★★★ 新規 (3/5): 捕獲記録ボタンのリスナー ★★★
+        // ★ 修正: 'log' -> 'logId' (logId が正しいID)
         const catchBtn = document.getElementById('show-catch-log-btn');
         if (catchBtn) {
             catchBtn.addEventListener('click', () => {
@@ -937,5 +937,199 @@ async function showAmmoLedgerPage() {
     } catch (err) {
         console.error("Failed to calculate ammo ledger:", err);
         container.innerHTML = `<div class="error-box">集計に失敗しました。</div>`;
+    }
+}
+
+
+// ===============================================
+// ★★★ 新規 (2/2): 所持品チェックリスト ★★★
+// ===============================================
+
+/**
+ * 「所持品チェックリスト」ページを表示する
+ */
+async function showChecklistPage() {
+    updateHeader('所持品チェックリスト', true); // 戻るボタンを表示
+    
+    // 戻るボタンの動作を上書き
+    backButton.onclick = () => {
+        showGunPage();
+    };
+
+    app.innerHTML = `
+        <div class="space-y-4">
+            <div class="card">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-lg font-semibold">チェックリスト</h2>
+                    <button id="checklist-reset-btn" class="btn btn-secondary btn-sm">全解除</button>
+                </div>
+                <div id="checklist-container" class="space-y-3">
+                    <p class="text-gray-500 text-center py-4">読み込み中...</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">チェック項目の管理</h2>
+                
+                <form id="add-item-form" class="flex space-x-2 mb-4">
+                    <div class="form-group flex-grow">
+                        <label for="new-item-name" class="sr-only">新しい項目</label>
+                        <input type="text" id="new-item-name" class="form-input" placeholder="例: 銃許可証" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary h-fit mt-1">追加</button>
+                </form>
+                
+                <div id="item-management-list" class="space-y-2">
+                    <p class="text-gray-500">読み込み中...</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // --- イベントリスナーを設定 ---
+
+    // 1. 全解除ボタン
+    document.getElementById('checklist-reset-btn').addEventListener('click', async () => {
+        if (!window.confirm('すべてのチェックを解除しますか？')) return;
+        
+        try {
+            // DB内のすべての 'checked' を false に更新
+            const items = await db.checklist_items.toArray();
+            const updates = items.map(item => ({
+                key: item.name,
+                changes: { checked: false }
+            }));
+            
+            if (updates.length > 0) {
+                await db.checklist_items.bulkUpdate(updates);
+            }
+            
+            await renderChecklist(); // チェックリストを再描画
+        } catch (err) {
+            console.error("Failed to reset checklist:", err);
+            alert('全解除に失敗しました。');
+        }
+    });
+
+    // 2. 項目追加フォーム
+    document.getElementById('add-item-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('new-item-name');
+        const itemName = input.value.trim();
+        
+        if (!itemName) return;
+
+        try {
+            // DBに { name: "項目名", checked: false } で追加
+            await db.checklist_items.add({ name: itemName, checked: false });
+            input.value = ''; // フォームをクリア
+            
+            // 両方のリストを再描画
+            await renderChecklist();
+            await renderItemManagementList();
+        } catch (err) {
+            if (err.name === 'ConstraintError') {
+                alert(`「${itemName}」は既に追加されています。`);
+            } else {
+                console.error("Failed to add checklist item:", err);
+                alert('項目の追加に失敗しました。');
+            }
+        }
+    });
+
+    // --- 初期描画 ---
+    await renderChecklist();
+    await renderItemManagementList();
+}
+
+/**
+ * チェックリスト本体 (チェックボックス付き) を描画する
+ */
+async function renderChecklist() {
+    const container = document.getElementById('checklist-container');
+    if (!container) return;
+
+    try {
+        const items = await db.checklist_items.orderBy('name').toArray();
+        
+        if (items.length === 0) {
+            container.innerHTML = `<p class="text-gray-500 text-center py-4">項目がありません。「チェック項目の管理」から追加してください。</p>`;
+            return;
+        }
+
+        container.innerHTML = items.map(item => `
+            <label class="flex items-center space-x-3 p-2 rounded hover:bg-gray-50">
+                <input type="checkbox" class="form-checkbox h-5 w-5 text-blue-600 rounded" data-name="${escapeHTML(item.name)}" ${item.checked ? 'checked' : ''}>
+                <span class="text-gray-700">${escapeHTML(item.name)}</span>
+            </label>
+        `).join('');
+
+        // 各チェックボックスに「変更時DB保存」イベントを追加
+        container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', async (e) => {
+                const itemName = e.target.dataset.name;
+                const isChecked = e.target.checked;
+                try {
+                    // DBの 'checked' 状態を更新
+                    await db.checklist_items.update(itemName, { checked: isChecked });
+                } catch (err) {
+                    console.error("Failed to update check state:", err);
+                    alert('チェック状態の保存に失敗しました。');
+                }
+            });
+        });
+
+    } catch (err) {
+        console.error("Failed to render checklist:", err);
+        container.innerHTML = `<div class="error-box">チェックリストの読み込みに失敗しました。</div>`;
+    }
+}
+
+/**
+ * 項目の管理リスト (削除ボタン付き) を描画する
+ */
+async function renderItemManagementList() {
+    const container = document.getElementById('item-management-list');
+    if (!container) return;
+
+    try {
+        const items = await db.checklist_items.orderBy('name').toArray();
+        
+        if (items.length === 0) {
+            container.innerHTML = `<p class="text-gray-500 text-sm">登録されている項目はありません。</p>`;
+            return;
+        }
+
+        container.innerHTML = items.map(item => `
+            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                <span class="text-gray-700">${escapeHTML(item.name)}</span>
+                <button class="btn-delete-item text-red-500 hover:text-red-700 text-sm font-semibold" data-name="${escapeHTML(item.name)}">
+                    削除
+                </button>
+            </div>
+        `).join('');
+
+        // 削除ボタンにイベントリスナーを設定
+        container.querySelectorAll('.btn-delete-item').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const itemName = e.target.dataset.name;
+                
+                if (window.confirm(`項目「${itemName}」を削除しますか？`)) {
+                    try {
+                        await db.checklist_items.delete(itemName);
+                        // 両方のリストを再描画
+                        await renderChecklist();
+                        await renderItemManagementList();
+                    } catch (err) {
+                        console.error("Failed to delete checklist item:", err);
+                        alert('削除に失敗しました。');
+                    }
+                }
+            });
+        });
+
+    } catch (err) {
+        console.error("Failed to render item management list:", err);
+        container.innerHTML = `<div class="error-box">項目管理リストの読み込みに失敗しました。</div>`;
     }
 }
