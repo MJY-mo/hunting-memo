@@ -4,14 +4,72 @@
 const MAX_OPEN_TRAPS = 30; // 開いている罠の上限
 
 /**
- * 「罠」タブのメイン関数 (デフォルト = 開いている罠)
+ * ★★★ 新規 (3/3): 「罠」タブのメインメニュー ★★★
+ * (main.js の navigateTo('trap', ...) から呼ばれる)
  */
-async function showTrapPage() {
-    // (変更なし)
+function showTrapPage() {
+    // navigateTo は main.js で定義されたグローバル関数
+    // (引数が navigateTo と同じだが、これは罠タブのメインメニュー用)
+    navigateTo('trap', renderTrapMenu, '罠');
+}
+
+/**
+ * ★★★ 新規 (3/3): 罠タブのメインメニューを描画する
+ */
+function renderTrapMenu() {
+    // 戻るボタンを非表示
+    updateHeader('罠', false);
+
+    // app は main.js で定義されたグローバル変数
+    app.innerHTML = `
+        <div class="space-y-4">
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">罠の記録</h2>
+                <ul class="space-y-2">
+                    <li>
+                        <button id="show-trap-status-btn" class="btn btn-secondary w-full">
+                            罠の架設状態管理
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">設定</h2>
+                <ul class="space-y-2">
+                    <li>
+                        <button id="manage-trap-types-btn" class="btn btn-secondary w-full">
+                            罠の種類の管理
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    `;
+    
+    // --- イベントリスナーを設定 ---
+    document.getElementById('show-trap-status-btn').addEventListener('click', () => {
+        // 架設状態管理（設置中リスト）へ
+        appState.trapView = 'open'; // 常に「設置中」から開く
+        showTrapStatusPage();
+    });
+    
+    document.getElementById('manage-trap-types-btn').addEventListener('click', () => {
+        showManageTrapTypesPage();
+    });
+}
+
+
+/**
+ * ★★★ 修正 (3/3): `showTrapPage` から `showTrapStatusPage` にリネーム ★★★
+ * 「罠の架設状態管理」のメイン関数 (デフォルト = 開いている罠)
+ */
+async function showTrapStatusPage() {
     // main.js のグローバル状態を更新
     appState.trapView = 'open';
     // ヘッダーを「罠 (設置中)」に設定
-    updateHeader('罠 (設置中)', false);
+    // ★ 修正: 戻るボタンを表示 (罠メインメニューに戻る)
+    updateHeader('罠 (設置中)', true); 
     
     // 絞り込み条件の初期化
     if (!appState.trapFilters) {
@@ -44,7 +102,6 @@ async function showTrapPage() {
         </button>
     `;
     
-    // ★★★ 新規 (4/4) ★★★
     // 罠の種類のプルダウンを描画
     await renderTrapTypeOptions('filter-type', appState.trapFilters.type, true);
     
@@ -87,11 +144,10 @@ async function showTrapPage() {
  * ★ 新規: 過去の罠（閉じている罠）のページ
  */
 async function showClosedTrapPage() {
-    // (変更なし)
     // main.js のグローバル状態を更新
     appState.trapView = 'closed';
-    // ★ 修正: ヘッダータイトルを変更
-    updateHeader('罠設置履歴', false);
+    // ★ 修正: 戻るボタンを表示
+    updateHeader('罠設置履歴', true);
 
     // 絞り込み条件の初期化
     if (!appState.trapFilters) {
@@ -119,7 +175,6 @@ async function showClosedTrapPage() {
         </button>
     `;
     
-    // ★★★ 新規 (4/4) ★★★
     // 罠の種類のプルダウンを描画
     await renderTrapTypeOptions('filter-type', appState.trapFilters.type, true);
 
@@ -127,7 +182,8 @@ async function showClosedTrapPage() {
     
     // 設置中ボタン
     document.getElementById('show-open-btn').addEventListener('click', () => {
-        showTrapPage(); // 開いている罠ページを表示
+        // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
+        showTrapStatusPage(); // 開いている罠ページを表示
     });
 
     // 種類絞り込み
@@ -142,14 +198,10 @@ async function showClosedTrapPage() {
 
 
 /**
- * ★★★ 新規 (4/4) ★★★
  * 罠の種類の <option> タグをDBから描画するヘルパー関数
- * @param {string} selectId - <select> タグのID
- * @param {string} selectedValue - 現在選択されている値
- * @param {boolean} includeAll - 「すべての種類」オプションを含めるか
+ * (変更なし)
  */
 async function renderTrapTypeOptions(selectId, selectedValue, includeAll = false) {
-    // (変更なし)
     const selectEl = document.getElementById(selectId);
     if (!selectEl) return;
 
@@ -167,12 +219,9 @@ async function renderTrapTypeOptions(selectId, selectedValue, includeAll = false
             </option>
         `).join('');
         
-        // 「すべての種類」がある場合は、<option>を上書き
         if (includeAll) {
             selectEl.innerHTML = optionsHtml;
         } else {
-            // フォーム画面などでは、既存の<option>に追加（もしあれば）
-            // ※今回はフォーム側も動的生成するので、上書きでOK
             selectEl.innerHTML = optionsHtml;
         }
 
@@ -181,7 +230,6 @@ async function renderTrapTypeOptions(selectId, selectedValue, includeAll = false
 
     } catch (err) {
         console.error("Failed to render trap type options:", err);
-        // エラーでも最低限の動作を継続
         selectEl.innerHTML = `<option value="">DB読込エラー</option>`;
     }
 }
@@ -189,9 +237,9 @@ async function renderTrapTypeOptions(selectId, selectedValue, includeAll = false
 
 /**
  * 罠一覧（開いている罠）をDBから描画する関数
+ * (変更なし)
  */
 async function renderTrapList() {
-    // (変更なし)
     const container = document.getElementById('trap-list-container');
     if (!container) return; 
 
@@ -201,10 +249,8 @@ async function renderTrapList() {
             trap.close_date === null || trap.close_date === ''
         );
 
-        // ★ 修正: 絞り込みロジック (種類のみ)
         const { type } = appState.trapFilters;
         if (type !== 'all') {
-            // クエリを連結
             query = query.filter(trap => trap.trap_type === type);
         }
         
@@ -221,10 +267,10 @@ async function renderTrapList() {
             const statusText = '設置中';
             const categoryText = trap.category ? trap.category : '未分類';
 
-            // --- ★ 修正: 2行表示レイアウト ---
             return `
                 <div class="trap-card" data-id="${trap.id}">
-                    <div class="flex-grow min-w-0"> <h3 class="text-lg font-semibold text-blue-600 truncate">${escapeHTML(trap.trap_number)}</h3>
+                    <div class="flex-grow min-w-0">
+                        <h3 class="text-lg font-semibold text-blue-600 truncate">${escapeHTML(trap.trap_number)}</h3>
                         <p class="text-sm text-gray-500 truncate">
                             ${escapeHTML(trap.trap_type)} / ${escapeHTML(categoryText)} / 設置: ${formatDate(trap.setup_date)}
                         </p>
@@ -245,7 +291,6 @@ async function renderTrapList() {
         });
 
     } catch (err) {
-        // エラーログはコンソールに詳細を出す
         console.error("Failed to render trap list:", err);
         container.innerHTML = `<div class="error-box">罠一覧の読み込みに失敗しました。</div>`;
     }
@@ -253,9 +298,9 @@ async function renderTrapList() {
 
 /**
  * ★ 新規: 過去の罠一覧（閉じている罠）を描画する関数
+ * (変更なし)
  */
 async function renderClosedTrapList() {
-    // (変更なし)
     const container = document.getElementById('trap-list-container');
     if (!container) return;
 
@@ -281,7 +326,6 @@ async function renderClosedTrapList() {
             const statusText = '回収済';
             const categoryText = trap.category ? trap.category : '未分類';
 
-            // --- ★ 修正: 2行表示レイアウト ---
             return `
                 <div class="trap-card" data-id="${trap.id}">
                     <div class="flex-grow min-w-0">
@@ -320,7 +364,6 @@ async function showTrapEditForm(trapId) {
     let trap = {}; 
     let defaultTrapType = 'くくり罠'; // デフォルト値
 
-    // DBから「罠の種類」の先頭1件を取得し、デフォルト値とする
     try {
         const firstType = await db.trap_types.orderBy('name').first();
         if (firstType) {
@@ -331,11 +374,9 @@ async function showTrapEditForm(trapId) {
     }
 
     if (isNew) {
-        // (変更なし)
-        // 新規登録時のデフォルト値
         trap = {
             trap_number: '',
-            trap_type: defaultTrapType, // ★ 修正
+            trap_type: defaultTrapType, 
             category: '狩猟',
             setup_date: new Date().toISOString().split('T')[0], // 本日の日付
             close_date: '',
@@ -348,33 +389,35 @@ async function showTrapEditForm(trapId) {
         };
         updateHeader('新規の罠', true);
     } else {
-        // (変更なし)
-        // 編集時はDBからデータを取得
         try {
             trap = await db.traps.get(trapId);
             if (!trap) {
                 alert('罠データが見つかりません。');
-                (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
+                // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
+                (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
                 return;
             }
             if (!trap.additional_data) trap.additional_data = {};
-            if (!trap.category) trap.category = '狩猟'; // 古いデータ用のフォールバック
-            if (!trap.trap_type) trap.trap_type = defaultTrapType; // 古いデータ用
+            if (!trap.category) trap.category = '狩猟'; 
+            if (!trap.trap_type) trap.trap_type = defaultTrapType; 
             updateHeader(`罠の編集: ${trap.trap_number}`, true);
         } catch (err) {
             console.error("Failed to get trap data:", err);
             alert('罠データの取得に失敗しました。');
-            (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
+            // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
+            (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
             return;
         }
     }
 
-    // 戻るボタンの動作を現在のビュー（open/closed）に合わせる
+    // ★ 修正: 戻るボタンの動作を、現在のビュー（open/closed）に合わせる
     backButton.onclick = () => {
-        (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
+        // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
+        (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
     };
 
     // フォームのHTMLを描画
+    // (変更なし)
     app.innerHTML = `
         <form id="trap-form" class="card space-y-4">
             
@@ -470,9 +513,9 @@ async function showTrapEditForm(trapId) {
     await renderTrapTypeOptions('trap_type', trap.trap_type, false);
 
     // --- フォームのイベントリスナーを設定 ---
-    // (変更なし)
     document.getElementById('cancel-btn').addEventListener('click', () => {
-        (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
+        // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
+        (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
     });
 
     // (変更なし)
@@ -540,11 +583,13 @@ async function showTrapEditForm(trapId) {
                 await db.traps.put(data);
             }
             
+            // ★ 修正: 戻る場所を判断 (保存した罠の状態に応じて)
             const isClosed = (data.close_date !== null && data.close_date !== '');
             if (isClosed) {
                 showClosedTrapPage();
             } else {
-                showTrapPage();
+                // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
+                showTrapStatusPage();
             }
 
         } catch (err) {
@@ -568,7 +613,8 @@ async function showTrapEditForm(trapId) {
                 try {
                     await db.traps.delete(trapId);
                     alert('罠を削除しました。');
-                    (appState.trapView === 'open') ? showTrapPage() : showClosedTrapPage();
+                    // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
+                    (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
                 } catch (err) {
                     console.error("Failed to delete trap:", err);
                     alert(`削除に失敗しました: ${err.message}`);
@@ -576,10 +622,122 @@ async function showTrapEditForm(trapId) {
             }
         });
 
-        // ★★★ 新規 (2/5): 捕獲記録ボタンのリスナー ★★★
+        // (変更なし)
+        // 捕獲記録ボタンのリスナー
         document.getElementById('show-catch-log-btn').addEventListener('click', () => {
             // catch.js の showCatchListPage 関数を呼び出す
             showCatchListPage('trap', trapId);
         });
+    }
+}
+
+
+// =======================================================
+// ★★★ 新規 (3/3): settings.js から以下の2関数を移植 ★★★
+// =======================================================
+
+/**
+ * 「罠の種類を管理」ページを表示する
+ */
+async function showManageTrapTypesPage() {
+    // ★ 修正: ヘッダータイトルと戻るボタン
+    updateHeader('罠の種類を管理', true); 
+    // ★ 修正: 戻るボタンの動作を 罠メインメニュー に
+    backButton.onclick = () => {
+        showTrapPage();
+    };
+
+    app.innerHTML = `
+        <div class="card space-y-4">
+            <form id="add-trap-type-form" class="flex space-x-2">
+                <div class="form-group flex-grow">
+                    <label for="new_trap_type" class="sr-only">新しい罠の種類</label>
+                    <input type="text" id="new_trap_type" class="form-input" placeholder="例: 囲い罠" required>
+                </div>
+                <button type="submit" class="btn btn-primary h-fit mt-1">追加</button>
+            </form>
+            
+            <hr>
+            
+            <h3 class="text-md font-semibold">既存の種類</h3>
+            <div id="trap-type-list" class="space-y-2">
+                <p class="text-gray-500">読み込み中...</p>
+            </div>
+        </div>
+    `;
+
+    // 既存のリストを描画
+    await renderTrapTypeList();
+
+    // フォームの送信イベント
+    document.getElementById('add-trap-type-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('new_trap_type');
+        const newName = input.value.trim();
+        
+        if (!newName) return;
+
+        try {
+            // DBに追加
+            await db.trap_types.add({ name: newName });
+            input.value = ''; // フォームをクリア
+            await renderTrapTypeList(); // リストを再描画
+        } catch (err) {
+            if (err.name === 'ConstraintError') {
+                alert(`「${newName}」は既に追加されています。`);
+            } else {
+                console.error("Failed to add trap type:", err);
+                alert('追加に失敗しました。');
+            }
+        }
+    });
+}
+
+/**
+ * 罠の種類リストをDBから読み込んで描画する
+ */
+async function renderTrapTypeList() {
+    const container = document.getElementById('trap-type-list');
+    if (!container) return;
+
+    try {
+        const types = await db.trap_types.orderBy('name').toArray();
+        
+        if (types.length === 0) {
+            container.innerHTML = `<p class="text-gray-500">登録されている種類はありません。</p>`;
+            return;
+        }
+
+        container.innerHTML = types.map(type => `
+            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                <span class="text-gray-700">${escapeHTML(type.name)}</span>
+                <button class="btn-delete-type text-red-500 hover:text-red-700 text-sm font-semibold" data-name="${escapeHTML(type.name)}">
+                    削除
+                </button>
+            </div>
+        `).join('');
+
+        // 削除ボタンにイベントリスナーを設定
+        container.querySelectorAll('.btn-delete-type').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const typeName = e.target.dataset.name;
+                
+                // TODO: 将来的に、この種類を使用している罠があるかチェックする
+                
+                if (window.confirm(`「${typeName}」を削除しますか？\n（この種類が設定された既存の罠は変更されません）`)) {
+                    try {
+                        await db.trap_types.delete(typeName);
+                        await renderTrapTypeList(); // リストを再描画
+                    } catch (err) {
+                        console.error("Failed to delete trap type:", err);
+                        alert('削除に失敗しました。');
+                    }
+                }
+            });
+        });
+
+    } catch (err) {
+        console.error("Failed to render trap type list:", err);
+        container.innerHTML = `<div class="error-box">リストの読み込みに失敗しました。</div>`;
     }
 }

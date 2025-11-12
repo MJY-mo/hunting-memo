@@ -10,7 +10,6 @@ const tabs = {
     trap: document.getElementById('tab-trap'),
     gun: document.getElementById('tab-gun'),
     catch: document.getElementById('tab-catch'),
-    // ★★★ 新規 (2/4) ★★★
     checklist: document.getElementById('tab-checklist'),
     info: document.getElementById('tab-info'),
     settings: document.getElementById('tab-settings'),
@@ -48,7 +47,8 @@ window.addEventListener('load', () => {
         setupTabs();
         
         // 4. 初期タブ（「罠」タブ）を表示
-        navigateTo('trap', showTrapPage, '罠 (設置中)');
+        // ★★★ 修正 (1/3): 起動時のページを「罠の架設状態管理」に直接指定 ★★★
+        navigateTo('trap', showTrapStatusPage, '罠 (設置中)');
     }).catch(err => {
         console.error("Failed to open database:", err);
         app.innerHTML = `<div class="error-box">データベースの起動に失敗しました。アプリが使用できません。</div>`;
@@ -79,15 +79,14 @@ async function populateDefaultTrapTypes() {
 function setupTabs() {
     // 各タブが押されたら、navigateTo 関数を正しい引数で呼び出す
     tabs.trap.addEventListener('click', () => {
-        appState.trapView = 'open'; 
-        navigateTo('trap', showTrapPage, '罠 (設置中)');
+        // ★★★ 修正 (1/3): 罠タブは「メインメニュー」を表示 ★★★
+        appState.trapView = 'open'; // 状態はリセット
+        navigateTo('trap', showTrapPage, '罠');
     });
     tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
     tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
     tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲記録'));
-    
-    // ★★★ 新規 (2/4) ★★★
     tabs.checklist.addEventListener('click', () => navigateTo('checklist', showChecklistPage, 'チェックリスト'));
 }
 
@@ -134,12 +133,9 @@ function updateHeader(title, showBack = false) {
     // (各画面で、必要に応じてこの onclick は上書きされます)
     if (showBack) {
         backButton.onclick = () => {
+            // ★★★ 修正 (1/3): 罠のサブページからは罠メインメニューに戻る ★★★
             if (appState.currentPage === 'trap') {
-                if (appState.trapView === 'open') {
-                    navigateTo('trap', showTrapPage, '罠 (設置中)');
-                } else {
-                    navigateTo('trap', showClosedTrapPage, '罠設置履歴');
-                }
+                navigateTo('trap', showTrapPage, '罠');
             }
             else if (appState.currentPage === 'gun') {
                 navigateTo('gun', showGunPage, '銃');
@@ -147,14 +143,12 @@ function updateHeader(title, showBack = false) {
             else if (appState.currentPage === 'catch') {
                 navigateTo('catch', showCatchPage, '捕獲記録');
             }
-            // ★★★ 新規 (2/4) ★★★
             else if (appState.currentPage === 'checklist') {
                 navigateTo('checklist', showChecklistPage, 'チェックリスト');
             }
-            // ★★★ ここまで ★★★
             else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
             else if (appState.currentPage === 'settings') navigateTo('settings', showSettingsPage, '設定');
-            else navigateTo('trap', showTrapPage, '罠 (設置中)'); // デフォルトに戻る
+            else navigateTo('trap', showTrapPage, '罠'); // デフォルトに戻る
         };
     }
 
