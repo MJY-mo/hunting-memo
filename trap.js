@@ -23,6 +23,18 @@ function renderTrapMenu() {
     // app は main.js で定義されたグローバル変数
     app.innerHTML = `
         <div class="space-y-4">
+            
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">罠の管理</h2>
+                <ul class="space-y-2">
+                    <li>
+                        <button id="manage-trap-types-btn" class="btn btn-secondary w-full">
+                            所持している罠の種類の追加
+                        </button>
+                    </li>
+                </ul>
+            </div>
+
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">罠の記録</h2>
                 <ul class="space-y-2">
@@ -34,16 +46,6 @@ function renderTrapMenu() {
                 </ul>
             </div>
             
-            <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">設定</h2>
-                <ul class="space-y-2">
-                    <li>
-                        <button id="manage-trap-types-btn" class="btn btn-secondary w-full">
-                            罠の種類の管理
-                        </button>
-                    </li>
-                </ul>
-            </div>
         </div>
     `;
     
@@ -182,7 +184,6 @@ async function showClosedTrapPage() {
     
     // 設置中ボタン
     document.getElementById('show-open-btn').addEventListener('click', () => {
-        // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
         showTrapStatusPage(); // 開いている罠ページを表示
     });
 
@@ -393,7 +394,6 @@ async function showTrapEditForm(trapId) {
             trap = await db.traps.get(trapId);
             if (!trap) {
                 alert('罠データが見つかりません。');
-                // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
                 (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
                 return;
             }
@@ -404,7 +404,6 @@ async function showTrapEditForm(trapId) {
         } catch (err) {
             console.error("Failed to get trap data:", err);
             alert('罠データの取得に失敗しました。');
-            // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
             (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
             return;
         }
@@ -412,7 +411,6 @@ async function showTrapEditForm(trapId) {
 
     // ★ 修正: 戻るボタンの動作を、現在のビュー（open/closed）に合わせる
     backButton.onclick = () => {
-        // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
         (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
     };
 
@@ -514,7 +512,6 @@ async function showTrapEditForm(trapId) {
 
     // --- フォームのイベントリスナーを設定 ---
     document.getElementById('cancel-btn').addEventListener('click', () => {
-        // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
         (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
     });
 
@@ -583,12 +580,10 @@ async function showTrapEditForm(trapId) {
                 await db.traps.put(data);
             }
             
-            // ★ 修正: 戻る場所を判断 (保存した罠の状態に応じて)
             const isClosed = (data.close_date !== null && data.close_date !== '');
             if (isClosed) {
                 showClosedTrapPage();
             } else {
-                // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
                 showTrapStatusPage();
             }
 
@@ -613,7 +608,6 @@ async function showTrapEditForm(trapId) {
                 try {
                     await db.traps.delete(trapId);
                     alert('罠を削除しました。');
-                    // ★★★ 修正 (3/3): showTrapPage -> showTrapStatusPage ★★★
                     (appState.trapView === 'open') ? showTrapStatusPage() : showClosedTrapPage();
                 } catch (err) {
                     console.error("Failed to delete trap:", err);
@@ -633,7 +627,7 @@ async function showTrapEditForm(trapId) {
 
 
 // =======================================================
-// ★★★ 新規 (3/3): settings.js から以下の2関数を移植 ★★★
+// ★★★ (settings.js から移植した関数) ★★★
 // =======================================================
 
 /**
@@ -641,7 +635,7 @@ async function showTrapEditForm(trapId) {
  */
 async function showManageTrapTypesPage() {
     // ★ 修正: ヘッダータイトルと戻るボタン
-    updateHeader('罠の種類を管理', true); 
+    updateHeader('所持している罠の種類の追加', true); // ★ 修正: 表記変更
     // ★ 修正: 戻るボタンの動作を 罠メインメニュー に
     backButton.onclick = () => {
         showTrapPage();
@@ -650,7 +644,7 @@ async function showManageTrapTypesPage() {
     app.innerHTML = `
         <div class="card space-y-4">
             <form id="add-trap-type-form" class="flex space-x-2">
-                <div class="form-group flex-grow">
+                <div class="form-group flex-grow mb-0">
                     <label for="new_trap_type" class="sr-only">新しい罠の種類</label>
                     <input type="text" id="new_trap_type" class="form-input" placeholder="例: 囲い罠" required>
                 </div>
