@@ -124,21 +124,30 @@ function applyTheme(themeValue) {
 }
 
 /**
+ * ★★★ 修正: 文字サイズを5段階に変更 ★★★
  * 文字サイズを適用する (settings.js からも呼ばれる)
- * @param {string} sizeValue - 'small', 'medium', 'large'
+ * @param {string} sizeValue - 'xsmall', 'small', 'medium', 'large', 'xlarge'
  */
 function applyFontSize(sizeValue) {
     const root = document.documentElement; // <html> タグ
-    root.classList.remove('font-size-small', 'font-size-medium', 'font-size-large');
-    if (sizeValue === 'small') {
+    // すべてのクラスを一旦削除
+    root.classList.remove('font-size-xsmall', 'font-size-small', 'font-size-medium', 'font-size-large', 'font-size-xlarge');
+    
+    // 該当するクラスを追加
+    if (sizeValue === 'xsmall') {
+        root.classList.add('font-size-xsmall');
+    } else if (sizeValue === 'small') {
         root.classList.add('font-size-small');
     } else if (sizeValue === 'large') {
         root.classList.add('font-size-large');
+    } else if (sizeValue === 'xlarge') {
+        root.classList.add('font-size-xlarge');
     } else {
+        // 'medium' または不明な値は 'medium' にフォールバック
         root.classList.add('font-size-medium');
     }
 }
-// ★★★ 新規ここまで ★★★
+// ★★★ 修正ここまで ★★★
 
 
 // --- タブ切り替えロジック ---

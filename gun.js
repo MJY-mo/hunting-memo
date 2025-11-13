@@ -26,20 +26,25 @@ function renderGunMenu() {
                             所持銃の管理
                         </button>
                     </li>
+                    <li>
+                        <button id="manage-ammo-types-btn" class="btn btn-secondary w-full">
+                            実包の種類の登録
+                        </button>
+                    </li>
                 </ul>
             </div>
 
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">記録</h2>
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">銃の記録</h2>
                 <ul class="space-y-2">
                     <li>
                         <button id="manage-gun-logs-btn" class="btn btn-secondary w-full">
-                            銃使用履歴 (OUT)
+                            銃使用履歴
                         </button>
                     </li>
                     <li>
                         <button id="manage-ammo-purchase-btn" class="btn btn-secondary w-full">
-                            弾の購入履歴 (IN)
+                            弾の購入履歴
                         </button>
                     </li>
                     <li>
@@ -50,12 +55,17 @@ function renderGunMenu() {
                 </ul>
             </div>
             
-            </div>
+        </div>
     `;
     
     // --- イベントリスナーを設定 ---
     document.getElementById('manage-guns-btn').addEventListener('click', () => {
         showGunListPage();
+    });
+
+    // ★★★ 新規 (1/3) ★★★
+    document.getElementById('manage-ammo-types-btn').addEventListener('click', () => {
+        showAmmoTypeListPage();
     });
 
     document.getElementById('manage-gun-logs-btn').addEventListener('click', () => {
@@ -69,8 +79,6 @@ function renderGunMenu() {
     document.getElementById('manage-ammo-ledger-btn').addEventListener('click', () => {
         showAmmoLedgerPage();
     });
-
-    // ★★★ 修正 (3/4): checklist のリスナーを削除 ★★★
 }
 
 // ===============================================
@@ -266,7 +274,7 @@ async function showGunEditForm(gunId) {
  * 「銃使用履歴」リストページを表示する
  */
 async function showGunLogListPage() {
-    updateHeader('銃使用履歴 (OUT)', true); // 戻るボタンを表示 (main.jsのデフォルト動作でOK)
+    updateHeader('銃使用履歴', true); 
 
     app.innerHTML = `
         <div class="card mb-4">
@@ -434,6 +442,8 @@ async function showGunLogEditForm(logId) {
             <hr class="my-4">
             <div>
                 <h3 class="text-lg font-semibold border-b pb-2 mb-4">使用弾数</h3>
+                <datalist id="ammo-type-suggestions"></datalist>
+                
                 <div id="ammo-list-container" class="space-y-2 mb-3">
                     </div>
                 <button type="button" id="add-ammo-row-btn" class="btn btn-secondary w-full">＋ 弾種を追加</button>
@@ -467,6 +477,9 @@ async function showGunLogEditForm(logId) {
     // 1. 所持銃プルダウンを描画
     await renderGunOptions('gun_id', log.gun_id);
 
+    // ★★★ 新規 (2/3): 弾種候補の datalist を描画 ★★★
+    await renderAmmoTypeDatalist('ammo-type-suggestions');
+
     // 2. 使用弾数リストを描画・管理
     const ammoContainer = document.getElementById('ammo-list-container');
     
@@ -477,7 +490,7 @@ async function showGunLogEditForm(logId) {
         } else {
             ammoContainer.innerHTML = log.ammo_data.map((ammo, index) => `
                 <div class="flex items-center space-x-2" data-index="${index}">
-                    <input type="text" value="${escapeHTML(ammo.type)}" class="form-input ammo-type-input" placeholder="弾種 (例: 12番 スラッグ)">
+                    <input type="text" value="${escapeHTML(ammo.type)}" class="form-input ammo-type-input" placeholder="弾種 (例: 12番 スラッグ)" list="ammo-type-suggestions">
                     <input type="number" value="${escapeHTML(ammo.count)}" class="form-input ammo-count-input w-20" placeholder="発数" min="0">
                     <button type="button" class="btn-remove-ammo text-red-500 font-bold p-1">×</button>
                 </div>
@@ -501,7 +514,6 @@ async function showGunLogEditForm(logId) {
                 if (isType) {
                     log.ammo_data[index].type = e.target.value;
                 } else {
-                    // ★ 修正 (バグ修正): Math.max(0, ...) でマイナス値を防止
                     log.ammo_data[index].count = Math.max(0, Number(e.target.value) || 0);
                 }
             });
@@ -574,7 +586,6 @@ async function showGunLogEditForm(logId) {
             }
         });
 
-        // ★ 修正: 'log' -> 'logId' (logId が正しいID)
         const catchBtn = document.getElementById('show-catch-log-btn');
         if (catchBtn) {
             catchBtn.addEventListener('click', () => {
@@ -630,7 +641,7 @@ async function renderGunOptions(selectId, selectedId) {
  * 「弾の購入履歴」リストページを表示する
  */
 async function showAmmoPurchaseListPage() {
-    updateHeader('弾の購入履歴 (IN)', true); // 戻るボタンを表示
+    updateHeader('弾の購入履歴', true); 
 
     app.innerHTML = `
         <div class="card mb-4">
@@ -750,7 +761,8 @@ async function showAmmoPurchaseEditForm(logId) {
 
                     <div class="form-group">
                         <label for="ammo_type" class="form-label">弾種</label>
-                        <input type="text" id="ammo_type" name="ammo_type" value="${escapeHTML(log.ammo_type || '')}" class="form-input" placeholder="例: 12番 スラッグ" required>
+                        <input type="text" id="ammo_type" name="ammo_type" value="${escapeHTML(log.ammo_type || '')}" class="form-input" placeholder="例: 12番 スラッグ" required list="ammo-type-suggestions">
+                        <datalist id="ammo-type-suggestions"></datalist>
                     </div>
 
                     <div class="form-group">
@@ -774,6 +786,9 @@ async function showAmmoPurchaseEditForm(logId) {
     `;
 
     // --- フォームのイベントリスナーを設定 ---
+
+    // ★★★ 新規 (2/3): 弾種候補の datalist を描画 ★★★
+    await renderAmmoTypeDatalist('ammo-type-suggestions');
 
     // 1. キャンセルボタン
     document.getElementById('cancel-btn').addEventListener('click', () => {
@@ -927,4 +942,137 @@ async function showAmmoLedgerPage() {
     }
 }
 
-// ★★★ 修正 (3/4): チェックリスト関連の関数をすべて削除 ★★★
+
+// ===============================================
+// ★★★ 新規 (3/3): 実包の種類マスタ管理 ★★★
+// ===============================================
+
+/**
+ * 「実包の種類を登録」ページを表示する
+ * (trap.js の showManageTrapTypesPage とほぼ同じ)
+ */
+async function showAmmoTypeListPage() {
+    updateHeader('実包の種類の登録', true); // 戻るボタンを表示
+    
+    // 戻るボタンの動作を上書き
+    backButton.onclick = () => {
+        showGunPage();
+    };
+
+    app.innerHTML = `
+        <div class="card space-y-4">
+            <form id="add-ammo-type-form" class="flex space-x-2">
+                <div class="form-group flex-grow mb-0">
+                    <label for="new_ammo_type" class="sr-only">新しい実包の種類</label>
+                    <input type="text" id="new_ammo_type" class="form-input" placeholder="例: 12番 7.5号 28g" required>
+                </div>
+                <button type="submit" class="btn btn-primary h-fit mt-1">追加</button>
+            </form>
+            
+            <hr>
+            
+            <h3 class="text-md font-semibold">登録済みの種類</h3>
+            <div id="ammo-type-list" class="space-y-2">
+                <p class="text-gray-500">読み込み中...</p>
+            </div>
+        </div>
+    `;
+
+    // 既存のリストを描画
+    await renderAmmoTypeList();
+
+    // フォームの送信イベント
+    document.getElementById('add-ammo-type-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('new_ammo_type');
+        const newName = input.value.trim();
+        
+        if (!newName) return;
+
+        try {
+            // DBに追加
+            await db.ammo_types.add({ name: newName });
+            input.value = ''; // フォームをクリア
+            await renderAmmoTypeList(); // リストを再描画
+        } catch (err) {
+            if (err.name === 'ConstraintError') {
+                alert(`「${newName}」は既に追加されています。`);
+            } else {
+                console.error("Failed to add ammo type:", err);
+                alert('追加に失敗しました。');
+            }
+        }
+    });
+}
+
+/**
+ * 実包の種類リストをDBから読み込んで描画する
+ * (trap.js の renderTrapTypeList とほぼ同じ)
+ */
+async function renderAmmoTypeList() {
+    const container = document.getElementById('ammo-type-list');
+    if (!container) return;
+
+    try {
+        const types = await db.ammo_types.orderBy('name').toArray();
+        
+        if (types.length === 0) {
+            container.innerHTML = `<p class="text-gray-500">登録されている種類はありません。</p>`;
+            return;
+        }
+
+        container.innerHTML = types.map(type => `
+            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                <span class="text-gray-700">${escapeHTML(type.name)}</span>
+                <button class="btn-delete-type text-red-500 hover:text-red-700 text-sm font-semibold" data-name="${escapeHTML(type.name)}">
+                    削除
+                </button>
+            </div>
+        `).join('');
+
+        // 削除ボタンにイベントリスナーを設定
+        container.querySelectorAll('.btn-delete-type').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const typeName = e.target.dataset.name;
+                
+                // TODO: 将来的に、この弾種を使用している履歴があるかチェックする
+                
+                if (window.confirm(`「${typeName}」を削除しますか？\n（この弾種が設定された既存の履歴は変更されません）`)) {
+                    try {
+                        await db.ammo_types.delete(typeName);
+                        await renderAmmoTypeList(); // リストを再描画
+                    } catch (err) {
+                        console.error("Failed to delete ammo type:", err);
+                        alert('削除に失敗しました。');
+                    }
+                }
+            });
+        });
+
+    } catch (err) {
+        console.error("Failed to render ammo type list:", err);
+        container.innerHTML = `<div class="error-box">リストの読み込みに失敗しました。</div>`;
+    }
+}
+
+/**
+ * ★★★ 新規 (3/3) ★★★
+ * 弾種の <option> タグを <datalist> に描画するヘルパー関数
+ * @param {string} datalistId - <datalist> タグのID
+ */
+async function renderAmmoTypeDatalist(datalistId) {
+    const datalistEl = document.getElementById(datalistId);
+    if (!datalistEl) return;
+
+    try {
+        const types = await db.ammo_types.orderBy('name').toArray();
+        
+        datalistEl.innerHTML = types.map(type => `
+            <option value="${escapeHTML(type.name)}"></option>
+        `).join('');
+
+    } catch (err) {
+        console.error("Failed to render ammo type datalist:", err);
+        // ここでのエラーは致命的ではないので、アラートは出さない
+    }
+}

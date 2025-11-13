@@ -34,9 +34,11 @@ async function renderSettingsMenu() {
                 <div class="form-group">
                     <label for="setting-font-size" class="form-label">文字サイズ</label>
                     <select id="setting-font-size" class="form-select">
-                        <option value="small">小</option>
-                        <option value="medium">中 (デフォルト)</option>
-                        <option value="large">大</option>
+                        <option value="xsmall">特小 (12px)</option>
+                        <option value="small">小 (14px)</option>
+                        <option value="medium">中 (16px - デフォルト)</option>
+                        <option value="large">大 (18px)</option>
+                        <option value="xlarge">特大 (20px)</option>
                     </select>
                 </div>
             </div>
@@ -88,7 +90,7 @@ async function renderSettingsMenu() {
         </div>
     `;
     
-    // ★★★ 新規 (3/3): イベントリスナーを設定 ★★★
+    // ★★★ 修正 (3/3): イベントリスナー (変更なし) ★★★
     const themeSelect = document.getElementById('setting-theme');
     const fontSizeSelect = document.getElementById('setting-font-size');
 

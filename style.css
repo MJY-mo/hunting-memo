@@ -1,4 +1,4 @@
-/* ★★★ 新規 (1/3): テーマとフォントサイズの定義 ★★★ */
+/* ★★★ 修正: フォントサイズ定義を5段階に変更 ★★★ */
 :root {
     /* デフォルト (ライトテーマ) */
     --color-bg-primary: #f3f4f6; /* bg-gray-100 */
@@ -7,7 +7,7 @@
     --color-text-secondary: #4b5563; /* text-gray-600 */
     --color-border: #d1d5db; /* border-gray-300 */
     --color-border-focus: rgb(59 130 246); /* focus:border-blue-500 */
-    --font-size-base: 16px;
+    /* font-size-base は :root.font-size-xxx で設定 */
 }
 
 :root.theme-dark {
@@ -28,6 +28,9 @@
     --color-border-focus: #a98f71;
 }
 
+:root.font-size-xsmall {
+    --font-size-base: 12px;
+}
 :root.font-size-small {
     --font-size-base: 14px;
 }
@@ -37,7 +40,10 @@
 :root.font-size-large {
     --font-size-base: 18px;
 }
-/* ★★★ 新規ここまで ★★★ */
+:root.font-size-xlarge {
+    --font-size-base: 20px;
+}
+/* ★★★ 修正ここまで ★★★ */
 
 
 /* Tailwind CSSがベースですが、@apply を使わずに標準CSSで記述します */
@@ -50,7 +56,7 @@ body {
     /* ★ 修正: CSS変数を使用 */
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-base); /* ★ 適用 */
 }
 
 /* ★ 修正: ヘッダーとタブバーのテーマ対応 (index.html の定義に基づく) */

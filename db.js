@@ -211,7 +211,7 @@ db.version(8).stores({
   settings: `&key`
 });
 
-// --- ★★★ 修正: version(9) の upgrade 関数 ★★★ ---
+// --- version(9) ---
 db.version(9).stores({
   // 9. チェックリストのセット
   checklist_lists: `
@@ -239,11 +239,8 @@ db.version(9).stores({
 }).upgrade(async (tx) => {
     // v8 -> v9 への移行
     // 1. 'デフォルトリスト' を作成
-    // (tx.checklist_lists は v9 のテーブル定義)
     const defaultListId = await tx.checklist_lists.add({ name: 'デフォルトリスト' });
-
     // 2. v8の checklist_items データを読み取り
-    // (tx.table('checklist_items') は v8 のテーブル定義)
     const oldItems = [];
     await tx.table('checklist_items').each(item => {
         oldItems.push({
@@ -252,17 +249,35 @@ db.version(9).stores({
             checked: item.checked
         });
     });
-    
     // 3. v8のストアをクリア
     await tx.table('checklist_items').clear();
-    
     // 4. v9のストアにデータをバルク追加
     if (oldItems.length > 0) {
-        // ★★★ 修正: tx.table(...) ではなく tx.checklist_items (...) を使う ★★★
-        // (tx.checklist_items は v9 のテーブル定義)
         await tx.checklist_items.bulkAdd(oldItems);
     }
     console.log("Upgraded checklist_items from v8 to v9 and migrated data to 'デフォルトリスト'.");
+});
+
+
+// --- ★★★ 新規: version(10) を追加 ★★★ ---
+// (実包の種類マスタストアを追加)
+db.version(10).stores({
+  // 10. 実包の種類マスタストア
+  ammo_types: `
+    &name
+  `,
+
+  // (既存のストアは変更なし・定義を省略すると維持されます)
+  checklist_lists: `++id, &name`,
+  checklist_items: `++id, list_id, name, checked, [list_id+name]`,
+  catches: `++id, catch_date, method, relation_id, species, gender, age, location_detail, [method+catch_date]`,
+  photos: `++id, catch_id, image_data`,
+  ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  settings: `&key`
 });
 
 
