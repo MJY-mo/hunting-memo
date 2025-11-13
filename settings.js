@@ -11,13 +11,35 @@ function showSettingsPage() {
 /**
  * 設定タブのメインメニューを描画する
  */
-function renderSettingsMenu() {
+async function renderSettingsMenu() {
     // 戻るボタンを非表示
     updateHeader('設定', false);
 
     // app は main.js で定義されたグローバル変数
     app.innerHTML = `
         <div class="space-y-4">
+
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">表示設定</h2>
+                
+                <div class="form-group">
+                    <label for="setting-theme" class="form-label">背景色</label>
+                    <select id="setting-theme" class="form-select">
+                        <option value="light">ライト (デフォルト)</option>
+                        <option value="dark">ダーク</option>
+                        <option value="sepia">セピア</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="setting-font-size" class="form-label">文字サイズ</label>
+                    <select id="setting-font-size" class="form-select">
+                        <option value="small">小</option>
+                        <option value="medium">中 (デフォルト)</option>
+                        <option value="large">大</option>
+                    </select>
+                </div>
+            </div>
 
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">アプリについて</h2>
@@ -50,8 +72,8 @@ function renderSettingsMenu() {
                         </ul>
                     </div>
                 </details>
-
             </div>
+
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">データ管理</h2>
                 <ul class="space-y-2">
@@ -66,5 +88,52 @@ function renderSettingsMenu() {
         </div>
     `;
     
-    // (イベントリスナーは現在不要)
+    // ★★★ 新規 (3/3): イベントリスナーを設定 ★★★
+    const themeSelect = document.getElementById('setting-theme');
+    const fontSizeSelect = document.getElementById('setting-font-size');
+
+    try {
+        // 1. DBから現在の設定値を読み込み、プルダウンに反映
+        const themeSetting = await db.settings.get('theme');
+        if (themeSetting) {
+            themeSelect.value = themeSetting.value;
+        }
+        
+        const fontSizeSetting = await db.settings.get('fontSize');
+        if (fontSizeSetting) {
+            fontSizeSelect.value = fontSizeSetting.value;
+        }
+
+        // 2. テーマ変更時のイベント
+        themeSelect.addEventListener('change', async (e) => {
+            const newValue = e.target.value;
+            try {
+                // DBに保存
+                await db.settings.put({ key: 'theme', value: newValue });
+                // 即時適用 (main.js の関数を呼び出す)
+                applyTheme(newValue);
+            } catch (err) {
+                console.error("Failed to save theme setting:", err);
+                alert('テーマの保存に失敗しました。');
+            }
+        });
+
+        // 3. 文字サイズ変更時のイベント
+        fontSizeSelect.addEventListener('change', async (e) => {
+            const newValue = e.target.value;
+            try {
+                // DBに保存
+                await db.settings.put({ key: 'fontSize', value: newValue });
+                // 即時適用 (main.js の関数を呼び出す)
+                applyFontSize(newValue);
+            } catch (err) {
+                console.error("Failed to save font size setting:", err);
+                alert('文字サイズの保存に失敗しました。');
+            }
+        });
+
+    } catch (err) {
+        console.error("Failed to load settings in settings page:", err);
+        app.innerHTML = `<div class="error-box">設定の読み込みに失敗しました。</div>`;
+    }
 }

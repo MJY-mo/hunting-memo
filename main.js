@@ -40,14 +40,17 @@ window.addEventListener('load', () => {
     db.open().then(async () => {
         console.log("Database opened successfully.");
         
+        // ★★★ 新規 (2/3): 設定を読み込んで適用 ★★★
+        await loadAndApplySettings();
+
         // 2. デフォルトの罠種類をDBに投入 (存在しない場合のみ)
         await populateDefaultTrapTypes();
         
         // 3. タブ切り替えのリスナーを設定
         setupTabs();
         
-        // 4. 初期タブ（「罠」タブ）を表示
-        // ★★★ 修正 (1/3): 起動時のページを「罠の架設状態管理」に直接指定 ★★★
+        // 4. 初期タブ（「罠」タブ）
+        // (起動時は「罠メインメニュー」ではなく、直接「架設状態」に飛ぶ)
         navigateTo('trap', showTrapStatusPage, '罠 (設置中)');
     }).catch(err => {
         console.error("Failed to open database:", err);
@@ -74,12 +77,75 @@ async function populateDefaultTrapTypes() {
     }
 }
 
+// ★★★ 新規 (2/3): 設定読み込み・適用ロジック ★★★
+/**
+ * DBから設定を読み込み、HTMLにクラスを適用する
+ */
+async function loadAndApplySettings() {
+    try {
+        // 1. テーマ設定の読み込みと適用
+        let themeSetting = await db.settings.get('theme');
+        if (!themeSetting) {
+            // デフォルト値をDBに保存
+            themeSetting = { key: 'theme', value: 'light' };
+            await db.settings.put(themeSetting);
+        }
+        applyTheme(themeSetting.value);
+        
+        // 2. 文字サイズ設定の読み込みと適用
+        let fontSizeSetting = await db.settings.get('fontSize');
+        if (!fontSizeSetting) {
+            // デフォルト値をDBに保存
+            fontSizeSetting = { key: 'fontSize', value: 'medium' };
+            await db.settings.put(fontSizeSetting);
+        }
+        applyFontSize(fontSizeSetting.value);
+
+    } catch (err) {
+        console.error("Failed to load settings:", err);
+        // エラーが発生しても、デフォルトのスタイルで続行
+    }
+}
+
+/**
+ * テーマを適用する (settings.js からも呼ばれる)
+ * @param {string} themeValue - 'light', 'dark', 'sepia'
+ */
+function applyTheme(themeValue) {
+    const root = document.documentElement; // <html> タグ
+    root.classList.remove('theme-light', 'theme-dark', 'theme-sepia');
+    if (themeValue === 'dark') {
+        root.classList.add('theme-dark');
+    } else if (themeValue === 'sepia') {
+        root.classList.add('theme-sepia');
+    } else {
+        root.classList.add('theme-light');
+    }
+}
+
+/**
+ * 文字サイズを適用する (settings.js からも呼ばれる)
+ * @param {string} sizeValue - 'small', 'medium', 'large'
+ */
+function applyFontSize(sizeValue) {
+    const root = document.documentElement; // <html> タグ
+    root.classList.remove('font-size-small', 'font-size-medium', 'font-size-large');
+    if (sizeValue === 'small') {
+        root.classList.add('font-size-small');
+    } else if (sizeValue === 'large') {
+        root.classList.add('font-size-large');
+    } else {
+        root.classList.add('font-size-medium');
+    }
+}
+// ★★★ 新規ここまで ★★★
+
 
 // --- タブ切り替えロジック ---
 function setupTabs() {
     // 各タブが押されたら、navigateTo 関数を正しい引数で呼び出す
     tabs.trap.addEventListener('click', () => {
-        // ★★★ 修正 (1/3): 罠タブは「メインメニュー」を表示 ★★★
+        // ★ 修正: 罠タブは「メインメニュー」を表示
         appState.trapView = 'open'; // 状態はリセット
         navigateTo('trap', showTrapPage, '罠');
     });
@@ -133,7 +199,6 @@ function updateHeader(title, showBack = false) {
     // (各画面で、必要に応じてこの onclick は上書きされます)
     if (showBack) {
         backButton.onclick = () => {
-            // ★★★ 修正 (1/3): 罠のサブページからは罠メインメニューに戻る ★★★
             if (appState.currentPage === 'trap') {
                 navigateTo('trap', showTrapPage, '罠');
             }
