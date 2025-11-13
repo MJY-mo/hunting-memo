@@ -40,16 +40,20 @@ window.addEventListener('load', () => {
     db.open().then(async () => {
         console.log("Database opened successfully.");
         
-        // ★★★ 新規 (2/3): 設定を読み込んで適用 ★★★
+        // 2. 設定を読み込んで適用
         await loadAndApplySettings();
 
-        // 2. デフォルトの罠種類をDBに投入 (存在しない場合のみ)
+        // 3. デフォルトの罠種類をDBに投入
         await populateDefaultTrapTypes();
         
-        // 3. タブ切り替えのリスナーを設定
+        // ★★★ 新規 (1/4) ★★★
+        // 4. デフォルトの狩猟者プロファイルを作成 (存在しない場合)
+        await populateDefaultHunterProfile();
+        
+        // 5. タブ切り替えのリスナーを設定
         setupTabs();
         
-        // 4. 初期タブ（「罠」タブ）
+        // 6. 初期タブ（「罠」タブ）
         // (起動時は「罠メインメニュー」ではなく、直接「架設状態」に飛ぶ)
         navigateTo('trap', showTrapStatusPage, '罠 (設置中)');
     }).catch(err => {
@@ -77,7 +81,35 @@ async function populateDefaultTrapTypes() {
     }
 }
 
-// ★★★ 新規 (2/3): 設定読み込み・適用ロジック ★★★
+/**
+ * ★★★ 新規 (1/4) ★★★
+ * 狩猟者プロファイルのデフォルト行を作成する
+ */
+async function populateDefaultHunterProfile() {
+    try {
+        // 'main' というキーで単一のプロファイルを作成
+        await db.hunter_profile.add({
+            key: 'main',
+            name: '',
+            gun_license_renewal: '',
+            gun_license_photo: null,
+            hunting_license_renewal: '',
+            hunting_license_photo: null,
+            registration_renewal: '',
+            registration_photo: null
+        });
+        console.log("Default hunter profile created.");
+    } catch (err) {
+        if (err.name === 'ConstraintError') {
+            // 既に 'main' が存在する場合は何もしない
+            console.log("Hunter profile already exists.");
+        } else {
+            console.error("Failed to create default hunter profile:", err);
+        }
+    }
+}
+
+
 /**
  * DBから設定を読み込み、HTMLにクラスを適用する
  */
@@ -124,7 +156,6 @@ function applyTheme(themeValue) {
 }
 
 /**
- * ★★★ 修正: 文字サイズを5段階に変更 ★★★
  * 文字サイズを適用する (settings.js からも呼ばれる)
  * @param {string} sizeValue - 'xsmall', 'small', 'medium', 'large', 'xlarge'
  */
@@ -147,15 +178,13 @@ function applyFontSize(sizeValue) {
         root.classList.add('font-size-medium');
     }
 }
-// ★★★ 修正ここまで ★★★
 
 
 // --- タブ切り替えロジック ---
 function setupTabs() {
     // 各タブが押されたら、navigateTo 関数を正しい引数で呼び出す
     tabs.trap.addEventListener('click', () => {
-        // ★ 修正: 罠タブは「メインメニュー」を表示
-        appState.trapView = 'open'; // 状態はリセット
+        appState.trapView = 'open'; 
         navigateTo('trap', showTrapPage, '罠');
     });
     tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
@@ -220,8 +249,13 @@ function updateHeader(title, showBack = false) {
             else if (appState.currentPage === 'checklist') {
                 navigateTo('checklist', showChecklistPage, 'チェックリスト');
             }
-            else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
-            else if (appState.currentPage === 'settings') navigateTo('settings', showSettingsPage, '設定');
+            // ★★★ 修正 (1/4) ★★★
+            else if (appState.currentPage === 'info') {
+                 navigateTo('info', showInfoPage, '情報');
+            }
+            else if (appState.currentPage === 'settings') {
+                 navigateTo('settings', showSettingsPage, '設定');
+            }
             else navigateTo('trap', showTrapPage, '罠'); // デフォルトに戻る
         };
     }
@@ -231,7 +265,7 @@ function updateHeader(title, showBack = false) {
 }
 
 // --- 共通ヘルパー関数 ---
-// (GPS, escapeHTML, formatDate, resizeImage は変更なしのため省略)
+// (GPS, escapeHTML, formatDate, resizeImage は変更なし)
 /**
  * GPS位置情報を取得する (ユーザーの要望)
  * (trap.js などから呼び出して使う)
@@ -321,11 +355,8 @@ function formatDate(dateString) {
 
 
 /**
- * ★★★ 新規: 画像リサイズ関数 ★★★
- * ファイルをリサイズし、EXIFの向きを補正して Blob を返す
- * @param {File} file - 画像ファイル
- * @param {number} [maxSize=800] - 最大辺のピクセル数
- * @returns {Promise<Blob>} - リサイズされた JPEG Blob
+ * 画像リサイズ関数
+ * (変更なし)
  */
 function resizeImage(file, maxSize = 800) {
     return new Promise((resolve, reject) => {
@@ -406,4 +437,49 @@ function resizeImage(file, maxSize = 800) {
         reader.onerror = (e) => reject(new Error('File reading failed'));
         reader.readAsDataURL(file); // EXIF.js が Data URL を必要とするため
     });
+}
+
+// ★★★ 新規 (1/4): 画像拡大モーダル ★★★
+/**
+ * 画像を拡大表示するモーダルを表示する
+ * @param {string} blobUrl - URL.createObjectURL() で生成したURL
+ */
+function showImageModal(blobUrl) {
+    // 既存のモーダルがあれば削除
+    closeImageModal();
+    
+    // モーダルを作成
+    const modalOverlay = document.createElement('div');
+    modalOverlay.id = 'image-modal-overlay';
+    modalOverlay.className = 'image-modal-overlay'; // style.css で定義
+    
+    const modalContent = document.createElement('div');
+    modalContent.className = 'image-modal-content';
+    
+    const img = document.createElement('img');
+    img.src = blobUrl;
+    
+    modalContent.appendChild(img);
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+    
+    // オーバーレイクリックで閉じる
+    modalOverlay.onclick = () => {
+        closeImageModal();
+    };
+}
+
+/**
+ * 画像拡大モーダルを閉じる
+ */
+function closeImageModal() {
+    const modalOverlay = document.getElementById('image-modal-overlay');
+    if (modalOverlay) {
+        // メモリリーク防止のため、imgのsrcを解放
+        const img = modalOverlay.querySelector('img');
+        if (img && img.src.startsWith('blob:')) {
+            URL.revokeObjectURL(img.src);
+        }
+        modalOverlay.remove();
+    }
 }
