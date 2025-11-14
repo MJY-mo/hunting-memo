@@ -4,7 +4,7 @@
 const db = new Dexie('BLNCRHuntingApp');
 
 // データベースのスキーマ（構造）を定義
-// (v1〜v15 までは変更なしのため省略)
+// (v1〜v16 までは変更なしのため省略)
 // --- version(1) ---
 db.version(1).stores({
   traps: `
@@ -476,14 +476,16 @@ db.version(16).stores({
 });
 
 
-// --- ★★★ 新規: version(17) を追加 ★★★ ---
-db.version(17).stores({
-  // 14. 狩猟鳥獣一覧ストア (CSV) に is_game (〇/×) を追加し、インデックスも変更
+// --- ★★★ 修正: version(18) (v17をスキップ) ★★★
+// (v16の game_animal_list にCSVの全項目を追加し、古い game_animals を削除)
+db.version(18).stores({
+  // 14. 狩猟鳥獣一覧ストア (CSV) に v17の項目 + CSVの全項目を追加
+  // ★ 修正: species_name のユニーク制約(&)を解除
   game_animal_list: `
     ++id,
-    &species_name,
+    species_name,
     category,
-    is_game,
+    is_game_animal,
     method_net,
     method_trap,
     method_gun,
@@ -492,7 +494,7 @@ db.version(17).stores({
     prohibited_area,
     habitat,
     notes,
-    [category+is_game]
+    [category+is_game_animal]
   `,
   
   // 13. 古い図鑑ストア(game_animals)を削除
@@ -512,6 +514,15 @@ db.version(17).stores({
   traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
   guns: `++id, &gun_name`,
   settings: `&key`
+}).upgrade(async (tx) => {
+    // v16 -> v18 への移行
+    // v16の game_animal_list テーブルのデータを読み取り、v18のスキーマに合わせて 'is_game_animal' などを追加
+    // (ただし、main.js の populateGameAnimalList が bulkPut で上書きするので、
+    // ここでのデータ移行は（今回は）必須ではない)
+    
+    // v15 の game_animals テーブルを削除
+    // (v17で既に null が指定されているので Dexie が自動で処理)
+    console.log("Upgraded DB to v18, removed old game_animals table.");
 });
 
 

@@ -32,7 +32,7 @@ function renderInfoMenu() {
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">法令情報</h2>
                 <ul class="space-y-2">
-                    <li><button id="show-game-animals-btn" class="btn btn-secondary w-full">狩猟鳥獣 図鑑</button></li>
+                    <li><button id="show-game-animals-btn" class="btn btn-secondary w-full">図鑑</button></li>
                 </ul>
             </div>
         </div>
@@ -476,19 +476,18 @@ function setupProfilePhotoUpload(key, tempPhotos, photosToDelete) {
 }
 
 // ===============================================
-// ★★★ 修正: 狩猟鳥獣図鑑 (v17) ★★★
+// ★★★ 修正: 狩猟鳥獣図鑑 (v18) ★★★
 // ===============================================
 
 /**
- * 「狩猟鳥獣」図鑑リストページを表示する
- * (旧 showGameAnimalListPage)
+ * 「狩猟鳥獣 図鑑」リストページを表示する
  */
 async function showGameAnimalListPage() {
     updateHeader('狩猟鳥獣 図鑑', true); 
     // 戻るボタンの動作を上書き
     backButton.onclick = () => showInfoPage();
 
-    // 絞り込み条件の初期化 (main.js で定義済み)
+    // 絞り込み条件の初期化
     if (!appState.gameAnimalFilters) {
         appState.gameAnimalFilters = { category: 'all', status: 'all' };
     }
@@ -508,8 +507,8 @@ async function showGameAnimalListPage() {
                     <label for="filter-game-status" class="form-label">ステータス</label>
                     <select id="filter-game-status" class="form-select mt-1">
                         <option value="all">すべて</option>
-                        <option value="game">狩猟鳥獣 (〇)</option>
-                        <option value="pest">対象外 (×)</option>
+                        <option value="〇">狩猟鳥獣 (〇)</option>
+                        <option value="×">対象外 (×)</option>
                     </select>
                 </div>
             </div>
@@ -542,24 +541,22 @@ async function showGameAnimalListPage() {
 
 /**
  * 狩猟鳥獣リスト(図鑑)をDBから読み込んで描画する
- * (旧 renderGameAnimalList)
  */
 async function renderGameAnimalList() {
     const container = document.getElementById('game-animal-list-container');
     if (!container) return;
 
     try {
-        // 1. 絞り込み (v17の 'is_game' を参照)
+        // 1. 絞り込み
         const { category, status } = appState.gameAnimalFilters;
         let query = db.game_animal_list.toCollection();
 
         if (category !== 'all') {
             query = query.filter(animal => animal.category === category);
         }
-        if (status === 'game') {
-            query = query.filter(animal => animal.is_game === '〇');
-        } else if (status === 'pest') {
-            query = query.filter(animal => animal.is_game === '×');
+        // ★★★ 修正: 絞り込みを '〇'/'×' に ★★★
+        if (status !== 'all') {
+            query = query.filter(animal => animal.is_game_animal === status);
         }
         
         // 2. データを取得
@@ -572,8 +569,9 @@ async function renderGameAnimalList() {
 
         // 3. 描画
         container.innerHTML = animals.map(animal => {
-            const statusText = animal.is_game === '〇' ? '狩猟鳥獣' : '対象外';
-            const statusClass = animal.is_game === '〇' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+            // ★★★ 修正: バッジを '〇'/'×' に ★★★
+            const statusText = animal.is_game_animal === '〇' ? '狩猟鳥獣' : '対象外';
+            const statusClass = animal.is_game_animal === '〇' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
 
             return `
                 <div class="trap-card" data-id="${animal.id}">
@@ -615,8 +613,9 @@ async function showGameAnimalDetailPage(animalId) {
         // 戻るボタンの動作を上書き
         backButton.onclick = () => showGameAnimalListPage();
 
-        const statusText = animal.is_game === '〇' ? '狩猟鳥獣' : '対象外';
-        const statusClass = animal.is_game === '〇' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+        // ★★★ 修正: バッジを '〇'/'×' に ★★★
+        const statusText = animal.is_game_animal === '〇' ? '狩猟鳥獣' : '対象外';
+        const statusClass = animal.is_game_animal === '〇' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
 
         app.innerHTML = `
             <div class="card space-y-4">
@@ -667,11 +666,11 @@ async function showGameAnimalDetailPage(animalId) {
                 
                 <div class="space-y-2">
                     <h3 class="text-md font-semibold">詳細情報</h3>
-                    <div class="text-sm">
-                        <p><strong class="text-gray-500 w-24 inline-block">狩猟可能な性別:</strong> ${escapeHTML(animal.gender)}</p>
-                        <p><strong class="text-gray-500 w-24 inline-block">狩猟可能な数:</strong> ${escapeHTML(animal.count)}</p>
-                        <p><strong class="text-gray-500 w-24 inline-block">狩猟禁止区域:</strong> ${escapeHTML(animal.prohibited_area)}</p>
-                        <p><strong class="text-gray-500 w-24 inline-block">主な生息地:</strong> ${escapeHTML(animal.habitat)}</p>
+                    <div class="text-sm space-y-1">
+                        <p><strong class="text-gray-500 w-28 inline-block">狩猟可能な性別:</strong> ${escapeHTML(animal.gender)}</p>
+                        <p><strong class="text-gray-500 w-28 inline-block">狩猟可能な数:</strong> ${escapeHTML(animal.count)}</p>
+                        <p><strong class="text-gray-500 w-28 inline-block">狩猟禁止区域:</strong> ${escapeHTML(animal.prohibited_area)}</p>
+                        <p><strong class="text-gray-500 w-28 inline-block">主な生息地:</strong> ${escapeHTML(animal.habitat)}</p>
                     </div>
                 </div>
 
@@ -691,5 +690,3 @@ async function showGameAnimalDetailPage(animalId) {
         app.innerHTML = `<div class="error-box">鳥獣詳細の読み込みに失敗しました。</div>`;
     }
 }
-
-// ★★★ 削除: showGameAnimalListPageCSV と renderGameAnimalListCSV (不要になったため) ★★★
