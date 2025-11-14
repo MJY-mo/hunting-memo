@@ -49,16 +49,22 @@ const appState = {
         order: 'desc'    
     },
     
-    // ★★★ 新規: 捕獲一覧の絞り込み・並び替え状態 ★★★
+    // 捕獲一覧の状態
     catchFilters: {
         method: 'all',
-        species: '', // 獣種 (テキスト入力)
+        species: '', 
         gender: 'all',
         age: 'all'
     },
     catchSort: {
-        key: 'catch_date', // デフォルトは捕獲日
-        order: 'desc'      // 降順 (新しい順)
+        key: 'catch_date', 
+        order: 'desc'      
+    },
+    
+    // ★★★ 新規: 狩猟鳥獣図鑑の絞り込み状態 ★★★
+    gameAnimalFilters: {
+        category: 'all', // 'all', '哺乳類', '鳥類'
+        status: 'all'    // 'all', 'game', 'pest'
     }
 };
 
@@ -80,6 +86,9 @@ window.addEventListener('load', () => {
         // 4. デフォルトの狩猟者プロファイルを作成 (存在しない場合)
         await populateDefaultHunterProfile();
         
+        // ★★★ 新規: 狩猟鳥獣データをDBに投入 ★★★
+        await populateDefaultGameAnimals();
+
         // 5. タブ切り替えのリスナーを設定
         setupTabs();
         
@@ -122,7 +131,7 @@ async function populateDefaultHunterProfile() {
             gun_license_renewal: '',
             hunting_license_renewal: '',
             registration_renewal: '',
-            explosives_permit_renewal: '' // v13 で追加
+            explosives_permit_renewal: ''
         });
         console.log("Default hunter profile created.");
     } catch (err) {
@@ -132,6 +141,42 @@ async function populateDefaultHunterProfile() {
         } else {
             console.error("Failed to create default hunter profile:", err);
         }
+    }
+}
+
+/**
+ * ★★★ 新規: 狩猟鳥獣のデフォルトデータをDBに登録する ★★★
+ */
+async function populateDefaultGameAnimals() {
+    try {
+        // 既にデータが1件でもあれば、登録処理をスキップ
+        const count = await db.game_animals.count();
+        if (count > 0) {
+            console.log("Game animals data already populated.");
+            return;
+        }
+
+        // ユーザー提供のCSVに基づくデータ
+        const animals = [
+            { species_name: "イノシシ", category: "哺乳類", is_game_animal: true, notes: "" },
+            { species_name: "ニホンジカ", category: "哺乳類", is_game_animal: true, notes: "" },
+            { species_name: "クマ", category: "哺乳類", is_game_animal: true, notes: "地域による" },
+            { species_name: "タヌキ", category: "哺乳類", is_game_animal: true, notes: "" },
+            { species_name: "キツネ", category: "哺乳類", is_game_animal: true, notes: "" },
+            { species_name: "キジ", category: "鳥類", is_game_animal: true, notes: "" },
+            { species_name: "ヤマドリ", category: "鳥類", is_game_animal: true, notes: "" },
+            { species_name: "マガモ", category: "鳥類", is_game_animal: true, notes: "" },
+            { species_name: "カルガモ", category: "鳥類", is_game_animal: true, notes: "" },
+            { species_name: "ヒヨドリ", category: "鳥類", is_game_animal: true, notes: "" },
+            { species_name: "ハクビシン", category: "哺乳類", is_game_animal: false, notes: "有害鳥獣" },
+            { species_name: "アライグマ", category: "哺乳類", is_game_animal: false, notes: "有害鳥獣" },
+            { species_name: "カラス（ハシブトガラス、ハシボソガラス）", category: "鳥類", is_game_animal: false, notes: "有害鳥獣" }
+        ];
+        
+        await db.game_animals.bulkAdd(animals);
+        console.log("Default game animals populated.");
+    } catch (err) {
+        console.error("Failed to populate game animals:", err);
     }
 }
 

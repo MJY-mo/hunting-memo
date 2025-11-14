@@ -4,7 +4,7 @@
 const db = new Dexie('BLNCRHuntingApp');
 
 // データベースのスキーマ（構造）を定義
-// (v1〜v11 までは変更なしのため省略)
+// (v1〜v13 までは変更なしのため省略)
 // --- version(1) ---
 db.version(1).stores({
   traps: `
@@ -357,7 +357,7 @@ db.version(12).stores({
     console.log("Upgraded hunter_profile from v11 to v12 and migrated photos.");
 });
 
-// --- ★★★ 新規: version(13) を追加 ★★★ ---
+// --- version(13) ---
 db.version(13).stores({
   // 11. 狩猟者データストアに火薬類許可証の更新日を追加
   hunter_profile: `
@@ -385,11 +385,66 @@ db.version(13).stores({
   settings: `&key`
 }).upgrade(async (tx) => {
     // v12 -> v13 への移行
-    // 'main' プロファイルに新しい列 `explosives_permit_renewal` を追加
     await tx.table('hunter_profile').where('key').equals('main').modify(profile => {
         profile.explosives_permit_renewal = '';
     });
     console.log("Upgraded hunter_profile from v12 to v13, added explosives_permit_renewal.");
+});
+
+// --- ★★★ 新規: version(15) を追加 (v14をスキップしてv15に) ★★★
+// (v14の定義に notes を追加します)
+db.version(15).stores({
+  // 13. 狩猟鳥獣ストア
+  game_animals: `
+    ++id,
+    &species_name,
+    category,
+    is_game_animal,
+    notes
+  `,
+
+  // (既存のストアは変更なし)
+  hunter_profile: `&key, name, gun_license_renewal, hunting_license_renewal, registration_renewal, explosives_permit_renewal`,
+  profile_photos: `++id, type, image_data`,
+  ammo_types: `&name`,
+  checklist_lists: `++id, &name`,
+  checklist_items: `++id, list_id, name, checked, [list_id+name]`,
+  catches: `++id, catch_date, method, relation_id, species, gender, age, location_detail, [method+catch_date]`,
+  photos: `++id, catch_id, image_data`,
+  ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  settings: `&key`
+}).upgrade(async (tx) => {
+    // v14 -> v15 への移行
+    // main.js の populateDefaultGameAnimals と同じデータで備考(notes)を更新
+    const animalsData = [
+        { species_name: "イノシシ", notes: "" },
+        { species_name: "ニホンジカ", notes: "" },
+        { species_name: "クマ", notes: "地域による" },
+        { species_name: "タヌキ", notes: "" },
+        { species_name: "キツネ", notes: "" },
+        { species_name: "キジ", notes: "" },
+        { species_name: "ヤマドリ", notes: "" },
+        { species_name: "マガモ", notes: "" },
+        { species_name: "カルガモ", notes: "" },
+        { species_name: "ヒヨドリ", notes: "" },
+        { species_name: "ハクビシン", notes: "有害鳥獣" },
+        { species_name: "アライグマ", notes: "有害鳥獣" },
+        { species_name: "カラス（ハシブトガラス、ハシボソガラス）", notes: "有害鳥獣" }
+    ];
+    
+    // 既存のデータを更新
+    await tx.game_animals.toCollection().modify(animal => {
+        const data = animalsData.find(d => d.species_name === animal.species_name);
+        if (data) {
+            animal.notes = data.notes;
+        }
+    });
+    
+    console.log("Upgraded game_animals from v14 to v15, added notes data.");
 });
 
 
