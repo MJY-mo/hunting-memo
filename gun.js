@@ -1,6 +1,7 @@
-// このファイルは gun.js です (再修正版)
+// このファイルは gun.js です (ロジック修正版)
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v3 (gun, gun_log) に対応
+// ★ 修正: DBスキーマ v3/v4 (gun, gun_log) に対応
+// ★ 修正: Dexieのクエリロジックを修正 (orderBy)
 
 /**
  * 「銃」タブのメインページを表示する
@@ -29,25 +30,20 @@ async function showGunPage() {
     // ヘッダーを更新
     updateHeader('銃', false);
     
-    // 新規銃登録ボタン
     headerActions.innerHTML = ''; // クリア
     const newGunButton = document.createElement('button');
     newGunButton.id = 'new-gun-button';
-    newGunButton.className = 'btn btn-primary'; // スタイル適用
+    newGunButton.className = 'btn btn-primary'; 
     newGunButton.textContent = '新規登録';
     newGunButton.onclick = () => showGunEditForm(null);
     headerActions.appendChild(newGunButton);
 
-    // 銃リストと銃使用履歴リストの両方を描画
     await renderGunList();
     await renderGunLogList();
 }
 
 // --- 銃 (本体) ---------------------------------
-
-/**
- * 所持許可（銃）リストを描画する
- */
+// (このセクションは修正なし)
 async function renderGunList() {
     const listElement = document.getElementById('gun-list');
     if (!listElement) return;
@@ -55,7 +51,6 @@ async function renderGunList() {
     listElement.innerHTML = `<p class="text-gray-500 text-center py-4">読み込み中...</p>`;
     
     try {
-        // ★ 修正: db.guns -> db.gun
         const guns = await db.gun.orderBy('name').toArray();
 
         if (guns.length === 0) {
@@ -63,7 +58,6 @@ async function renderGunList() {
             return;
         }
 
-        // trap-card スタイルを流用
         listElement.innerHTML = guns.map(gun => `
             <div class="trap-card" data-id="${gun.id}">
                 <div class="flex-grow">
@@ -74,7 +68,6 @@ async function renderGunList() {
             </div>
         `).join('');
         
-        // クリックイベント設定
         listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
@@ -88,13 +81,8 @@ async function renderGunList() {
     }
 }
 
-/**
- * 銃の「詳細ページ」を表示する
- * @param {number} id - 表示する銃のDB ID
- */
 async function showGunDetailPage(id) {
     try {
-        // ★ 修正: db.guns -> db.gun
         const gun = await db.gun.get(id);
         if (!gun) {
             app.innerHTML = `<div class="error-box">該当するデータが見つかりません。</div>`;
@@ -109,7 +97,6 @@ async function showGunDetailPage(id) {
             { label: '許可期限', value: formatDate(gun.permit_expiry) },
         ];
 
-        // card と Tailwind テーブル
         let tableHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">許可情報</h2>
@@ -128,7 +115,6 @@ async function showGunDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
         
-        // card と btn
         const logButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">関連メニュー</h2>
@@ -145,11 +131,9 @@ async function showGunDetailPage(id) {
             </div>
         `;
 
-        // ヘッダーを更新
         updateHeader(escapeHTML(gun.name), true);
         backButton.onclick = () => showGunPage();
 
-        // アクションボタン（編集・削除）
         headerActions.innerHTML = ''; // クリア
         
         const editButton = document.createElement('button');
@@ -164,10 +148,9 @@ async function showGunDetailPage(id) {
         deleteButton.onclick = () => deleteGun(id);
         headerActions.appendChild(deleteButton);
         
-        // イベントリスナー
         document.getElementById('show-related-logs-btn').addEventListener('click', () => {
-            appState.gunLogFilters.gun_id = id.toString(); // 銃IDでフィルター
-            showGunPage(); // 銃ページに戻る (リストがフィルターされる)
+            appState.gunLogFilters.gun_id = id.toString(); 
+            showGunPage(); 
         });
 
     } catch (err) {
@@ -176,10 +159,6 @@ async function showGunDetailPage(id) {
     }
 }
 
-/**
- * 銃の「編集/新規作成フォーム」を表示する
- * @param {number | null} id - 編集する銃のID (新規の場合は null)
- */
 async function showGunEditForm(id) {
     let gun = {
         name: '',
@@ -193,14 +172,12 @@ async function showGunEditForm(id) {
 
     if (id) {
         pageTitle = '銃の編集';
-        // ★ 修正: db.guns -> db.gun
         const existingGun = await db.gun.get(id);
         if (existingGun) {
             gun = existingGun;
         }
     }
 
-    // card, form-group, form-input, btn
     app.innerHTML = `
         <div class="card">
             <form id="gun-form" class="space-y-4">
@@ -242,7 +219,6 @@ async function showGunEditForm(id) {
         </div>
     `;
 
-    // ヘッダーを更新
     updateHeader(pageTitle, true);
     backButton.onclick = () => {
         if (id) {
@@ -252,7 +228,6 @@ async function showGunEditForm(id) {
         }
     };
     
-    // フォーム保存処理
     document.getElementById('gun-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -272,11 +247,9 @@ async function showGunEditForm(id) {
         
         try {
             if (id) {
-                // ★ 修正: db.guns -> db.gun
                 await db.gun.put({ ...formData, id: id });
                 showGunDetailPage(id);
             } else {
-                // ★ 修正: db.guns -> db.gun
                 const newId = await db.gun.add(formData);
                 showGunDetailPage(newId);
             }
@@ -291,19 +264,14 @@ async function showGunEditForm(id) {
     });
 }
 
-/**
- * 銃を削除する
- * @param {number} id - 削除する銃のID
- */
 async function deleteGun(id) {
     if (!confirm('この銃を本当に削除しますか？\nこの銃に関連する【使用履歴】や【捕獲記録】は削除されません。')) {
         return;
     }
     
     try {
-        // ★ 修正: db.guns -> db.gun
         await db.gun.delete(id);
-        showGunPage(); // リストに戻る
+        showGunPage(); 
         
     } catch (err) {
         console.error("Failed to delete gun:", err);
@@ -313,19 +281,13 @@ async function deleteGun(id) {
 
 
 // --- 銃使用履歴 (ログ) ---------------------------------
-
-/**
- * 銃使用履歴リストを描画する (フィルター/ソート含む)
- */
+// (このセクションは修正なし)
 async function renderGunLogList() {
     const container = document.getElementById('gun-log-list-container');
     if (!container) return;
 
-    // 状態の読み込み
     const filters = appState.gunLogFilters;
     
-    // 銃のリストを非同期で取得
-    // ★ 修正: db.guns -> db.gun
     const guns = await db.gun.toArray();
     const gunOptions = guns.map(gun => 
         `<option value="${gun.id}" ${filters.gun_id === gun.id.toString() ? 'selected' : ''}>
@@ -333,7 +295,6 @@ async function renderGunLogList() {
         </option>`
     ).join('');
 
-    // HTMLを構築 (form-group, form-select, btn)
     container.innerHTML = `
         <div class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
@@ -372,9 +333,6 @@ async function renderGunLogList() {
         </div>
     `;
 
-    // --- イベントリスナー設定 ---
-    
-    // フィルター
     document.getElementById('gun-log-filter-purpose').addEventListener('change', (e) => {
         filters.purpose = e.target.value;
         renderGunLogListItems();
@@ -383,23 +341,21 @@ async function renderGunLogList() {
         filters.gun_id = e.target.value;
         renderGunLogListItems();
     });
-    // リセット
     document.getElementById('gun-log-filter-reset').addEventListener('click', () => {
         filters.purpose = 'all';
         filters.gun_id = 'all';
-        renderGunLogList(); // フィルターUI自体を再描画
+        renderGunLogList(); 
     });
-    // 新規登録
     document.getElementById('new-gun-log-button').addEventListener('click', () => {
         showGunLogEditForm(null);
     });
 
-    // 履歴リストの描画
     await renderGunLogListItems();
 }
 
 /**
  * 銃使用履歴リストの「中身（ul）」を描画する
+ * ★★★ ロジック修正 ★★★
  */
 async function renderGunLogListItems() {
     const listElement = document.getElementById('gun-log-list');
@@ -411,26 +367,32 @@ async function renderGunLogListItems() {
         const filters = appState.gunLogFilters;
         const sort = appState.gunLogSort;
         
-        // ★ 修正: db.gun_logs -> db.gun_log
+        // 1. 基本クエリ (db.gun_log)
         let query = db.gun_log;
         
-        // 1. 目的フィルター
-        if (filters.purpose !== 'all') {
-            query = query.where('purpose').equals(filters.purpose);
-        }
-        
-        // 2. 銃フィルター
-        if (filters.gun_id !== 'all') {
-            query = query.where('gun_id').equals(parseInt(filters.gun_id, 10));
-        }
-        
-        // 3. ソート (use_date)
+        // 2. ソート (インデックスを利用)
+        // (db.js v4 で 'use_date' をインデックスに追加した)
         query = query.orderBy(sort.key);
         
-        const logs = await query.toArray();
-        
+        // 3. 昇順/降順
         if (sort.order === 'desc') {
-            logs.reverse();
+            query = query.reverse();
+        }
+
+        // 4. ★★★ データベースから配列として取得 ★★★
+        let logs = await query.toArray();
+        
+        // 5. ★★★ フィルター (JavaScript側で実行) ★★★
+        
+        // 5.1. 目的フィルター
+        if (filters.purpose !== 'all') {
+            logs = logs.filter(log => log.purpose === filters.purpose);
+        }
+        
+        // 5.2. 銃フィルター
+        if (filters.gun_id !== 'all') {
+            const filterGunId = parseInt(filters.gun_id, 10);
+            logs = logs.filter(log => log.gun_id === filterGunId);
         }
 
         if (logs.length === 0) {
@@ -440,19 +402,14 @@ async function renderGunLogListItems() {
 
         let listItems = '';
         for (const log of logs) {
-            // 銃の名前を非同期で取得
-            // ★ 修正: db.guns -> db.gun
             const gun = log.gun_id ? await db.gun.get(log.gun_id) : null;
             const gunName = gun ? escapeHTML(gun.name) : '不明な銃';
             
-            // 関連する捕獲数を非同期で取得
             const catchCount = await db.catch_records.where('gun_log_id').equals(log.id).count();
-            // Tailwind バッジ
             const catchBadge = catchCount > 0 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
 
-            // trap-card スタイルを流用
             listItems += `
                 <div class="trap-card" data-id="${log.id}">
                     <div class="flex-grow">
@@ -469,7 +426,6 @@ async function renderGunLogListItems() {
         
         listElement.innerHTML = listItems;
         
-        // クリックイベント設定
         listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
@@ -483,24 +439,18 @@ async function renderGunLogListItems() {
     }
 }
 
-/**
- * 銃使用履歴の「詳細ページ」を表示する
- * @param {number} id - 表示する履歴のDB ID
- */
+// --- 銃使用履歴 (詳細・編集・削除) -------------------
+// (このセクションは修正なし)
 async function showGunLogDetailPage(id) {
     try {
-        // ★ 修正: db.gun_logs -> db.gun_log
         const log = await db.gun_log.get(id);
         if (!log) {
             app.innerHTML = `<div class="error-box">該当するデータが見つかりません。</div>`;
             return;
         }
         
-        // 銃の名前を取得
-        // ★ 修正: db.guns -> db.gun
         const gun = log.gun_id ? await db.gun.get(log.gun_id) : null;
         
-        // --- 画像の表示 (card, photo-preview) ---
         let imageHTML = '';
         if (log.image_blob) {
             const blobUrl = URL.createObjectURL(log.image_blob);
@@ -514,7 +464,6 @@ async function showGunLogDetailPage(id) {
             `;
         }
         
-        // --- 基本情報のテーブル (card, Tailwind テーブル) ---
         const tableData = [
             { label: '使用日', value: formatDate(log.use_date) },
             { label: '目的', value: log.purpose },
@@ -542,7 +491,6 @@ async function showGunLogDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
         
-        // --- メモ (card) ---
         let memoHTML = '';
         if (log.memo) {
             memoHTML = `
@@ -555,7 +503,6 @@ async function showGunLogDetailPage(id) {
             `;
         }
         
-        // --- 関連する捕獲記録 (card, btn) ---
         const catchButtonHTML = `
             <div class="card">
                  <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
@@ -579,11 +526,9 @@ async function showGunLogDetailPage(id) {
             </div>
         `;
 
-        // ヘッダーを更新
         updateHeader('銃使用履歴 詳細', true);
         backButton.onclick = () => showGunPage();
         
-        // アクションボタン（編集・削除）
         headerActions.innerHTML = ''; // クリア
         
         const editButton = document.createElement('button');
@@ -598,9 +543,6 @@ async function showGunLogDetailPage(id) {
         deleteButton.onclick = () => deleteGunLog(id);
         headerActions.appendChild(deleteButton);
 
-        // --- イベントリスナー ---
-        
-        // 画像モーダル
         const imgElement = document.getElementById('detail-image');
         if (imgElement) {
             imgElement.addEventListener('click', () => {
@@ -608,14 +550,12 @@ async function showGunLogDetailPage(id) {
             });
         }
         
-        // 関連する捕獲記録を見る
         document.getElementById('show-related-catches-btn').addEventListener('click', () => {
             appState.currentCatchMethod = 'gun';
-            appState.currentCatchRelationId = id; // 銃ログID
+            appState.currentCatchRelationId = id; 
             navigateTo('catch', showCatchPage, '捕獲記録');
         });
 
-        // この日に捕獲
         document.getElementById('add-catch-to-log-btn').addEventListener('click', () => {
             showCatchEditForm(null, { trapId: null, gunLogId: id });
         });
@@ -626,10 +566,6 @@ async function showGunLogDetailPage(id) {
     }
 }
 
-/**
- * 銃使用履歴の「編集/新規作成フォーム」を表示する
- * @param {number | null} id - 編集する履歴のID (新規の場合は null)
- */
 async function showGunLogEditForm(id) {
     let log = {
         use_date: new Date().toISOString().split('T')[0],
@@ -645,8 +581,6 @@ async function showGunLogEditForm(id) {
     let pageTitle = '新規 銃使用履歴';
     let currentImageHTML = '';
 
-    // 銃のリストを非同期で取得
-    // ★ 修正: db.guns -> db.gun
     const guns = await db.gun.toArray();
     const gunOptions = guns.map(gun => 
         `<option value="${gun.id}">${escapeHTML(gun.name)}</option>`
@@ -663,14 +597,12 @@ async function showGunLogEditForm(id) {
 
     if (id) {
         pageTitle = '銃使用履歴の編集';
-        // ★ 修正: db.gun_logs -> db.gun_log
         const existingLog = await db.gun_log.get(id);
         if (existingLog) {
             log = existingLog;
             
             if (log.image_blob) {
                 const blobUrl = URL.createObjectURL(log.image_blob);
-                // photo-preview
                 currentImageHTML = `
                     <div class="form-group">
                         <label class="form-label">現在の写真:</label>
@@ -683,11 +615,9 @@ async function showGunLogEditForm(id) {
             }
         }
     } else {
-        // 新規の場合、デフォルトの銃を選択
         log.gun_id = guns[0].id;
     }
 
-    // card, form-group, form-input, btn, photo-preview
     app.innerHTML = `
         <div class="card">
             <form id="gun-log-form" class="space-y-4">
@@ -751,10 +681,8 @@ async function showGunLogEditForm(id) {
         </div>
     `;
     
-    // 選択肢のデフォルトを設定
     document.getElementById('gun-log-gun').value = log.gun_id;
 
-    // ヘッダーを更新
     updateHeader(pageTitle, true);
     backButton.onclick = () => {
         if (id) {
@@ -764,9 +692,6 @@ async function showGunLogEditForm(id) {
         }
     };
     
-    // --- フォームの動的処理 ---
-    
-    // 1. GPS取得ボタン
     document.getElementById('get-gun-log-gps-btn').addEventListener('click', async (e) => {
         const button = e.currentTarget;
         const originalText = button.innerHTML;
@@ -785,7 +710,6 @@ async function showGunLogEditForm(id) {
         }
     });
     
-    // 2. 画像プレビュー処理
     const imageInput = document.getElementById('gun-log-image');
     const previewContainer = document.getElementById('image-preview-container');
     let resizedImageBlob = null; 
@@ -797,7 +721,6 @@ async function showGunLogEditForm(id) {
         try {
             resizedImageBlob = await resizeImage(file, 800);
             const previewUrl = URL.createObjectURL(resizedImageBlob);
-            // photo-preview
             previewContainer.innerHTML = `
                 <div class="photo-preview">
                     <img src="${previewUrl}" alt="プレビュー">
@@ -809,7 +732,6 @@ async function showGunLogEditForm(id) {
         }
     });
     
-    // 3. 既存写真の削除ボタン
     const removeBtn = document.getElementById('remove-image-btn');
     if (removeBtn) {
         removeBtn.addEventListener('click', () => {
@@ -820,7 +742,6 @@ async function showGunLogEditForm(id) {
         });
     }
 
-    // 4. 画像モーダル (既存画像)
     const currentImg = document.getElementById('current-image');
     if (currentImg) {
         currentImg.addEventListener('click', () => {
@@ -831,7 +752,6 @@ async function showGunLogEditForm(id) {
         }, { once: true });
     }
 
-    // 5. フォーム保存処理
     document.getElementById('gun-log-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -852,11 +772,9 @@ async function showGunLogEditForm(id) {
         
         try {
             if (id) {
-                // ★ 修正: db.gun_logs -> db.gun_log
                 await db.gun_log.put({ ...formData, id: id });
                 showGunLogDetailPage(id);
             } else {
-                // ★ 修正: db.gun_logs -> db.gun_log
                 const newId = await db.gun_log.add(formData);
                 showGunLogDetailPage(newId);
             }
@@ -867,28 +785,18 @@ async function showGunLogEditForm(id) {
     });
 }
 
-/**
- * 銃使用履歴を削除する
- * @param {number} id - 削除する履歴のID
- */
 async function deleteGunLog(id) {
     if (!confirm('この銃使用履歴を本当に削除しますか？\nこの履歴に関連する【捕獲記録もすべて削除】されます。\nこの操作は元に戻せません。')) {
         return;
     }
 
     try {
-        // ★ 修正: db.gun_logs -> db.gun_log
         await db.transaction('rw', db.gun_log, db.catch_records, async () => {
-            
-            // 1. 関連する捕獲記録を削除
             await db.catch_records.where('gun_log_id').equals(id).delete();
-            
-            // 2. 履歴本体を削除
-            // ★ 修正: db.gun_logs -> db.gun_log
             await db.gun_log.delete(id);
         });
         
-        showGunPage(); // リストに戻る
+        showGunPage(); 
         
     } catch (err) {
         console.error("Failed to delete gun log and related catches:", err);

@@ -1,15 +1,15 @@
-// このファイルは catch.js です (修正版)
+// このファイルは catch.js です (ロジック修正版)
+// ★ 修正: 'db.catch' を 'db.catch_records' に変更
+// ★ 修正: DBスキーマ v3/v4 に対応
+// ★ 修正: Dexieのクエリロジックを修正 (orderBy)
 
 /**
  * 「捕獲記録」タブのメインページを表示する
- * (タブがクリックされたときの初期化)
  */
 function showCatchPage() {
-    // 状態をリセット
     appState.currentCatchMethod = 'all';
     appState.currentCatchRelationId = null;
     
-    // リストページを表示
     showCatchListPage();
 }
 
@@ -17,11 +17,9 @@ function showCatchPage() {
  * 捕獲記録の「一覧ページ」を表示する
  */
 async function showCatchListPage() {
-    // フィルター状態の読み込み
     const filters = appState.catchFilters;
     
     if (appState.currentCatchMethod !== 'all') {
-        // 罠や銃から遷移した場合、フィルターを強制的にリセット
         filters.method = 'all';
         filters.species = '';
         filters.gender = 'all';
@@ -32,7 +30,6 @@ async function showCatchListPage() {
     
     const sort = appState.catchSort;
 
-    // 修正: card, form-group, form-select, btn
     let html = `
         <div class="space-y-4">
             <div class="card">
@@ -102,27 +99,22 @@ async function showCatchListPage() {
 
     // ヘッダーの制御
     if (appState.currentCatchMethod === 'trap') {
-        // 罠から来た場合
         updateHeader('罠の捕獲記録', true);
         backButton.onclick = () => showTrapDetailPage(appState.currentCatchRelationId);
         headerActions.innerHTML = ''; 
     } else if (appState.currentCatchMethod === 'gun') {
-        // 銃から来た場合
         updateHeader('銃の捕獲記録', true);
         backButton.onclick = () => showGunLogDetailPage(appState.currentCatchRelationId);
         headerActions.innerHTML = '';
     } else {
-        // 通常のタブ表示
         updateHeader('捕獲記録', false);
         
-        // 新規登録ボタン（総合）(修正: btn)
         headerActions.innerHTML = ''; // クリア
         const newButton = document.createElement('button');
         newButton.id = 'new-catch-button-general';
         newButton.className = 'btn btn-primary';
         newButton.textContent = '新規登録';
         newButton.onclick = () => {
-            // 罠にも銃にも紐付かない捕獲記録を作成
             showCatchEditForm(null, { trapId: null, gunLogId: null });
         };
         headerActions.appendChild(newButton);
@@ -130,7 +122,6 @@ async function showCatchListPage() {
     
     // --- イベントリスナー設定 ---
     
-    // フィルター値の更新とリスト再描画
     const setupFilterListener = (id, stateKey, stateSubKey = null) => {
         document.getElementById(id).addEventListener('change', (e) => {
             if (stateSubKey) {
@@ -148,13 +139,11 @@ async function showCatchListPage() {
     setupFilterListener('catch-sort-key', 'catchSort', 'key');
     setupFilterListener('catch-sort-order', 'catchSort', 'order');
 
-    // 種名フィルター (入力中も反映)
     document.getElementById('catch-filter-species').addEventListener('input', (e) => {
         appState.catchFilters.species = e.target.value;
         renderCatchList();
     });
 
-    // リセットボタン
     document.getElementById('catch-filter-reset').addEventListener('click', () => {
         appState.catchFilters.method = 'all';
         appState.catchFilters.species = '';
@@ -162,16 +151,15 @@ async function showCatchListPage() {
         appState.catchFilters.age = 'all';
         appState.catchSort.key = 'catch_date';
         appState.catchSort.order = 'desc';
-        // フォームをリセットして再描画
         showCatchListPage();
     });
 
-    // リストの初回描画
     await renderCatchList();
 }
 
 /**
  * 捕獲リストを描画する (フィルタリング実行)
+ * ★★★ ロジック修正 ★★★
  */
 async function renderCatchList() {
     const listElement = document.getElementById('catch-list');
@@ -183,46 +171,53 @@ async function renderCatchList() {
         let query = db.catch_records;
         const filters = appState.catchFilters;
         
-        // --- フィルタリング ---
-        // 1. 方法
-        if (filters.method === 'trap') {
-            query = query.where('trap_id').notEqual(0);
-        } else if (filters.method === 'gun') {
-            query = query.where('gun_log_id').notEqual(0);
-        }
-        
-        // 2. 種名 (filter)
-        if (filters.species) {
-            const speciesFilter = filters.species.toLowerCase();
-            query = query.filter(c => c.species_name && c.species_name.toLowerCase().includes(speciesFilter));
-        }
-        
-        // 3. 性別
-        if (filters.gender !== 'all') {
-            query = query.where('gender').equals(filters.gender);
-        }
-        
-        // 4. 年齢
-        if (filters.age !== 'all') {
-            query = query.where('age').equals(filters.age);
-        }
-
-        // --- 特定の罠/銃からの遷移 ---
+        // --- 絞り込み (インデックスが使えるもの) ---
+        // 1. 特定の罠/銃からの遷移 (最優先)
         if (appState.currentCatchMethod === 'trap') {
             query = query.where('trap_id').equals(appState.currentCatchRelationId);
         } else if (appState.currentCatchMethod === 'gun') {
             query = query.where('gun_log_id').equals(appState.currentCatchRelationId);
         }
-        
+
         // --- ソート ---
         const sortKey = appState.catchSort.key;
         const sortOrder = appState.catchSort.order;
         
+        // 2. ソート (インデックスを利用)
+        // (db.js v4 で 'catch_date', 'species_name' をインデックスに追加した)
         query = query.orderBy(sortKey);
-        const catches = await query.toArray();
 
+        // 3. 昇順/降順
         if (sortOrder === 'desc') {
-            catches.reverse(); 
+            query = query.reverse(); 
+        }
+
+        // 4. ★★★ データベースから配列として取得 ★★★
+        let catches = await query.toArray();
+
+        // 5. ★★★ フィルター (JavaScript側で実行) ★★★
+
+        // 5.1. 方法
+        if (filters.method === 'trap') {
+            catches = catches.filter(c => c.trap_id > 0);
+        } else if (filters.method === 'gun') {
+            catches = catches.filter(c => c.gun_log_id > 0);
+        }
+        
+        // 5.2. 種名
+        if (filters.species) {
+            const speciesFilter = filters.species.toLowerCase();
+            catches = catches.filter(c => c.species_name && c.species_name.toLowerCase().includes(speciesFilter));
+        }
+        
+        // 5.3. 性別
+        if (filters.gender !== 'all') {
+            catches = catches.filter(c => c.gender === filters.gender);
+        }
+        
+        // 5.4. 年齢
+        if (filters.age !== 'all') {
+            catches = catches.filter(c => c.age === filters.age);
         }
 
         if (catches.length === 0) {
@@ -233,7 +228,6 @@ async function renderCatchList() {
         // --- HTML構築 ---
         let listItems = '';
         for (const record of catches) {
-            // 関連情報を取得 (修正: Tailwind バッジ)
             let relationText = '';
             if (record.trap_id) {
                 const trap = await db.trap.get(record.trap_id);
@@ -254,7 +248,6 @@ async function renderCatchList() {
                 relationText = `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-gray-600 bg-gray-200">直接記録</span>`;
             }
 
-            // 修正: trap-card スタイル
             listItems += `
                 <div class="trap-card" data-id="${record.id}">
                     <div class="flex-grow">
@@ -271,7 +264,6 @@ async function renderCatchList() {
         
         listElement.innerHTML = listItems;
 
-        // --- クリックイベント ---
         listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
@@ -287,10 +279,7 @@ async function renderCatchList() {
 
 
 // --- 捕獲記録 (詳細) ---------------------------------
-
-/**
- * 捕獲記録の「詳細ページ」を表示する
- */
+// (このセクションは修正なし)
 async function showCatchDetailPage(id) {
     try {
         const record = await db.catch_records.get(id);
@@ -299,7 +288,6 @@ async function showCatchDetailPage(id) {
             return;
         }
 
-        // --- 関連情報の表示 (修正: card, btn) ---
         let relationHTML = '';
         if (record.trap_id) {
             const trap = await db.trap.get(record.trap_id);
@@ -335,7 +323,6 @@ async function showCatchDetailPage(id) {
             `;
         }
 
-        // --- 画像の表示 (修正: card, photo-preview) ---
         let imageHTML = '';
         if (record.image_blob) {
             const blobUrl = URL.createObjectURL(record.image_blob);
@@ -349,7 +336,6 @@ async function showCatchDetailPage(id) {
             `;
         }
 
-        // --- 基本情報のテーブル (修正: card, Tailwind テーブル) ---
         const tableData = [
             { label: '種名', value: record.species_name },
             { label: '捕獲日', value: formatDate(record.catch_date) },
@@ -366,7 +352,7 @@ async function showCatchDetailPage(id) {
                     <tbody>
         `;
         tableData.forEach(row => {
-            if (row.value) { // 値が設定されているものだけ表示
+            if (row.value) { 
                 tableHTML += `
                     <tr class="border-b">
                         <th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${escapeHTML(row.label)}</th>
@@ -377,7 +363,6 @@ async function showCatchDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
         
-        // --- メモ (修正: card) ---
         let memoHTML = '';
         if (record.memo) {
             memoHTML = `
@@ -390,7 +375,6 @@ async function showCatchDetailPage(id) {
             `;
         }
 
-        // --- 最終的なHTML (修正: space-y-4) ---
         app.innerHTML = `
             <div class="space-y-4">
                 ${relationHTML}
@@ -400,14 +384,11 @@ async function showCatchDetailPage(id) {
             </div>
         `;
 
-        // --- ヘッダーの更新 ---
         updateHeader('捕獲記録 詳細', true);
         backButton.onclick = () => {
-            // 状態に応じてリストに戻る
             showCatchListPage();
         };
 
-        // アクションボタン（編集・削除）(修正: btn)
         headerActions.innerHTML = ''; // クリア
         
         const editButton = document.createElement('button');
@@ -422,17 +403,13 @@ async function showCatchDetailPage(id) {
         deleteButton.onclick = () => deleteCatchRecord(id);
         headerActions.appendChild(deleteButton);
         
-        // --- イベントリスナー ---
-        
-        // 画像モーダル
         const imgElement = document.getElementById('detail-image');
         if (imgElement) {
             imgElement.addEventListener('click', () => {
-                showImageModal(imgElement.src); // (main.js 側で revokeURL 処理)
+                showImageModal(imgElement.src); 
             });
         }
         
-        // 関連リンク
         const relationBtn = document.getElementById('relation-link-btn');
         if (relationBtn) {
             if (relationBtn.dataset.trapId) {
@@ -450,15 +427,12 @@ async function showCatchDetailPage(id) {
 
 
 // --- 捕獲記録 (編集/新規) -----------------------------
-
-/**
- * 捕獲記録の「編集/新規作成フォーム」を表示する
- */
+// (このセクションは修正なし)
 async function showCatchEditForm(id, relationIds = null) {
     let record = {
         trap_id: relationIds?.trapId || null,
         gun_log_id: relationIds?.gunLogId || null,
-        catch_date: new Date().toISOString().split('T')[0], // デフォルトを今日に
+        catch_date: new Date().toISOString().split('T')[0], 
         species_name: '',
         gender: '不明',
         age: '不明',
@@ -472,13 +446,11 @@ async function showCatchEditForm(id, relationIds = null) {
     let currentImageHTML = '';
 
     if (id) {
-        // 編集の場合
         pageTitle = '捕獲記録の編集';
         const existingRecord = await db.catch_records.get(id);
         if (existingRecord) {
             record = existingRecord;
             
-            // 既存画像の表示 (修正: photo-preview)
             if (record.image_blob) {
                 const blobUrl = URL.createObjectURL(record.image_blob);
                 currentImageHTML = `
@@ -497,7 +469,6 @@ async function showCatchEditForm(id, relationIds = null) {
         }
     }
 
-    // 修正: card, form-group, form-input, btn, photo-preview
     app.innerHTML = `
         <div class="card">
             <form id="catch-form" class="space-y-4">
@@ -564,22 +535,17 @@ async function showCatchEditForm(id, relationIds = null) {
         </div>
     `;
 
-    // ヘッダーを更新
     updateHeader(pageTitle, true);
     backButton.onclick = () => {
         if (id) {
-            showCatchDetailPage(id); // 編集中の場合は詳細に戻る
+            showCatchDetailPage(id); 
         } else {
-            showCatchListPage(); // 新規の場合はリストに戻る
+            showCatchListPage(); 
         }
     };
 
-    // --- フォームの動的処理 ---
-
-    // 1. 図鑑から種名リストをdatalistに読み込む
     loadSpeciesDataList();
     
-    // 2. GPS取得ボタン
     document.getElementById('get-catch-gps-btn').addEventListener('click', async (e) => {
         const button = e.currentTarget;
         const originalText = button.innerHTML;
@@ -587,7 +553,7 @@ async function showCatchEditForm(id, relationIds = null) {
         button.disabled = true;
         
         try {
-            const location = await getCurrentLocation(); // (main.js の共通関数)
+            const location = await getCurrentLocation(); 
             document.getElementById('catch-latitude').value = location.latitude;
             document.getElementById('catch-longitude').value = location.longitude;
         } catch (err) {
@@ -598,10 +564,9 @@ async function showCatchEditForm(id, relationIds = null) {
         }
     });
     
-    // 3. 画像プレビュー処理
     const imageInput = document.getElementById('catch-image');
     const previewContainer = document.getElementById('image-preview-container');
-    let resizedImageBlob = null; // リサイズ後のBlobを保持
+    let resizedImageBlob = null; 
 
     imageInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
@@ -614,10 +579,9 @@ async function showCatchEditForm(id, relationIds = null) {
         previewContainer.innerHTML = `<p class="text-gray-500">画像処理中...</p>`;
         
         try {
-            resizedImageBlob = await resizeImage(file, 800); // (main.js の共通関数)
+            resizedImageBlob = await resizeImage(file, 800); 
             const previewUrl = URL.createObjectURL(resizedImageBlob);
             
-            // 修正: photo-preview
             previewContainer.innerHTML = `
                 <div class="photo-preview">
                     <img src="${previewUrl}" alt="プレビュー">
@@ -632,7 +596,6 @@ async function showCatchEditForm(id, relationIds = null) {
         }
     });
     
-    // 4. 既存写真の削除ボタン
     const removeBtn = document.getElementById('remove-image-btn');
     if (removeBtn) {
         removeBtn.addEventListener('click', () => {
@@ -643,7 +606,6 @@ async function showCatchEditForm(id, relationIds = null) {
         });
     }
 
-    // 5. 画像モーダル (既存画像)
     const currentImg = document.getElementById('current-image');
     if (currentImg) {
         currentImg.addEventListener('click', () => {
@@ -654,23 +616,20 @@ async function showCatchEditForm(id, relationIds = null) {
         }, { once: true });
     }
 
-    // 6. フォーム保存処理
     document.getElementById('catch-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         
         const species = document.getElementById('catch-species').value;
         const date = document.getElementById('catch-date').value;
         
-        // バリデーション
         if (!species || !date) {
             document.getElementById('form-error').textContent = '種名と捕獲日は必須です。';
             return;
         }
         
-        // フォームデータをまとめる
         const formData = {
-            trap_id: record.trap_id, // 編集では既存のIDを保持
-            gun_log_id: record.gun_log_id, // 編集では既存のIDを保持
+            trap_id: record.trap_id, 
+            gun_log_id: record.gun_log_id, 
             catch_date: date,
             species_name: species,
             gender: document.getElementById('catch-gender').value,
@@ -678,23 +637,20 @@ async function showCatchEditForm(id, relationIds = null) {
             latitude: document.getElementById('catch-latitude').value,
             longitude: document.getElementById('catch-longitude').value,
             memo: document.getElementById('catch-memo').value,
-            image_blob: record.image_blob // デフォルトは既存の画像
+            image_blob: record.image_blob 
         };
 
-        // 新しい画像が選択されていれば、それを採用
         if (resizedImageBlob) {
             formData.image_blob = resizedImageBlob;
         }
         
         try {
             if (id) {
-                // 更新
                 await db.catch_records.put({ ...formData, id: id });
-                showCatchDetailPage(id); // 詳細ページに戻る
+                showCatchDetailPage(id); 
             } else {
-                // 新規作成
                 const newId = await db.catch_records.add(formData);
-                showCatchDetailPage(newId); // 作成した詳細ページに飛ぶ
+                showCatchDetailPage(newId); 
             }
         } catch (err) {
             console.error("Failed to save catch record:", err);
@@ -703,17 +659,12 @@ async function showCatchEditForm(id, relationIds = null) {
     });
 }
 
-/**
- * datalist用に図鑑から種名リストを読み込む
- */
 async function loadSpeciesDataList() {
     const datalist = document.getElementById('species-datalist');
     if (!datalist) return;
     
     try {
-        // 狩猟対象 (〇) のみ
         const animals = await db.game_animal_list.where('is_game_animal').equals('〇').toArray();
-        // 重複を除外
         const speciesNames = [...new Set(animals.map(a => a.species_name))];
         
         datalist.innerHTML = speciesNames.map(name => 
@@ -726,11 +677,6 @@ async function loadSpeciesDataList() {
 }
 
 
-// --- 捕獲記録 (削除) ---------------------------------
-
-/**
- * 捕獲記録を削除する
- */
 async function deleteCatchRecord(id) {
     if (!confirm('この捕獲記録を本当に削除しますか？\nこの操作は元に戻せません。')) {
         return;
@@ -739,7 +685,6 @@ async function deleteCatchRecord(id) {
     try {
         await db.catch_records.delete(id);
         
-        // 削除後はリストに戻る
         showCatchListPage();
         
     } catch (err) {
