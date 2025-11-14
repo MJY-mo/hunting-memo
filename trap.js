@@ -4,17 +4,15 @@
 const MAX_OPEN_TRAPS = 30; // 開いている罠の上限
 
 /**
- * ★★★ 新規 (3/3): 「罠」タブのメインメニュー ★★★
- * (main.js の navigateTo('trap', ...) から呼ばれる)
+ * 「罠」タブのメインメニュー
  */
 function showTrapPage() {
     // navigateTo は main.js で定義されたグローバル関数
-    // (引数が navigateTo と同じだが、これは罠タブのメインメニュー用)
     navigateTo('trap', renderTrapMenu, '罠');
 }
 
 /**
- * ★★★ 新規 (3/3): 罠タブのメインメニューを描画する
+ * 罠タブのメインメニューを描画する
  */
 function renderTrapMenu() {
     // 戻るボタンを非表示
@@ -63,14 +61,12 @@ function renderTrapMenu() {
 
 
 /**
- * ★★★ 修正 (3/3): `showTrapPage` から `showTrapStatusPage` にリネーム ★★★
  * 「罠の架設状態管理」のメイン関数 (デフォルト = 開いている罠)
  */
 async function showTrapStatusPage() {
     // main.js のグローバル状態を更新
     appState.trapView = 'open';
     // ヘッダーを「罠 (設置中)」に設定
-    // ★ 修正: 戻るボタンを表示 (罠メインメニューに戻る)
     updateHeader('罠 (設置中)', true); 
     
     // 絞り込み条件の初期化
@@ -86,6 +82,24 @@ async function showTrapStatusPage() {
                 <select id="filter-type" class="form-select mt-1">
                     <option value="all">すべての種類</option>
                     </select>
+            </div>
+        </div>
+        
+        <div class="card mb-4 grid grid-cols-2 gap-3">
+            <div>
+                <label for="sort-key-open" class="form-label">並び替え</label>
+                <select id="sort-key-open" class="form-select mt-1">
+                    <option value="trap_number">名前</option>
+                    <option value="category">区分</option>
+                    <option value="setup_date">開け日</option>
+                </select>
+            </div>
+            <div>
+                <label for="sort-order-open" class="form-label">順序</label>
+                <select id="sort-order-open" class="form-select mt-1">
+                    <option value="asc">昇順 (A→Z / 古→新)</option>
+                    <option value="desc">降順 (Z→A / 新→古)</option>
+                </select>
             </div>
         </div>
 
@@ -106,6 +120,12 @@ async function showTrapStatusPage() {
     
     // 罠の種類のプルダウンを描画
     await renderTrapTypeOptions('filter-type', appState.trapFilters.type, true);
+    
+    // ★★★ 新規: 並び替えのセレクトボックスに現在の状態を反映 ★★★
+    const sortKeyOpenSelect = document.getElementById('sort-key-open');
+    const sortOrderOpenSelect = document.getElementById('sort-order-open');
+    sortKeyOpenSelect.value = appState.trapSortOpen.key;
+    sortOrderOpenSelect.value = appState.trapSortOpen.order;
     
     // --- イベントリスナーを設定 ---
     
@@ -137,6 +157,16 @@ async function showTrapStatusPage() {
         appState.trapFilters.type = e.target.value;
         renderTrapList(); // 絞り込みして再描画
     });
+    
+    // ★★★ 新規: 並び替えイベントリスナー ★★★
+    sortKeyOpenSelect.addEventListener('change', (e) => {
+        appState.trapSortOpen.key = e.target.value;
+        renderTrapList(); // 並び替えて再描画
+    });
+    sortOrderOpenSelect.addEventListener('change', (e) => {
+        appState.trapSortOpen.order = e.target.value;
+        renderTrapList(); // 並び替えて再描画
+    });
 
     // 罠一覧を描画
     await renderTrapList();
@@ -166,6 +196,24 @@ async function showClosedTrapPage() {
                     </select>
             </div>
         </div>
+        
+        <div class="card mb-4 grid grid-cols-2 gap-3">
+            <div>
+                <label for="sort-key-closed" class="form-label">並び替え</label>
+                <select id="sort-key-closed" class="form-select mt-1">
+                    <option value="trap_number">名前</option>
+                    <option value="category">区分</option>
+                    <option value="close_date">回収日</option>
+                </select>
+            </div>
+            <div>
+                <label for="sort-order-closed" class="form-label">順序</label>
+                <select id="sort-order-closed" class="form-select mt-1">
+                    <option value="asc">昇順 (A→Z / 古→新)</option>
+                    <option value="desc">降順 (Z→A / 新→古)</option>
+                </select>
+            </div>
+        </div>
 
         <div id="trap-list-container" class="space-y-3">
             <p class="text-gray-500 text-center py-4">過去の罠データを読み込み中...</p>
@@ -179,6 +227,12 @@ async function showClosedTrapPage() {
     
     // 罠の種類のプルダウンを描画
     await renderTrapTypeOptions('filter-type', appState.trapFilters.type, true);
+    
+    // ★★★ 新規: 並び替えのセレクトボックスに現在の状態を反映 ★★★
+    const sortKeyClosedSelect = document.getElementById('sort-key-closed');
+    const sortOrderClosedSelect = document.getElementById('sort-order-closed');
+    sortKeyClosedSelect.value = appState.trapSortClosed.key;
+    sortOrderClosedSelect.value = appState.trapSortClosed.order;
 
     // --- イベントリスナーを設定 ---
     
@@ -191,6 +245,16 @@ async function showClosedTrapPage() {
     document.getElementById('filter-type').addEventListener('change', (e) => {
         appState.trapFilters.type = e.target.value;
         renderClosedTrapList(); // 絞り込みして再描画
+    });
+    
+    // ★★★ 新規: 並び替えイベントリスナー ★★★
+    sortKeyClosedSelect.addEventListener('change', (e) => {
+        appState.trapSortClosed.key = e.target.value;
+        renderClosedTrapList(); // 並び替えて再描画
+    });
+    sortOrderClosedSelect.addEventListener('change', (e) => {
+        appState.trapSortClosed.order = e.target.value;
+        renderClosedTrapList(); // 並び替えて再描画
     });
 
     // 過去の罠一覧を描画
@@ -238,7 +302,6 @@ async function renderTrapTypeOptions(selectId, selectedValue, includeAll = false
 
 /**
  * 罠一覧（開いている罠）をDBから描画する関数
- * (変更なし)
  */
 async function renderTrapList() {
     const container = document.getElementById('trap-list-container');
@@ -255,7 +318,13 @@ async function renderTrapList() {
             query = query.filter(trap => trap.trap_type === type);
         }
         
-        let traps = await query.sortBy('trap_number');
+        // ★★★ 修正: DBクエリに並び替えを適用 ★★★
+        const { key, order } = appState.trapSortOpen;
+        let traps = await query.sortBy(key);
+        if (order === 'desc') {
+            traps.reverse(); // sortBy の後に reverse
+        }
+        // ★★★ 修正ここまで ★★★
 
         if (traps.length === 0) {
             container.innerHTML = `<p class="text-gray-500 text-center py-4">設置中の罠はありません。</p>`;
@@ -299,7 +368,6 @@ async function renderTrapList() {
 
 /**
  * ★ 新規: 過去の罠一覧（閉じている罠）を描画する関数
- * (変更なし)
  */
 async function renderClosedTrapList() {
     const container = document.getElementById('trap-list-container');
@@ -315,7 +383,13 @@ async function renderClosedTrapList() {
             query = query.filter(trap => trap.trap_type === type);
         }
         
-        let traps = await query.reverse().sortBy('close_date');
+        // ★★★ 修正: DBクエリに並び替えを適用 ★★★
+        const { key, order } = appState.trapSortClosed;
+        let traps = await query.sortBy(key);
+        if (order === 'desc') {
+            traps.reverse(); // sortBy の後に reverse
+        }
+        // ★★★ 修正ここまで ★★★
 
         if (traps.length === 0) {
             container.innerHTML = `<p class="text-gray-500 text-center py-4">過去に設置した罠はありません。</p>`;
@@ -627,15 +701,15 @@ async function showTrapEditForm(trapId) {
 
 
 // =======================================================
-// ★★★ (settings.js から移植した関数) ★★★
+// ★ (settings.js から移植した関数)
 // =======================================================
 
 /**
  * 「罠の種類を管理」ページを表示する
  */
 async function showManageTrapTypesPage() {
-    // ★ 修正: ヘッダータイトルと戻るボタン
-    updateHeader('所持している罠の種類の追加', true); // ★ 修正: 表記変更
+    // ★ 修正: ヘッダータイトル
+    updateHeader('所持している罠の種類の追加', true); 
     // ★ 修正: 戻るボタンの動作を 罠メインメニュー に
     backButton.onclick = () => {
         showTrapPage();

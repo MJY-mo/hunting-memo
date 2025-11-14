@@ -28,6 +28,15 @@ const appState = {
     trapView: 'open', // 'open' (開いている罠) または 'closed' (過去の罠)
     trapFilters: { // 罠の絞り込み状態
         type: 'all'    // all, くくり罠, 箱罠, ...
+    },
+    // ★★★ 新規: 並び替え状態 ★★★
+    trapSortOpen: {
+        key: 'trap_number', // 開いている罠のデフォルト (名前 昇順)
+        order: 'asc'
+    },
+    trapSortClosed: {
+        key: 'close_date', // 過去の罠のデフォルト (回収日 降順)
+        order: 'desc'
     }
 };
 
@@ -52,7 +61,7 @@ window.addEventListener('load', () => {
         // 5. タブ切り替えのリスナーを設定
         setupTabs();
         
-        // ★★★ 修正: 初期タブを「罠」タブのトップページに変更 ★★★
+        // 6. 初期タブ（「罠」タブ）
         navigateTo('trap', showTrapPage, '罠');
     }).catch(err => {
         console.error("Failed to open database:", err);
