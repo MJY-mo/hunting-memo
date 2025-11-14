@@ -47,7 +47,7 @@ function renderInfoMenu() {
 }
 
 /**
- * ★★★ 修正: 狩猟者データの「表示」ページ (複数画像対応) ★★★
+ * ★★★ 修正: 狩猟者データの「表示」ページ (「火薬類」を追加) ★★★
  */
 async function showHunterDataPage() {
     updateHeader('狩猟者データ', true);
@@ -111,14 +111,29 @@ async function showHunterDataPage() {
                         <p class="text-sm text-gray-500">読み込み中...</p>
                     </div>
                 </div>
+                
+                <hr>
+                <div class="space-y-2">
+                    <h3 class="text-lg font-semibold">火薬類の譲受許可証</h3>
+                    <div class="form-group">
+                        <label class="form-label">次回の更新 (または有効期限)</label>
+                        <p class="text-gray-700">${escapeHTML(profile.explosives_permit_renewal) || '(未設定)'}</p>
+                    </div>
+                    <label class="form-label">写真</label>
+                    <div id="gallery-explosives_permit" class="grid grid-cols-3 gap-2 mb-3">
+                        <p class="text-sm text-gray-500">読み込み中...</p>
+                    </div>
+                </div>
 
             </div>
         `;
         
-        // ★ 修正: 3つのギャラリーを非同期で描画 (編集モード=false)
+        // ★ 修正: 4つのギャラリーを非同期で描画 (編集モード=false)
         await renderProfilePhotoGallery('gun_license', 'gallery-gun_license', false);
         await renderProfilePhotoGallery('hunting_license', 'gallery-hunting_license', false);
         await renderProfilePhotoGallery('registration', 'gallery-registration', false);
+        // ★ 新規:
+        await renderProfilePhotoGallery('explosives_permit', 'gallery-explosives_permit', false);
         
     } catch (err) {
         console.error("Failed to load hunter data:", err);
@@ -127,7 +142,7 @@ async function showHunterDataPage() {
 }
 
 /**
- * ★★★ 修正: 狩猟者データの「編集」ページ (複数画像対応) ★★★
+ * ★★★ 修正: 狩猟者データの「編集」ページ (「火薬類」を追加) ★★★
  */
 async function showHunterDataEditPage() {
     updateHeader('狩猟者データを編集', true);
@@ -138,7 +153,8 @@ async function showHunterDataEditPage() {
     let tempPhotos = {
         gun_license: [],
         hunting_license: [],
-        registration: []
+        registration: [],
+        explosives_permit: [] // ★ 新規
     };
     // 削除フラグ
     let photosToDelete = []; // 削除対象の Photo ID
@@ -195,6 +211,18 @@ async function showHunterDataEditPage() {
                     ${renderPhotoEditControls('registration')}
                 </div>
                 
+                <hr>
+                <div class="space-y-2">
+                    <h3 class="text-lg font-semibold">火薬類の譲受許可証</h3>
+                    <div class="form-group">
+                        <label for="explosives_permit_renewal" class="form-label">次回の更新 (または有効期限)</label>
+                        <input type="text" id="explosives_permit_renewal" name="explosives_permit_renewal" class="form-input" value="${escapeHTML(profile.explosives_permit_renewal || '')}" placeholder="例: 2025年6月">
+                    </div>
+                    <label class="form-label">写真</label>
+                    <div id="gallery-explosives_permit" class="grid grid-cols-3 gap-2 mb-3"></div>
+                    ${renderPhotoEditControls('explosives_permit')}
+                </div>
+                
                 <hr class="my-4">
                 <div class="space-y-4">
                     <button type="submit" id="save-profile-btn" class="btn btn-primary w-full">保存</button>
@@ -219,6 +247,10 @@ async function showHunterDataEditPage() {
         await renderProfilePhotoGallery('registration', 'gallery-registration', true, tempPhotos, photosToDelete);
         setupProfilePhotoUpload('registration', tempPhotos, photosToDelete);
 
+        // ★ 新規:
+        await renderProfilePhotoGallery('explosives_permit', 'gallery-explosives_permit', true, tempPhotos, photosToDelete);
+        setupProfilePhotoUpload('explosives_permit', tempPhotos, photosToDelete);
+
         // 3. 保存ボタン
         document.getElementById('hunter-profile-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -234,7 +266,9 @@ async function showHunterDataEditPage() {
                 name: formData.get('name'),
                 gun_license_renewal: formData.get('gun_license_renewal'),
                 hunting_license_renewal: formData.get('hunting_license_renewal'),
-                registration_renewal: formData.get('registration_renewal')
+                registration_renewal: formData.get('registration_renewal'),
+                // ★ 新規:
+                explosives_permit_renewal: formData.get('explosives_permit_renewal')
             };
             
             try {
@@ -350,6 +384,10 @@ async function renderProfilePhotoGallery(type, containerId, isEditMode, tempPhot
                     if (window.confirm('この写真を削除しますか？ (保存を押すまで確定されません)')) {
                         photosToDelete.push(photo.id); // 削除リストに追加
                         div.remove(); // 画面から削除
+                        // プレースホルダーの再チェック
+                        if (container.querySelectorAll('div').length === 0) {
+                             container.innerHTML = `<p class="text-sm text-gray-500 col-span-3">(写真なし)</p>`;
+                        }
                     }
                 };
             }

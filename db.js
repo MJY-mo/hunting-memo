@@ -4,7 +4,7 @@
 const db = new Dexie('BLNCRHuntingApp');
 
 // データベースのスキーマ（構造）を定義
-// (v1〜v10 までは変更なしのため省略)
+// (v1〜v11 までは変更なしのため省略)
 // --- version(1) ---
 db.version(1).stores({
   traps: `
@@ -298,7 +298,7 @@ db.version(11).stores({
   settings: `&key`
 });
 
-// --- ★★★ 新規: version(12) を追加 ★★★ ---
+// --- version(12) ---
 db.version(12).stores({
   // 11. 狩猟者データストアから写真Blobを削除
   hunter_profile: `
@@ -329,7 +329,6 @@ db.version(12).stores({
   settings: `&key`
 }).upgrade(async (tx) => {
     // v11 -> v12 への移行
-    // 1. v11の hunter_profile から写真 Blob を読み取る
     const photosToAdd = [];
     const profile = await tx.table('hunter_profile').get('main');
     
@@ -345,12 +344,10 @@ db.version(12).stores({
         }
     }
 
-    // 2. v12の profile_photos に Blob を移行
     if (photosToAdd.length > 0) {
         await tx.profile_photos.bulkAdd(photosToAdd);
     }
     
-    // 3. v11の hunter_profile から Blob カラムを削除 (modify)
     await tx.table('hunter_profile').toCollection().modify(profile => {
         delete profile.gun_license_photo;
         delete profile.hunting_license_photo;
@@ -358,6 +355,41 @@ db.version(12).stores({
     });
     
     console.log("Upgraded hunter_profile from v11 to v12 and migrated photos.");
+});
+
+// --- ★★★ 新規: version(13) を追加 ★★★ ---
+db.version(13).stores({
+  // 11. 狩猟者データストアに火薬類許可証の更新日を追加
+  hunter_profile: `
+    &key,
+    name,
+    gun_license_renewal,
+    hunting_license_renewal,
+    registration_renewal,
+    explosives_permit_renewal
+  `,
+  // (profile_photos ストアは変更なし)
+  profile_photos: `++id, type, image_data`,
+  
+  // (既存のストアは変更なし)
+  ammo_types: `&name`,
+  checklist_lists: `++id, &name`,
+  checklist_items: `++id, list_id, name, checked, [list_id+name]`,
+  catches: `++id, catch_date, method, relation_id, species, gender, age, location_detail, [method+catch_date]`,
+  photos: `++id, catch_id, image_data`,
+  ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  settings: `&key`
+}).upgrade(async (tx) => {
+    // v12 -> v13 への移行
+    // 'main' プロファイルに新しい列 `explosives_permit_renewal` を追加
+    await tx.table('hunter_profile').where('key').equals('main').modify(profile => {
+        profile.explosives_permit_renewal = '';
+    });
+    console.log("Upgraded hunter_profile from v12 to v13, added explosives_permit_renewal.");
 });
 
 

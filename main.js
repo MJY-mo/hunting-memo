@@ -46,7 +46,6 @@ window.addEventListener('load', () => {
         // 3. デフォルトの罠種類をDBに投入
         await populateDefaultTrapTypes();
         
-        // ★★★ 新規 (1/4) ★★★
         // 4. デフォルトの狩猟者プロファイルを作成 (存在しない場合)
         await populateDefaultHunterProfile();
         
@@ -82,21 +81,20 @@ async function populateDefaultTrapTypes() {
 }
 
 /**
- * ★★★ 新規 (1/4) ★★★
+ * ★★★ 修正 (バグ修正): v12/v13 のスキーマに合わせる ★★★
  * 狩猟者プロファイルのデフォルト行を作成する
  */
 async function populateDefaultHunterProfile() {
     try {
         // 'main' というキーで単一のプロファイルを作成
+        // (写真Blobカラムは v12 で削除された)
         await db.hunter_profile.add({
             key: 'main',
             name: '',
             gun_license_renewal: '',
-            gun_license_photo: null,
             hunting_license_renewal: '',
-            hunting_license_photo: null,
             registration_renewal: '',
-            registration_photo: null
+            explosives_permit_renewal: '' // v13 で追加
         });
         console.log("Default hunter profile created.");
     } catch (err) {
@@ -249,7 +247,6 @@ function updateHeader(title, showBack = false) {
             else if (appState.currentPage === 'checklist') {
                 navigateTo('checklist', showChecklistPage, 'チェックリスト');
             }
-            // ★★★ 修正 (1/4) ★★★
             else if (appState.currentPage === 'info') {
                  navigateTo('info', showInfoPage, '情報');
             }
@@ -439,7 +436,7 @@ function resizeImage(file, maxSize = 800) {
     });
 }
 
-// ★★★ 新規 (1/4): 画像拡大モーダル ★★★
+// ★★★ 画像拡大モーダル ★★★
 /**
  * 画像を拡大表示するモーダルを表示する
  * @param {string} blobUrl - URL.createObjectURL() で生成したURL
