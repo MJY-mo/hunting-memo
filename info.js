@@ -33,7 +33,7 @@ function renderInfoMenu() {
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">法令情報</h2>
                 <ul class="space-y-2">
                     <li><button id="show-game-animal-list-csv-btn" class="btn btn-secondary w-full">狩猟鳥獣一覧</button></li>
-                    <li><button id="show-game-animals-btn" class="btn btn-secondary w-full">狩猟鳥獣（有害鳥獣）図鑑</button></li>
+                    <li><button id="show-game-animals-btn" class="btn btn-secondary w-full">図鑑</button></li>
                 </ul>
             </div>
         </div>
@@ -44,7 +44,6 @@ function renderInfoMenu() {
         showHunterDataPage();
     });
     
-    // ★★★ 修正: リスナーの対象を変更 ★★★
     document.getElementById('show-game-animal-list-csv-btn').addEventListener('click', () => {
         showGameAnimalListPageCSV();
     });
@@ -488,7 +487,7 @@ function setupProfilePhotoUpload(key, tempPhotos, photosToDelete) {
  */
 async function showGameAnimalListPage() {
     // ★★★ 修正: ヘッダータイトル ★★★
-    updateHeader('狩猟鳥獣図鑑', true); 
+    updateHeader('図鑑', true); 
     // 戻るボタンの動作を上書き
     backButton.onclick = () => showInfoPage();
 
@@ -689,7 +688,7 @@ async function showGameAnimalListPageCSV() {
 }
 
 /**
- * 狩猟鳥獣一覧(CSV)をDBから読み込んでテーブルに描画する
+ * ★★★ 修正: 狩猟鳥獣一覧(CSV)をDBから読み込んでテーブルに描画する
  */
 async function renderGameAnimalListCSV() {
     const container = document.getElementById('game-csv-list-container');
@@ -700,11 +699,17 @@ async function renderGameAnimalListCSV() {
     const borderColor = 'var(--color-border)';
 
     try {
-        // カテゴリ(哺乳類→鳥類)でソートし、次に種名でソート
-        const animals = await db.game_animal_list
-            .orderBy('category')
-            .reverse() // 鳥類を上にする (哺乳類 > 鳥類 なので)
-            .sortBy('species_name');
+        // ★★★ 修正: バグ修正。先に toArray() で全件取得 ★★★
+        const animals = await db.game_animal_list.toArray();
+            
+        // ★★★ 修正: JSの .sort() で並び替え ★★★
+        animals.sort((a, b) => {
+            // カテゴリでソート (鳥類 -> 哺乳類)
+            if (a.category > b.category) return -1;
+            if (a.category < b.category) return 1;
+            // カテゴリが同じなら種名でソート
+            return a.species_name.localeCompare(b.species_name, 'ja');
+        });
             
         // カテゴリでグループ化
         const grouped = animals.reduce((acc, animal) => {
@@ -718,7 +723,7 @@ async function renderGameAnimalListCSV() {
         }
 
         let html = '';
-        // カテゴリ順 (鳥類、哺乳類) で描画
+        // ★★★ 修正: ソート順を ['鳥類', '哺乳類'] に固定 ★★★
         ['鳥類', '哺乳類'].forEach(category => {
             if (grouped[category]) {
                 // カテゴリ行
