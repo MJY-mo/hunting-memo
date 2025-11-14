@@ -188,7 +188,7 @@ async function populateGameAnimalListIfNeeded() {
             { category: "哺乳類", is_game_animal: "〇", species_name: "ノイヌ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したイヌ）", notes: "（外来種）" },
             { category: "哺乳類", is_game_animal: "〇", species_name: "ノネコ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したネコ）", notes: "（外来種）" },
             { category: "哺乳類", is_game_animal: "×", species_name: "ニホンザル", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "" },
-Jav { category: "哺乳類", is_game_animal: "×", species_name: "ニホンカモシカ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "天然記念物" },
+            { category: "哺乳類", is_game_animal: "×", species_name: "ニホンカモシカ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "天然記念物" },
             { category: "哺乳類", is_game_animal: "×", species_name: "キョン", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）" },
             { category: "哺乳類", is_game_animal: "×", species_name: "ハリネズミ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）" },
             { category: "鳥類", is_game_animal: "〇", species_name: "ヒドリガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
