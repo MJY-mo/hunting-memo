@@ -480,10 +480,10 @@ function setupProfilePhotoUpload(key, tempPhotos, photosToDelete) {
 // ===============================================
 
 /**
- * 「狩猟鳥獣 図鑑」リストページを表示する
+ * 「図鑑」リストページを表示する
  */
 async function showGameAnimalListPage() {
-    updateHeader('狩猟鳥獣 図鑑', true); 
+    updateHeader('図鑑', true); 
     // 戻るボタンの動作を上書き
     backButton.onclick = () => showInfoPage();
 

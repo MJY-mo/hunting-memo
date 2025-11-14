@@ -147,12 +147,12 @@ async function populateDefaultHunterProfile() {
 
 /**
  * ★★★ 修正: 狩猟鳥獣のデフォルトデータ(図鑑兼一覧)をDBに登録する ★★★
- * (CSV の全データを反映)
+ * (CSV の全データを正確に反映)
  */
 async function populateGameAnimalList() {
     try {
         // v18のスキーマに合わせた完全なデータ
-        // "狩猟鳥獣: 〇" と "×" の両方を含む
+        // (ドバト、ゴイサギ、カワウなど、CSVにない種を削除)
         const animals = [
             { category: "哺乳類", is_game_animal: "〇", species_name: "イノシシ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州、淡路島 (沖縄は亜種リュウキュウイノシシ)", notes: "" },
             { category: "哺乳類", is_game_animal: "〇", species_name: "ニホンジカ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道(エゾシカ)、本州、四国、九州", notes: "" },
@@ -203,27 +203,15 @@ async function populateGameAnimalList() {
             { category: "鳥類", is_game_animal: "〇", species_name: "ムクドリ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" },
             { category: "鳥類", is_game_animal: "〇", species_name: "ミヤマガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "西日本（冬鳥）", notes: "" },
             { category: "鳥類", is_game_animal: "〇", species_name: "ハシボソガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ハシブトガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" },
-            { category: "鳥類", is_game_animal: "×", species_name: "ドバト（カワラバト）", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "全国（留鳥）", notes: "（外来種）" },
-            { category: "鳥類", is_game_animal: "×", species_name: "カワウ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "全国", notes: "" },
-            { category: "鳥類", is_game_animal: "×", species_name: "ゴイサギ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "全国（夏鳥・一部留鳥）", notes: "" }
+            { category: "鳥類", is_game_animal: "〇", species_name: "ハシブトガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" }
         ];
 
-        // bulkPut は「追加または上書き」
-        // これにより、アプリのアップデートでCSVデータが更新されても、
-        // ユーザーがアプリを開き直すだけで自動的に最新のデータに上書きされる。
-        // 主キー(++id)ではなく、種名(species_name)で上書きを試みる (v18では species_name にユニーク制約がないため、bulkPutはIDベースで動作する)
-        // → データを一旦クリアして、再登録するのが最も確実
-        
-        const count = await db.game_animal_list.count();
-        if (count !== animals.length) {
-             console.log("Game animal list (CSV) data mismatch. Clearing and re-populating...");
-             await db.game_animal_list.clear();
-             await db.game_animal_list.bulkAdd(animals);
-             console.log("Game animal list (CSV) populated.");
-        } else {
-             console.log("Game animal list (CSV) data already populated.");
-        }
+        // データを一旦クリアして、CSVのデータのみで再登録
+        // (主キーが ++id のため、clear/bulkAdd が最も安全)
+        console.log("Clearing and re-populating game animal list (CSV) data...");
+        await db.game_animal_list.clear();
+        await db.game_animal_list.bulkAdd(animals);
+        console.log("Game animal list (CSV) populated accurately.");
         
     } catch (err) {
         console.error("Failed to populate game animal list (CSV):", err);
@@ -308,7 +296,7 @@ function setupTabs() {
         appState.trapView = 'open'; 
         navigateTo('trap', showTrapPage, '罠');
     });
-    tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
+    tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃');
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
     tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
     tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲記録'));
