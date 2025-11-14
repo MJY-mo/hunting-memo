@@ -4,7 +4,7 @@
 const db = new Dexie('BLNCRHuntingApp');
 
 // データベースのスキーマ（構造）を定義
-// (v1〜v14 までは変更なしのため省略)
+// (v1〜v15 までは変更なしのため省略)
 // --- version(1) ---
 db.version(1).stores({
   traps: `
@@ -138,7 +138,7 @@ db.version(6).stores({
     hit_location,
     [method+catch_date]
   `,
-  // (既存のストアは変更なし)
+  // (他のストアは変更なし)
   ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
   gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
   trap_types: `&name`,
@@ -445,8 +445,7 @@ db.version(15).stores({
 });
 
 
-// --- ★★★ 新規: version(16) を追加 ★★★ ---
-// (狩猟鳥獣「一覧」CSV用ストアを追加)
+// --- version(16) ---
 db.version(16).stores({
   // 14. 狩猟鳥獣一覧ストア (CSV)
   game_animal_list: `
@@ -461,6 +460,45 @@ db.version(16).stores({
   
   // (既存のストアは変更なし)
   game_animals: `++id, &species_name, category, is_game_animal, notes`,
+  hunter_profile: `&key, name, gun_license_renewal, hunting_license_renewal, registration_renewal, explosives_permit_renewal`,
+  profile_photos: `++id, type, image_data`,
+  ammo_types: `&name`,
+  checklist_lists: `++id, &name`,
+  checklist_items: `++id, list_id, name, checked, [list_id+name]`,
+  catches: `++id, catch_date, method, relation_id, species, gender, age, location_detail, [method+catch_date]`,
+  photos: `++id, catch_id, image_data`,
+  ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  settings: `&key`
+});
+
+
+// --- ★★★ 新規: version(17) を追加 ★★★ ---
+db.version(17).stores({
+  // 14. 狩猟鳥獣一覧ストア (CSV) に is_game (〇/×) を追加し、インデックスも変更
+  game_animal_list: `
+    ++id,
+    &species_name,
+    category,
+    is_game,
+    method_net,
+    method_trap,
+    method_gun,
+    gender,
+    count,
+    prohibited_area,
+    habitat,
+    notes,
+    [category+is_game]
+  `,
+  
+  // 13. 古い図鑑ストア(game_animals)を削除
+  game_animals: null,
+  
+  // (既存のストアは変更なし)
   hunter_profile: `&key, name, gun_license_renewal, hunting_license_renewal, registration_renewal, explosives_permit_renewal`,
   profile_photos: `++id, type, image_data`,
   ammo_types: `&name`,
