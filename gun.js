@@ -1,20 +1,26 @@
-// このファイルは gun.js です
-// ★ 修正: 'db.catch' を 'db.catch_records' に変更
+// このファイルは gun.js です (修正版)
 
 /**
  * 「銃」タブのメインページを表示する
  */
 async function showGunPage() {
     app.innerHTML = `
-        <div class="page-content">
-            <h2 class="page-title">所持許可（銃）</h2>
-            <ul id="gun-list" class="data-list">
-                <li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>
-            </ul>
-            
-            <h2 class="page-title">銃使用履歴</h2>
-            <div id="gun-log-list-container">
+        <div class="space-y-4">
+            <div class="card">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-lg font-semibold">所持許可（銃）</h2>
                 </div>
+                <div id="gun-list" class="space-y-3">
+                    <p class="text-gray-500 text-center py-4">読み込み中...</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">銃使用履歴</h2>
+                <div id="gun-log-list-container" class="space-y-4">
+                    <p class="text-gray-500 text-center py-4">読み込み中...</p>
+                </div>
+            </div>
         </div>
     `;
 
@@ -22,10 +28,11 @@ async function showGunPage() {
     updateHeader('銃', false);
     
     // 新規銃登録ボタン
+    headerActions.innerHTML = ''; // クリア
     const newGunButton = document.createElement('button');
     newGunButton.id = 'new-gun-button';
-    newGunButton.className = 'button-header-action';
-    newGunButton.innerHTML = '<i class="fas fa-plus"></i>';
+    newGunButton.className = 'btn btn-primary'; // 修正: スタイル適用
+    newGunButton.textContent = '新規登録';
     newGunButton.onclick = () => showGunEditForm(null);
     headerActions.appendChild(newGunButton);
 
@@ -43,30 +50,29 @@ async function renderGunList() {
     const listElement = document.getElementById('gun-list');
     if (!listElement) return;
 
-    listElement.innerHTML = `<li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>`;
+    listElement.innerHTML = `<p class="text-gray-500 text-center py-4">読み込み中...</p>`;
     
     try {
         const guns = await db.gun.orderBy('name').toArray();
 
         if (guns.length === 0) {
-            listElement.innerHTML = `<li class="no-data">登録されている銃はありません。</li>`;
+            listElement.innerHTML = `<p class="text-gray-500 text-center py-4">登録されている銃はありません。</p>`;
             return;
         }
 
+        // 修正: trap-card スタイルを流用
         listElement.innerHTML = guns.map(gun => `
-            <li class="data-list-item" data-id="${gun.id}">
-                <div class="item-main-content">
-                    <strong>${escapeHTML(gun.name)}</strong>
-                    <span class="item-sub-text">${escapeHTML(gun.type)} / ${escapeHTML(gun.caliber)}</span>
+            <div class="trap-card" data-id="${gun.id}">
+                <div class="flex-grow">
+                    <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(gun.name)}</h3>
+                    <p class="text-sm">${escapeHTML(gun.type)} / ${escapeHTML(gun.caliber)}</p>
                 </div>
-                <div class="item-action-content">
-                    <i class="fas fa-chevron-right"></i>
-                </div>
-            </li>
+                <span>&gt;</span>
+            </div>
         `).join('');
         
         // クリックイベント設定
-        listElement.querySelectorAll('.data-list-item').forEach(item => {
+        listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
                 showGunDetailPage(id);
@@ -75,7 +81,7 @@ async function renderGunList() {
 
     } catch (err) {
         console.error("Failed to render gun list:", err);
-        listElement.innerHTML = `<li class="no-data error">銃リストの読み込みに失敗しました。</li>`;
+        listElement.innerHTML = `<div class="error-box">銃リストの読み込みに失敗しました。</div>`;
     }
 }
 
@@ -99,31 +105,37 @@ async function showGunDetailPage(id) {
             { label: '許可期限', value: formatDate(gun.permit_expiry) },
         ];
 
-        let tableHTML = '<div class="info-section"><h4>許可情報</h4><table class="info-table">';
+        // 修正: card と Tailwind テーブル
+        let tableHTML = `
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">許可情報</h2>
+                <table class="w-full text-sm">
+                    <tbody>
+        `;
         tableData.forEach(row => {
             if (row.value) {
                 tableHTML += `
-                    <tr>
-                        <th>${escapeHTML(row.label)}</th>
-                        <td>${escapeHTML(row.value)}</td>
+                    <tr class="border-b">
+                        <th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${escapeHTML(row.label)}</th>
+                        <td class="w-2/3 text-gray-800 p-2">${escapeHTML(row.value)}</td>
                     </tr>
                 `;
             }
         });
-        tableHTML += '</table></div>';
+        tableHTML += '</tbody></table></div>';
         
-        // 関連する使用履歴 (ボタン)
+        // 修正: card と btn
         const logButtonHTML = `
-            <div class="info-section">
-                <button id="show-related-logs-btn" class="menu-button">
-                    <i class="fas fa-history icon"></i>
-                    この銃の使用履歴を見る
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">関連メニュー</h2>
+                <button id="show-related-logs-btn" class="btn btn-secondary w-full justify-start text-left">
+                    <span class="w-6">📜</span> この銃の使用履歴を見る
                 </button>
             </div>
         `;
 
         app.innerHTML = `
-            <div class="page-content info-detail-page">
+            <div class="space-y-4">
                 ${tableHTML}
                 ${logButtonHTML}
             </div>
@@ -137,14 +149,14 @@ async function showGunDetailPage(id) {
         headerActions.innerHTML = ''; // クリア
         
         const editButton = document.createElement('button');
-        editButton.className = 'button-header-action';
-        editButton.innerHTML = '<i class="fas fa-edit"></i>';
+        editButton.className = 'btn btn-secondary'; // 修正
+        editButton.textContent = '編集';
         editButton.onclick = () => showGunEditForm(id);
         headerActions.appendChild(editButton);
 
         const deleteButton = document.createElement('button');
-        deleteButton.className = 'button-header-action';
-        deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteButton.className = 'btn btn-danger ml-2'; // 修正
+        deleteButton.textContent = '削除';
         deleteButton.onclick = () => deleteGun(id);
         headerActions.appendChild(deleteButton);
         
@@ -183,18 +195,19 @@ async function showGunEditForm(id) {
         }
     }
 
+    // 修正: card, form-group, form-input, btn
     app.innerHTML = `
-        <div class="page-content">
-            <form id="gun-form" class="form-container">
+        <div class="card">
+            <form id="gun-form" class="space-y-4">
                 
                 <div class="form-group">
-                    <label for="gun-name">名前 (ニックネーム) <span class="required">*</span>:</label>
-                    <input type="text" id="gun-name" value="${escapeHTML(gun.name)}" required placeholder="例: Aボルト">
+                    <label for="gun-name" class="form-label">名前 (ニックネーム) <span class="text-red-500">*</span>:</label>
+                    <input type="text" id="gun-name" class="form-input" value="${escapeHTML(gun.name)}" required placeholder="例: Aボルト">
                 </div>
                 
                 <div class="form-group">
-                    <label for="gun-type">銃種:</label>
-                    <select id="gun-type">
+                    <label for="gun-type" class="form-label">銃種:</label>
+                    <select id="gun-type" class="form-select">
                         <option value="散弾銃" ${gun.type === '散弾銃' ? 'selected' : ''}>散弾銃</option>
                         <option value="ライフル銃" ${gun.type === 'ライフル銃' ? 'selected' : ''}>ライフル銃</option>
                         <option value="その他" ${gun.type === 'その他' ? 'selected' : ''}>その他</option>
@@ -202,24 +215,24 @@ async function showGunEditForm(id) {
                 </div>
 
                 <div class="form-group">
-                    <label for="gun-caliber">口径:</label>
-                    <input type="text" id="gun-caliber" value="${escapeHTML(gun.caliber)}" placeholder="例: 12番">
+                    <label for="gun-caliber" class="form-label">口径:</label>
+                    <input type="text" id="gun-caliber" class="form-input" value="${escapeHTML(gun.caliber)}" placeholder="例: 12番">
                 </div>
 
                 <div class="form-group">
-                    <label for="gun-permit-date">許可日:</label>
-                    <input type="date" id="gun-permit-date" value="${escapeHTML(gun.permit_date)}">
+                    <label for="gun-permit-date" class="form-label">許可日:</label>
+                    <input type="date" id="gun-permit-date" class="form-input" value="${escapeHTML(gun.permit_date)}">
                 </div>
                 
                 <div class="form-group">
-                    <label for="gun-permit-expiry">許可期限:</label>
-                    <input type="date" id="gun-permit-expiry" value="${escapeHTML(gun.permit_expiry)}">
+                    <label for="gun-permit-expiry" class="form-label">許可期限:</label>
+                    <input type="date" id="gun-permit-expiry" class="form-input" value="${escapeHTML(gun.permit_expiry)}">
                 </div>
 
-                <button type="submit" class="button button-primary button-full">
-                    <i class="fas fa-save"></i> 保存する
+                <button type="submit" class="btn btn-primary w-full">
+                    保存する
                 </button>
-                <div id="form-error" class="form-error"></div>
+                <div id="form-error" class="text-red-600 text-sm text-center mt-2 h-4"></div>
             </form>
         </div>
     `;
@@ -273,17 +286,12 @@ async function showGunEditForm(id) {
 
 /**
  * 銃を削除する
- * @param {number} id - 削除する銃のID
  */
 async function deleteGun(id) {
     if (!confirm('この銃を本当に削除しますか？\nこの銃に関連する【使用履歴】や【捕獲記録】は削除されません。')) {
         return;
     }
     
-    // TODO: 関連する gun_log の gun_id を null にリセットする
-    // (現在は Dexie のリレーション機能を使っていないため、手動で行う必要がある)
-    // 現時点では、gun_log は残るが、銃の名前が表示できなくなる
-
     try {
         await db.gun.delete(id);
         showGunPage(); // リストに戻る
@@ -306,7 +314,6 @@ async function renderGunLogList() {
 
     // 状態の読み込み
     const filters = appState.gunLogFilters;
-    const sort = appState.gunLogSort;
     
     // 銃のリストを非同期で取得
     const guns = await db.gun.toArray();
@@ -316,41 +323,43 @@ async function renderGunLogList() {
         </option>`
     ).join('');
 
-    // HTMLを構築
+    // HTMLを構築 (修正: form-group, form-select, btn)
     container.innerHTML = `
-        <div class="filter-controls">
-            <div class="filter-group">
-                <label for="gun-log-filter-purpose">目的:</label>
-                <select id="gun-log-filter-purpose" class="filter-select">
-                    <option value="all" ${filters.purpose === 'all' ? 'selected' : ''}>すべて</option>
-                    <option value="狩猟" ${filters.purpose === '狩猟' ? 'selected' : ''}>狩猟</option>
-                    <option value="有害駆除" ${filters.purpose === '有害駆除' ? 'selected' : ''}>有害駆除</option>
-                    <option value="射撃練習" ${filters.purpose === '射撃練習' ? 'selected' : ''}>射撃練習</option>
-                    <option value="その他" ${filters.purpose === 'その他' ? 'selected' : ''}>その他</option>
-                </select>
+        <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group mb-0">
+                    <label for="gun-log-filter-purpose" class="form-label">目的:</label>
+                    <select id="gun-log-filter-purpose" class="form-select">
+                        <option value="all" ${filters.purpose === 'all' ? 'selected' : ''}>すべて</option>
+                        <option value="狩猟" ${filters.purpose === '狩猟' ? 'selected' : ''}>狩猟</option>
+                        <option value="有害駆除" ${filters.purpose === '有害駆除' ? 'selected' : ''}>有害駆除</option>
+                        <option value="射撃練習" ${filters.purpose === '射撃練習' ? 'selected' : ''}>射撃練習</option>
+                        <option value="その他" ${filters.purpose === 'その他' ? 'selected' : ''}>その他</option>
+                    </select>
+                </div>
+                
+                <div class="form-group mb-0">
+                    <label for="gun-log-filter-gun" class="form-label">銃:</label>
+                    <select id="gun-log-filter-gun" class="form-select">
+                        <option value="all" ${filters.gun_id === 'all' ? 'selected' : ''}>すべての銃</option>
+                        ${gunOptions}
+                    </select>
+                </div>
             </div>
             
-            <div class="filter-group">
-                <label for="gun-log-filter-gun">銃:</label>
-                <select id="gun-log-filter-gun" class="filter-select">
-                    <option value="all" ${filters.gun_id === 'all' ? 'selected' : ''}>すべての銃</option>
-                    ${gunOptions}
-                </select>
-            </div>
-            
-            <button id="gun-log-filter-reset" class="button button-secondary button-small">リセット</button>
+            <button id="gun-log-filter-reset" class="btn btn-secondary w-full">フィルターリセット</button>
         </div>
         
-        <div class="list-header">
-            <span>使用履歴</span>
-            <button id="new-gun-log-button" class="button button-primary button-small">
-                <i class="fas fa-plus"></i> 新規使用履歴
+        <div class="flex justify-between items-center mt-4 pt-4 border-t">
+            <h3 class="text-md font-semibold">履歴一覧</h3>
+            <button id="new-gun-log-button" class="btn btn-primary btn-sm">
+                新規使用履歴
             </button>
         </div>
         
-        <ul id="gun-log-list" class="data-list">
-            <li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>
-        </ul>
+        <div id="gun-log-list" class="space-y-3 mt-3">
+            <p class="text-gray-500 text-center py-4">読み込み中...</p>
+        </div>
     `;
 
     // --- イベントリスナー設定 ---
@@ -386,7 +395,7 @@ async function renderGunLogListItems() {
     const listElement = document.getElementById('gun-log-list');
     if (!listElement) return;
 
-    listElement.innerHTML = `<li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>`;
+    listElement.innerHTML = `<p class="text-gray-500 text-center py-4">読み込み中...</p>`;
     
     try {
         const filters = appState.gunLogFilters;
@@ -414,7 +423,7 @@ async function renderGunLogListItems() {
         }
 
         if (logs.length === 0) {
-            listElement.innerHTML = `<li class="no-data">銃の使用履歴はありません。</li>`;
+            listElement.innerHTML = `<p class="text-gray-500 text-center py-4">銃の使用履歴はありません。</p>`;
             return;
         }
 
@@ -424,46 +433,46 @@ async function renderGunLogListItems() {
             const gun = log.gun_id ? await db.gun.get(log.gun_id) : null;
             const gunName = gun ? escapeHTML(gun.name) : '不明な銃';
             
-            // ★ 修正: db.catch -> db.catch_records
             // 関連する捕獲数を非同期で取得
             const catchCount = await db.catch_records.where('gun_log_id').equals(log.id).count();
+            // 修正: Tailwind バッジ
             const catchBadge = catchCount > 0 
-                ? `<span class="badge badge-success">${catchCount}件</span>` 
+                ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
 
+            // 修正: trap-card スタイルを流用
             listItems += `
-                <li class="data-list-item" data-id="${log.id}">
-                    <div class="item-main-content">
-                        <strong>${formatDate(log.use_date)} (${escapeHTML(log.purpose)})</strong>
-                        <span class="item-sub-text">${gunName}</span>
+                <div class="trap-card" data-id="${log.id}">
+                    <div class="flex-grow">
+                        <h3 class="text-lg font-semibold">${formatDate(log.use_date)} (${escapeHTML(log.purpose)})</h3>
+                        <p class="text-sm">${gunName}</p>
                     </div>
-                    <div class="item-action-content">
+                    <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
                         ${catchBadge}
-                        <i class="fas fa-chevron-right"></i>
+                        <span>&gt;</span>
                     </div>
-                </li>
+                </div>
             `;
         }
         
         listElement.innerHTML = listItems;
         
         // クリックイベント設定
-        listElement.querySelectorAll('.data-list-item').forEach(item => {
+        listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
                 showGunLogDetailPage(id);
             });
         });
 
-    } catch (err) {
+    } catch (err {
         console.error("Failed to render gun log list items:", err);
-        listElement.innerHTML = `<li class="no-data error">履歴の読み込みに失敗しました。</li>`;
+        listElement.innerHTML = `<div class="error-box">履歴の読み込みに失敗しました。</div>`;
     }
 }
 
 /**
  * 銃使用履歴の「詳細ページ」を表示する
- * @param {number} id - 表示する履歴のDB ID
  */
 async function showGunLogDetailPage(id) {
     try {
@@ -476,21 +485,21 @@ async function showGunLogDetailPage(id) {
         // 銃の名前を取得
         const gun = log.gun_id ? await db.gun.get(log.gun_id) : null;
         
-        // --- 画像の表示 ---
+        // --- 画像の表示 (修正: card, photo-preview) ---
         let imageHTML = '';
         if (log.image_blob) {
             const blobUrl = URL.createObjectURL(log.image_blob);
             imageHTML = `
-                <div class="info-section">
-                    <h4>写真</h4>
-                    <div class="info-image-container">
+                <div class="card">
+                    <h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2>
+                    <div class="photo-preview cursor-zoom-in">
                         <img src="${blobUrl}" alt="関連写真" id="detail-image" class="clickable-image">
                     </div>
                 </div>
             `;
         }
         
-        // --- 基本情報のテーブル ---
+        // --- 基本情報のテーブル (修正: card, Tailwind テーブル) ---
         const tableData = [
             { label: '使用日', value: formatDate(log.use_date) },
             { label: '目的', value: log.purpose },
@@ -500,46 +509,54 @@ async function showGunLogDetailPage(id) {
             { label: '経度', value: log.longitude },
         ];
 
-        let tableHTML = '<div class="info-section"><h4>基本情報</h4><table class="info-table">';
+        let tableHTML = `
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2>
+                <table class="w-full text-sm">
+                    <tbody>
+        `;
         tableData.forEach(row => {
             if (row.value) {
                 tableHTML += `
-                    <tr>
-                        <th>${escapeHTML(row.label)}</th>
-                        <td>${escapeHTML(row.value)}</td>
+                    <tr class="border-b">
+                        <th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${escapeHTML(row.label)}</th>
+                        <td class="w-2/3 text-gray-800 p-2">${escapeHTML(row.value)}</td>
                     </tr>
                 `;
             }
         });
-        tableHTML += '</table></div>';
+        tableHTML += '</tbody></table></div>';
         
-        // --- メモ ---
+        // --- メモ (修正: card) ---
         let memoHTML = '';
         if (log.memo) {
             memoHTML = `
-                <div class="info-section">
-                    <h4>メモ</h4>
-                    <p class="info-memo">${escapeHTML(log.memo).replace(/\n/g, '<br>')}</p>
+                <div class="card">
+                    <h2 class="text-lg font-semibold border-b pb-2 mb-4">メモ</h2>
+                    <p class="text-sm text-gray-700 leading-relaxed">
+                        ${escapeHTML(log.memo).replace(/\n/g, '<br>')}
+                    </p>
                 </div>
             `;
         }
         
-        // --- 関連する捕獲記録 (ボタン) ---
+        // --- 関連する捕獲記録 (修正: card, btn) ---
         const catchButtonHTML = `
-            <div class="info-section">
-                <button id="show-related-catches-btn" class="menu-button">
-                    <i class="fas fa-fish icon"></i>
-                    この日の捕獲記録を見る
-                </button>
-                <button id="add-catch-to-log-btn" class="menu-button">
-                    <i class="fas fa-plus icon"></i>
-                    この日に捕獲した
-                </button>
+            <div class="card">
+                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
+                <div class="space-y-3">
+                    <button id="show-related-catches-btn" class="btn btn-secondary w-full justify-start text-left">
+                         <span class="w-6">🐾</span> この日の捕獲記録を見る
+                    </button>
+                    <button id="add-catch-to-log-btn" class="btn btn-primary w-full justify-start text-left">
+                        <span class="w-6">＋</span> この日に捕獲した
+                    </button>
+                </div>
             </div>
         `;
 
         app.innerHTML = `
-            <div class="page-content info-detail-page">
+            <div class="space-y-4">
                 ${imageHTML}
                 ${tableHTML}
                 ${memoHTML}
@@ -555,14 +572,14 @@ async function showGunLogDetailPage(id) {
         headerActions.innerHTML = ''; // クリア
         
         const editButton = document.createElement('button');
-        editButton.className = 'button-header-action';
-        editButton.innerHTML = '<i class="fas fa-edit"></i>';
+        editButton.className = 'btn btn-secondary'; // 修正
+        editButton.textContent = '編集';
         editButton.onclick = () => showGunLogEditForm(id);
         headerActions.appendChild(editButton);
 
         const deleteButton = document.createElement('button');
-        deleteButton.className = 'button-header-action';
-        deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteButton.className = 'btn btn-danger ml-2'; // 修正
+        deleteButton.textContent = '削除';
         deleteButton.onclick = () => deleteGunLog(id);
         headerActions.appendChild(deleteButton);
 
@@ -596,7 +613,6 @@ async function showGunLogDetailPage(id) {
 
 /**
  * 銃使用履歴の「編集/新規作成フォーム」を表示する
- * @param {number | null} id - 編集する履歴のID (新規の場合は null)
  */
 async function showGunLogEditForm(id) {
     let log = {
@@ -636,13 +652,14 @@ async function showGunLogEditForm(id) {
             
             if (log.image_blob) {
                 const blobUrl = URL.createObjectURL(log.image_blob);
+                // 修正: photo-preview
                 currentImageHTML = `
                     <div class="form-group">
-                        <label>現在の写真:</label>
-                        <div class="info-image-container">
+                        <label class="form-label">現在の写真:</label>
+                        <div class="photo-preview cursor-zoom-in">
                             <img src="${blobUrl}" alt="既存の写真" id="current-image" class="clickable-image">
+                            <button type="button" id="remove-image-btn" class="photo-preview-btn-delete">&times;</button>
                         </div>
-                        <button type="button" id="remove-image-btn" class="button button-danger button-small">写真を削除</button>
                     </div>
                 `;
             }
@@ -652,25 +669,26 @@ async function showGunLogEditForm(id) {
         log.gun_id = guns[0].id;
     }
 
+    // 修正: card, form-group, form-input, btn, photo-preview
     app.innerHTML = `
-        <div class="page-content">
-            <form id="gun-log-form" class="form-container">
+        <div class="card">
+            <form id="gun-log-form" class="space-y-4">
                 
                 <div class="form-group">
-                    <label for="gun-log-date">使用日 <span class="required">*</span>:</label>
-                    <input type="date" id="gun-log-date" value="${escapeHTML(log.use_date)}" required>
+                    <label for="gun-log-date" class="form-label">使用日 <span class="text-red-500">*</span>:</label>
+                    <input type="date" id="gun-log-date" class="form-input" value="${escapeHTML(log.use_date)}" required>
                 </div>
                 
                 <div class="form-group">
-                    <label for="gun-log-gun">使用した銃 <span class="required">*</span>:</label>
-                    <select id="gun-log-gun" required>
+                    <label for="gun-log-gun" class="form-label">使用した銃 <span class="text-red-500">*</span>:</label>
+                    <select id="gun-log-gun" class="form-select" required>
                         ${gunOptions}
                     </select>
                 </div>
                 
                 <div class="form-group">
-                    <label for="gun-log-purpose">目的:</label>
-                    <select id="gun-log-purpose">
+                    <label for="gun-log-purpose" class="form-label">目的:</label>
+                    <select id="gun-log-purpose" class="form-select">
                         <option value="狩猟" ${log.purpose === '狩猟' ? 'selected' : ''}>狩猟</option>
                         <option value="有害駆除" ${log.purpose === '有害駆除' ? 'selected' : ''}>有害駆除</option>
                         <option value="射撃練習" ${log.purpose === '射撃練習' ? 'selected' : ''}>射撃練習</option>
@@ -679,42 +697,38 @@ async function showGunLogEditForm(id) {
                 </div>
                 
                 <div class="form-group">
-                    <label for="gun-log-location">場所:</label>
-                    <input type="text" id="gun-log-location" value="${escapeHTML(log.location)}" placeholder="例: 〇〇山">
+                    <label for="gun-log-location" class="form-label">場所:</label>
+                    <input type="text" id="gun-log-location" class="form-input" value="${escapeHTML(log.location)}" placeholder="例: 〇〇山">
                 </div>
 
-                <h3 class="form-section-title">位置情報</h3>
-                <div class="form-group-row">
-                    <div class="form-group">
-                        <label for="gun-log-latitude">緯度:</label>
-                        <input type="number" step="any" id="gun-log-latitude" value="${escapeHTML(log.latitude)}">
+                <div class="form-group">
+                    <label class="form-label">位置情報</label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="number" step="any" id="gun-log-latitude" class="form-input" value="${escapeHTML(log.latitude)}" placeholder="緯度">
+                        <input type="number" step="any" id="gun-log-longitude" class="form-input" value="${escapeHTML(log.longitude)}" placeholder="経度">
                     </div>
-                    <div class="form-group">
-                        <label for="gun-log-longitude">経度:</label>
-                        <input type="number" step="any" id="gun-log-longitude" value="${escapeHTML(log.longitude)}">
-                    </div>
+                    <button type="button" id="get-gun-log-gps-btn" class="btn btn-secondary w-full mt-2">
+                        現在地を取得
+                    </button>
                 </div>
-                <button type="button" id="get-gun-log-gps-btn" class="button button-secondary button-full">
-                    <i class="fas fa-map-marker-alt"></i> 現在地を取得
-                </button>
 
-                <h3 class="form-section-title">写真</h3>
                 ${currentImageHTML}
+
                 <div class="form-group">
-                    <label for="gun-log-image">${id && log.image_blob ? '写真を変更:' : '写真を追加:'}</label>
-                    <input type="file" id="gun-log-image" accept="image/*">
-                    <div id="image-preview-container" class="image-preview-container"></div>
+                    <label for="gun-log-image" class="form-label">${id && log.image_blob ? '写真を変更:' : '写真を追加:'}</label>
+                    <input type="file" id="gun-log-image" class="form-input" accept="image/*">
+                    <div id="image-preview-container" class="mt-2"></div>
                 </div>
 
-                <h3 class="form-section-title">メモ</h3>
                 <div class="form-group">
-                    <textarea id="gun-log-memo" rows="4">${escapeHTML(log.memo)}</textarea>
+                    <label for="gun-log-memo" class="form-label">メモ:</label>
+                    <textarea id="gun-log-memo" rows="4" class="form-input">${escapeHTML(log.memo)}</textarea>
                 </div>
                 
-                <button type="submit" class="button button-primary button-full">
-                    <i class="fas fa-save"></i> 保存する
+                <button type="submit" class="btn btn-primary w-full">
+                    保存する
                 </button>
-                <div id="form-error" class="form-error"></div>
+                <div id="form-error" class="text-red-600 text-sm text-center mt-2 h-4"></div>
             </form>
         </div>
     `;
@@ -738,7 +752,7 @@ async function showGunLogEditForm(id) {
     document.getElementById('get-gun-log-gps-btn').addEventListener('click', async (e) => {
         const button = e.currentTarget;
         const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 測位中...';
+        button.innerHTML = '測位中...';
         button.disabled = true;
         
         try {
@@ -761,14 +775,18 @@ async function showGunLogEditForm(id) {
     imageInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        previewContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 画像処理中...';
+        previewContainer.innerHTML = `<p class="text-gray-500">画像処理中...</p>`;
         try {
             resizedImageBlob = await resizeImage(file, 800);
             const previewUrl = URL.createObjectURL(resizedImageBlob);
-            previewContainer.innerHTML = `<img src="${previewUrl}" alt="プレビュー">`;
+            // 修正: photo-preview
+            previewContainer.innerHTML = `
+                <div class="photo-preview">
+                    <img src="${previewUrl}" alt="プレビュー">
+                </div>`;
             URL.revokeObjectURL(previewUrl); 
         } catch (err) {
-            previewContainer.innerHTML = `<span class="error">画像処理に失敗</span>`;
+            previewContainer.innerHTML = `<p class="text-red-500">画像処理に失敗</p>`;
             resizedImageBlob = null;
         }
     });
@@ -777,10 +795,10 @@ async function showGunLogEditForm(id) {
     const removeBtn = document.getElementById('remove-image-btn');
     if (removeBtn) {
         removeBtn.addEventListener('click', () => {
-            const currentImageDiv = document.getElementById('current-image').closest('.form-group');
+            const currentImageDiv = removeBtn.closest('.form-group');
             if (currentImageDiv) currentImageDiv.remove();
             log.image_blob = null; 
-            currentImageHTML = '<div class="form-group"><label>現在の写真:</label><p>(削除されます)</p></div>'; 
+            currentImageHTML = '<div class="form-group"><label class="form-label">現在の写真:</label><p class="text-gray-500">(削除されます)</p></div>'; 
         });
     }
 
@@ -831,7 +849,6 @@ async function showGunLogEditForm(id) {
 
 /**
  * 銃使用履歴を削除する
- * @param {number} id - 削除する履歴のID
  */
 async function deleteGunLog(id) {
     if (!confirm('この銃使用履歴を本当に削除しますか？\nこの履歴に関連する【捕獲記録もすべて削除】されます。\nこの操作は元に戻せません。')) {
@@ -839,14 +856,8 @@ async function deleteGunLog(id) {
     }
 
     try {
-        // ★ 修正: db.catch -> db.catch_records
         await db.transaction('rw', db.gun_log, db.catch_records, async () => {
-            
-            // 1. 関連する捕獲記録を削除
-            // ★ 修正: db.catch -> db.catch_records
             await db.catch_records.where('gun_log_id').equals(id).delete();
-            
-            // 2. 履歴本体を削除
             await db.gun_log.delete(id);
         });
         

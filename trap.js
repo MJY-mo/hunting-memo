@@ -1,5 +1,4 @@
-// このファイルは trap.js です
-// ★ 修正: 'db.catch' を 'db.catch_records' に変更
+// このファイルは trap.js です (修正版)
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
@@ -18,47 +17,54 @@ async function showTrapPage() {
         </option>`
     ).join('');
 
+    // 修正: Tailwind のタブスタイルと card, form-select を使用
     let html = `
-        <div class="page-content">
-            <div class="tab-container">
-                <button id="trap-tab-open" class="tab-button ${view === 'open' ? 'tab-active' : 'tab-inactive'}">
+        <div class="space-y-4">
+            <div class="flex border-b border-gray-300">
+                <button id="trap-tab-open" class="flex-1 py-3 px-4 text-center text-sm font-medium 
+                    ${view === 'open' ? 'text-blue-600 border-b-2 border-blue-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}">
                     設置中の罠
                 </button>
-                <button id="trap-tab-closed" class="tab-button ${view === 'closed' ? 'tab-active' : 'tab-inactive'}">
+                <button id="trap-tab-closed" class="flex-1 py-3 px-4 text-center text-sm font-medium 
+                    ${view === 'closed' ? 'text-blue-600 border-b-2 border-blue-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}">
                     過去の罠
                 </button>
             </div>
 
-            <div class="filter-controls">
-                <div class="filter-group">
-                    <label for="trap-filter-type">種類:</label>
-                    <select id="trap-filter-type" class="filter-select">
-                        <option value="all" ${filters.type === 'all' ? 'selected' : ''}>すべて</option>
-                        ${typeOptions}
-                    </select>
-                </div>
-                
-                <div class="filter-group">
-                    <label for="trap-sort-key">ソート:</label>
-                    <select id="trap-sort-key" class="filter-select">
-                        ${view === 'open' ? `
-                            <option value="trap_number" ${sort.key === 'trap_number' ? 'selected' : ''}>罠番号</option>
-                            <option value="setup_date" ${sort.key === 'setup_date' ? 'selected' : ''}>設置日</option>
-                        ` : `
-                            <option value="close_date" ${sort.key === 'close_date' ? 'selected' : ''}>解除日</option>
-                            <option value="trap_number" ${sort.key === 'trap_number' ? 'selected' : ''}>罠番号</option>
-                        `}
-                    </select>
-                    <select id="trap-sort-order" class="filter-select">
-                        <option value="asc" ${sort.order === 'asc' ? 'selected' : ''}>昇順</option>
-                        <option value="desc" ${sort.order === 'desc' ? 'selected' : ''}>降順</option>
-                    </select>
+            <div class="card">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="form-group mb-0">
+                        <label for="trap-filter-type" class="form-label">種類:</label>
+                        <select id="trap-filter-type" class="form-select">
+                            <option value="all" ${filters.type === 'all' ? 'selected' : ''}>すべて</option>
+                            ${typeOptions}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group mb-0">
+                        <label for="trap-sort-key" class="form-label">ソート:</label>
+                        <div class="flex space-x-2">
+                            <select id="trap-sort-key" class="form-select">
+                                ${view === 'open' ? `
+                                    <option value="trap_number" ${sort.key === 'trap_number' ? 'selected' : ''}>罠番号</option>
+                                    <option value="setup_date" ${sort.key === 'setup_date' ? 'selected' : ''}>設置日</option>
+                                ` : `
+                                    <option value="close_date" ${sort.key === 'close_date' ? 'selected' : ''}>解除日</option>
+                                    <option value="trap_number" ${sort.key === 'trap_number' ? 'selected' : ''}>罠番号</option>
+                                `}
+                            </select>
+                            <select id="trap-sort-order" class="form-select w-24">
+                                <option value="asc" ${sort.order === 'asc' ? 'selected' : ''}>昇順</option>
+                                <option value="desc" ${sort.order === 'desc' ? 'selected' : ''}>降順</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <ul id="trap-list" class="data-list">
-                <li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>
-            </ul>
+            <div id="trap-list" class="space-y-3">
+                <p class="text-gray-500 text-center py-4">読み込み中...</p>
+            </div>
         </div>
     `;
     
@@ -67,11 +73,12 @@ async function showTrapPage() {
     // ヘッダーを更新
     updateHeader('罠', false);
     
-    // 新規罠登録ボタン
+    // 新規罠登録ボタン (修正: btn スタイル)
+    headerActions.innerHTML = ''; // クリア
     const newButton = document.createElement('button');
     newButton.id = 'new-trap-button';
-    newButton.className = 'button-header-action';
-    newButton.innerHTML = '<i class="fas fa-plus"></i>';
+    newButton.className = 'btn btn-primary';
+    newButton.textContent = '新規設置';
     newButton.onclick = () => showTrapEditForm(null); // 新規登録
     headerActions.appendChild(newButton);
     
@@ -114,7 +121,7 @@ async function renderTrapList() {
     const listElement = document.getElementById('trap-list');
     if (!listElement) return;
 
-    listElement.innerHTML = `<li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>`;
+    listElement.innerHTML = `<p class="text-gray-500 text-center py-4">読み込み中...</p>`;
     
     try {
         const view = appState.trapView;
@@ -141,41 +148,41 @@ async function renderTrapList() {
         }
 
         if (traps.length === 0) {
-            listElement.innerHTML = `<li class="no-data">
+            listElement.innerHTML = `<p class="text-gray-500 text-center py-4">
                 ${view === 'open' ? '設置中の罠はありません。' : '過去の罠はありません。'}
-            </li>`;
+            </p>`;
             return;
         }
 
-        // 6. HTML構築
+        // 6. HTML構築 (修正: trap-card スタイル)
         let listItems = '';
         for (const trap of traps) {
-            // ★ 修正: db.catch -> db.catch_records
             // この罠に関連する捕獲数を非同期で取得
             const catchCount = await db.catch_records.where('trap_id').equals(trap.id).count();
             
+            // 修正: Tailwind バッジ
             const catchBadge = catchCount > 0 
-                ? `<span class="badge badge-success">${catchCount}件</span>` 
+                ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
 
             listItems += `
-                <li class="data-list-item" data-id="${trap.id}">
-                    <div class="item-main-content">
-                        <strong>${escapeHTML(trap.trap_number)}</strong>
-                        <span class="item-sub-text">${escapeHTML(trap.type)} / ${formatDate(trap.setup_date)}</span>
+                <div class="trap-card" data-id="${trap.id}">
+                    <div class="flex-grow">
+                        <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(trap.trap_number)}</h3>
+                        <p class="text-sm">${escapeHTML(trap.type)} / ${formatDate(trap.setup_date)}</p>
                     </div>
-                    <div class="item-action-content">
+                    <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
                         ${catchBadge}
-                        <i class="fas fa-chevron-right"></i>
+                        <span>&gt;</span>
                     </div>
-                </li>
+                </div>
             `;
         }
         
         listElement.innerHTML = listItems;
         
         // 7. クリックイベント設定
-        listElement.querySelectorAll('.data-list-item').forEach(item => {
+        listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
                 showTrapDetailPage(id);
@@ -184,7 +191,7 @@ async function renderTrapList() {
 
     } catch (err) {
         console.error("Failed to render trap list:", err);
-        listElement.innerHTML = `<li class="no-data error">罠リストの読み込みに失敗しました: ${err.message}</li>`;
+        listElement.innerHTML = `<div class="error-box">罠リストの読み込みに失敗しました。</div>`;
     }
 }
 
@@ -192,7 +199,6 @@ async function renderTrapList() {
 
 /**
  * 罠の「詳細ページ」を表示する
- * @param {number} id - 表示する罠のDB ID
  */
 async function showTrapDetailPage(id) {
     try {
@@ -202,21 +208,21 @@ async function showTrapDetailPage(id) {
             return;
         }
         
-        // --- 画像の表示 ---
+        // --- 画像の表示 (修正: card, photo-preview) ---
         let imageHTML = '';
         if (trap.image_blob) {
             const blobUrl = URL.createObjectURL(trap.image_blob);
             imageHTML = `
-                <div class="info-section">
-                    <h4>設置写真</h4>
-                    <div class="info-image-container">
+                <div class="card">
+                    <h2 class="text-lg font-semibold border-b pb-2 mb-4">設置写真</h2>
+                    <div class="photo-preview cursor-zoom-in">
                         <img src="${blobUrl}" alt="設置写真" id="detail-image" class="clickable-image">
                     </div>
                 </div>
             `;
         }
 
-        // --- 基本情報のテーブル ---
+        // --- 基本情報のテーブル (修正: card, Tailwind テーブル) ---
         const tableData = [
             { label: '罠番号', value: trap.trap_number },
             { label: '種類', value: trap.type },
@@ -225,57 +231,68 @@ async function showTrapDetailPage(id) {
             { label: '経度', value: trap.longitude },
         ];
 
-        let tableHTML = '<div class="info-section"><h4>基本情報</h4><table class="info-table">';
+        let tableHTML = `
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2>
+                <table class="w-full text-sm">
+                    <tbody>
+        `;
         tableData.forEach(row => {
             if (row.value) { // 値が設定されているものだけ表示
                 tableHTML += `
-                    <tr>
-                        <th>${escapeHTML(row.label)}</th>
-                        <td>${escapeHTML(row.value)}</td>
+                    <tr class="border-b">
+                        <th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${escapeHTML(row.label)}</th>
+                        <td class="w-2/3 text-gray-800 p-2">${escapeHTML(row.value)}</td>
                     </tr>
                 `;
             }
         });
-        tableHTML += '</table></div>';
+        tableHTML += '</tbody></table></div>';
         
-        // --- メモ ---
+        // --- メモ (修正: card) ---
         let memoHTML = '';
         if (trap.memo) {
             memoHTML = `
-                <div class="info-section">
-                    <h4>メモ</h4>
-                    <p class="info-memo">${escapeHTML(trap.memo).replace(/\n/g, '<br>')}</p>
+                <div class="card">
+                    <h2 class="text-lg font-semibold border-b pb-2 mb-4">メモ</h2>
+                    <p class="text-sm text-gray-700 leading-relaxed">
+                        ${escapeHTML(trap.memo).replace(/\n/g, '<br>')}
+                    </p>
                 </div>
             `;
         }
         
-        // --- 関連する捕獲記録 (ボタン) ---
+        // --- 関連する捕獲記録 (修正: card, btn) ---
         const catchButtonHTML = `
-            <div class="info-section">
-                <button id="show-related-catches-btn" class="menu-button">
-                    <i class="fas fa-fish icon"></i>
-                    この罠の捕獲記録を見る
-                </button>
-                <button id="add-catch-to-trap-btn" class="menu-button">
-                    <i class="fas fa-plus icon"></i>
-                    この罠で捕獲した
-                </button>
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
+                <div class="space-y-3">
+                    <button id="show-related-catches-btn" class="btn btn-secondary w-full justify-start text-left">
+                        <span class="w-6">🐾</span> この罠の捕獲記録を見る
+                    </button>
+                    <button id="add-catch-to-trap-btn" class="btn btn-primary w-full justify-start text-left">
+                        <span class="w-6">＋</span> この罠で捕獲した
+                    </button>
+                </div>
             </div>
         `;
         
-        // --- 罠の解除ボタン (設置中の場合のみ) ---
+        // --- 罠の解除ボタン (設置中の場合のみ) (修正: card, btn) ---
         const closeButtonHTML = trap.is_open
-            ? `<div class="info-section">
-                 <button id="close-trap-btn" class="button button-danger button-full">
-                     <i class="fas fa-times-circle"></i> この罠を解除する
+            ? `<div class="card">
+                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">罠の管理</h2>
+                 <button id="close-trap-btn" class="btn btn-danger w-full">
+                     この罠を解除する (過去の罠に移動)
                  </button>
                </div>`
-            : `<div class="info-section"><p class="text-center text-muted">この罠は ${formatDate(trap.close_date)} に解除されました。</p></div>`;
+            : `<div class="card text-center">
+                 <p class="text-sm text-gray-500">この罠は ${formatDate(trap.close_date)} に解除されました。</p>
+               </div>`;
 
 
-        // --- 最終的なHTML ---
+        // --- 最終的なHTML (修正: space-y-4) ---
         app.innerHTML = `
-            <div class="page-content info-detail-page">
+            <div class="space-y-4">
                 ${imageHTML}
                 ${tableHTML}
                 ${memoHTML}
@@ -288,20 +305,18 @@ async function showTrapDetailPage(id) {
         updateHeader(escapeHTML(trap.trap_number), true);
         backButton.onclick = () => showTrapPage();
 
-        // アクションボタン（編集・削除）
+        // アクションボタン（編集・削除） (修正: btn)
         headerActions.innerHTML = ''; // クリア
         
-        // 編集ボタン
         const editButton = document.createElement('button');
-        editButton.className = 'button-header-action';
-        editButton.innerHTML = '<i class="fas fa-edit"></i>';
+        editButton.className = 'btn btn-secondary';
+        editButton.textContent = '編集';
         editButton.onclick = () => showTrapEditForm(id);
         headerActions.appendChild(editButton);
 
-        // 削除ボタン
         const deleteButton = document.createElement('button');
-        deleteButton.className = 'button-header-action';
-        deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteButton.className = 'btn btn-danger ml-2';
+        deleteButton.textContent = '削除';
         deleteButton.onclick = () => deleteTrap(id);
         headerActions.appendChild(deleteButton);
         
@@ -343,7 +358,6 @@ async function showTrapDetailPage(id) {
 
 /**
  * 罠の「編集/新規作成フォーム」を表示する
- * @param {number | null} id - 編集する罠のID (新規の場合は null)
  */
 async function showTrapEditForm(id) {
     let trap = {
@@ -363,7 +377,7 @@ async function showTrapEditForm(id) {
     // 罠種類のリストを非同期で取得
     const trapTypes = await db.trap_type.toArray();
     const typeOptions = trapTypes.map(type => 
-        `<option value="${escapeHTML(type.name)}">${escapeHTML(type.name)}</option>`
+        `<option value="${escapeHTML(type.name)}"></option>`
     ).join('');
     
     // 編集の場合
@@ -373,16 +387,16 @@ async function showTrapEditForm(id) {
         if (existingTrap) {
             trap = existingTrap;
             
-            // 既存画像の表示
+            // 既存画像の表示 (修正: photo-preview)
             if (trap.image_blob) {
                 const blobUrl = URL.createObjectURL(trap.image_blob);
                 currentImageHTML = `
                     <div class="form-group">
-                        <label>現在の写真:</label>
-                        <div class="info-image-container">
+                        <label class="form-label">現在の写真:</label>
+                        <div class="photo-preview cursor-zoom-in">
                             <img src="${blobUrl}" alt="既存の写真" id="current-image" class="clickable-image">
+                            <button type="button" id="remove-image-btn" class="photo-preview-btn-delete">&times;</button>
                         </div>
-                        <button type="button" id="remove-image-btn" class="button button-danger button-small">写真を削除</button>
                     </div>
                 `;
             }
@@ -392,61 +406,58 @@ async function showTrapEditForm(id) {
         }
     }
 
+    // 修正: card, form-group, form-input, btn, photo-preview
     app.innerHTML = `
-        <div class="page-content">
-            <form id="trap-form" class="form-container">
+        <div class="card">
+            <form id="trap-form" class="space-y-4">
                 
                 <div class="form-group">
-                    <label for="trap-number">罠番号 <span class="required">*</span>:</label>
-                    <input type="text" id="trap-number" value="${escapeHTML(trap.trap_number)}" required>
+                    <label for="trap-number" class="form-label">罠番号 <span class="text-red-500">*</span>:</label>
+                    <input type="text" id="trap-number" class="form-input" value="${escapeHTML(trap.trap_number)}" required>
                 </div>
 
                 <div class="form-group">
-                    <label for="trap-type">種類 <span class="required">*</span>:</label>
-                    <input type="text" id="trap-type" value="${escapeHTML(trap.type)}" required list="trap-type-datalist" placeholder="「くくり罠」など入力">
+                    <label for="trap-type" class="form-label">種類 <span class="text-red-500">*</span>:</label>
+                    <input type="text" id="trap-type" class="form-input" value="${escapeHTML(trap.type)}" required list="trap-type-datalist" placeholder="「くくり罠」など入力">
                     <datalist id="trap-type-datalist">
                         ${typeOptions}
                     </datalist>
-                    <button type="button" id="manage-trap-types-btn" class="button-link">種類を管理...</button>
+                    <button type="button" id="manage-trap-types-btn" class="text-blue-600 text-sm mt-1 hover:underline">種類を管理...</button>
                 </div>
 
                 <div class="form-group">
-                    <label for="trap-setup-date">設置日 <span class="required">*</span>:</label>
-                    <input type="date" id="trap-setup-date" value="${escapeHTML(trap.setup_date)}" required>
+                    <label for="trap-setup-date" class="form-label">設置日 <span class="text-red-500">*</span>:</label>
+                    <input type="date" id="trap-setup-date" class="form-input" value="${escapeHTML(trap.setup_date)}" required>
                 </div>
 
-                <h3 class="form-section-title">設置場所</h3>
-                <div class="form-group-row">
-                    <div class="form-group">
-                        <label for="trap-latitude">緯度:</label>
-                        <input type="number" step="any" id="trap-latitude" value="${escapeHTML(trap.latitude)}" placeholder="例: 35.12345">
+                <div class="form-group">
+                    <label class="form-label">設置場所</label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="number" step="any" id="trap-latitude" class="form-input" value="${escapeHTML(trap.latitude)}" placeholder="緯度">
+                        <input type="number" step="any" id="trap-longitude" class="form-input" value="${escapeHTML(trap.longitude)}" placeholder="経度">
                     </div>
-                    <div class="form-group">
-                        <label for="trap-longitude">経度:</label>
-                        <input type="number" step="any" id="trap-longitude" value="${escapeHTML(trap.longitude)}" placeholder="例: 139.12345">
-                    </div>
+                    <button type="button" id="get-trap-gps-btn" class="btn btn-secondary w-full mt-2">
+                        現在地を取得
+                    </button>
                 </div>
-                <button type="button" id="get-trap-gps-btn" class="button button-secondary button-full">
-                    <i class="fas fa-map-marker-alt"></i> 現在地を取得
-                </button>
 
-                <h3 class="form-section-title">写真</h3>
                 ${currentImageHTML}
+
                 <div class="form-group">
-                    <label for="trap-image">${id && trap.image_blob ? '写真を変更:' : '写真を追加:'}</label>
-                    <input type="file" id="trap-image" accept="image/*">
-                    <div id="image-preview-container" class="image-preview-container"></div>
+                    <label for="trap-image" class="form-label">${id && trap.image_blob ? '写真を変更:' : '写真を追加:'}</label>
+                    <input type="file" id="trap-image" class="form-input" accept="image/*">
+                    <div id="image-preview-container" class="mt-2"></div>
                 </div>
 
-                <h3 class="form-section-title">メモ</h3>
                 <div class="form-group">
-                    <textarea id="trap-memo" rows="4">${escapeHTML(trap.memo)}</textarea>
+                    <label for="trap-memo" class="form-label">メモ:</label>
+                    <textarea id="trap-memo" rows="4" class="form-input">${escapeHTML(trap.memo)}</textarea>
                 </div>
                 
-                <button type="submit" class="button button-primary button-full">
-                    <i class="fas fa-save"></i> 保存する
+                <button type="submit" class="btn btn-primary w-full">
+                    保存する
                 </button>
-                <div id="form-error" class="form-error"></div>
+                <div id="form-error" class="text-red-600 text-sm text-center mt-2 h-4"></div>
             </form>
         </div>
     `;
@@ -467,7 +478,7 @@ async function showTrapEditForm(id) {
     document.getElementById('get-trap-gps-btn').addEventListener('click', async (e) => {
         const button = e.currentTarget;
         const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 測位中...';
+        button.innerHTML = '測位中...';
         button.disabled = true;
         
         try {
@@ -495,24 +506,24 @@ async function showTrapEditForm(id) {
             return;
         }
         
-        previewContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 画像処理中...';
+        previewContainer.innerHTML = `<p class="text-gray-500">画像処理中...</p>`;
         
         try {
             resizedImageBlob = await resizeImage(file, 800);
             const previewUrl = URL.createObjectURL(resizedImageBlob);
             
+            // 修正: photo-preview
             previewContainer.innerHTML = `
-                <img src="${previewUrl}" alt="プレビュー">
-                <span class="image-preview-info">
-                    リサイズ済み (約 ${Math.round(resizedImageBlob.size / 1024)} KB)
-                </span>
+                <div class="photo-preview">
+                    <img src="${previewUrl}" alt="プレビュー">
+                </div>
             `;
             // メモリリーク防止 (表示後すぐにURLを解放)
             URL.revokeObjectURL(previewUrl); 
             
         } catch (err) {
             console.error("Image resize failed:", err);
-            previewContainer.innerHTML = `<span class="error">画像処理に失敗: ${err.message}</span>`;
+            previewContainer.innerHTML = `<p class="text-red-500">画像処理に失敗: ${err.message}</p>`;
             resizedImageBlob = null;
         }
     });
@@ -522,14 +533,12 @@ async function showTrapEditForm(id) {
     if (removeBtn) {
         removeBtn.addEventListener('click', () => {
             // プレビューを削除
-            const currentImageDiv = document.getElementById('current-image').closest('.form-group');
-            if (currentImageDiv) {
-                currentImageDiv.remove();
-            }
+            const currentImageDiv = removeBtn.closest('.form-group');
+            if (currentImageDiv) currentImageDiv.remove();
             // データを null 化 (保存時にDBも更新)
             trap.image_blob = null; 
             // 状態を "削除済み" に
-            currentImageHTML = '<div class="form-group"><label>現在の写真:</label><p>(削除されます)</p></div>'; 
+            currentImageHTML = '<div class="form-group"><label class="form-label">現在の写真:</label><p class="text-gray-500">(削除されます)</p></div>'; 
         });
     }
     
@@ -604,7 +613,6 @@ async function showTrapEditForm(id) {
 
 /**
  * 罠を解除する (is_open: 0 にする)
- * @param {number} id - 解除する罠のID
  */
 async function closeTrap(id) {
     if (!confirm('この罠を「解除」しますか？\n「設置中の罠」から「過去の罠」に移動します。')) {
@@ -626,7 +634,6 @@ async function closeTrap(id) {
 
 /**
  * 罠を削除する (関連する捕獲記録も削除)
- * @param {number} id - 削除する罠のID
  */
 async function deleteTrap(id) {
     if (!confirm('この罠を本当に削除しますか？\nこの罠に関連する【捕獲記録もすべて削除】されます。\nこの操作は元に戻せません。')) {
@@ -635,10 +642,9 @@ async function deleteTrap(id) {
 
     try {
         // トランザクション
-        await db.transaction('rw', db.trap, db.catch_records, async () => { // ★ 修正: db.catch -> db.catch_records
+        await db.transaction('rw', db.trap, db.catch_records, async () => {
             
             // 1. 関連する捕獲記録を削除
-            // ★ 修正: db.catch -> db.catch_records
             await db.catch_records.where('trap_id').equals(id).delete();
             
             // 2. 罠本体を削除
@@ -661,21 +667,27 @@ async function deleteTrap(id) {
  * @param {function} onCloseCallback - このページを閉じたときに実行するコールバック
  */
 async function showTrapTypeManagementPage(onCloseCallback) {
+    // 修正: card, form-input, btn
     app.innerHTML = `
-        <div class="page-content">
-            <form id="new-trap-type-form" class="form-container">
-                <h3 class="form-section-title">新しい罠の種類を追加</h3>
-                <div class="form-group-row">
-                    <input type="text" id="new-trap-type-name" placeholder="例: 囲い罠" class="form-control" required>
-                    <button type="submit" class="button button-primary">追加</button>
-                </div>
-                <div id="type-form-error" class="form-error"></div>
-            </form>
+        <div class="space-y-4">
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">新しい罠の種類を追加</h2>
+                <form id="new-trap-type-form" class="flex space-x-2">
+                    <div class="form-group flex-grow mb-0">
+                        <label for="new-trap-type-name" class="sr-only">名前</label>
+                        <input type="text" id="new-trap-type-name" class="form-input" placeholder="例: 囲い罠" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary h-fit mt-1">追加</button>
+                </form>
+                <div id="type-form-error" class="text-red-600 text-sm text-center mt-2 h-4"></div>
+            </div>
             
-            <h3 class="form-section-title">既存の罠の種類</h3>
-            <ul id="trap-type-list" class="data-list">
-                <li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>
-            </ul>
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">既存の罠の種類</h2>
+                <div id="trap-type-list" class="space-y-2">
+                    <p class="text-gray-500">読み込み中...</p>
+                </div>
+            </div>
         </div>
     `;
 
@@ -689,26 +701,23 @@ async function showTrapTypeManagementPage(onCloseCallback) {
         try {
             const types = await db.trap_type.toArray();
             if (types.length === 0) {
-                listEl.innerHTML = `<li class="no-data">登録済みの種類はありません。</li>`;
+                listEl.innerHTML = `<p class="text-gray-500 text-sm">登録済みの種類はありません。</p>`;
                 return;
             }
             
+            // 修正: スタイル調整
             listEl.innerHTML = types.map(type => `
-                <li class="data-list-item">
-                    <div class="item-main-content">
-                        <strong>${escapeHTML(type.name)}</strong>
-                    </div>
-                    <div class="item-action-content">
-                        ${(type.name === 'くくり罠' || type.name === '箱罠') ? 
-                            '<span class="text-muted">(デフォルト)</span>' : 
-                            `<button class="button-danger-link" data-id="${type.id}"><i class="fas fa-trash"></i></button>`
-                        }
-                    </div>
-                </li>
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <span class="text-gray-700">${escapeHTML(type.name)}</span>
+                    ${(type.name === 'くくり罠' || type.name === '箱罠') ? 
+                        '<span class="text-sm text-gray-400">(デフォルト)</span>' : 
+                        `<button class="btn btn-danger btn-sm" data-id="${type.id}">削除</button>`
+                    }
+                </div>
             `).join('');
             
             // 削除ボタンのイベント
-            listEl.querySelectorAll('.button-danger-link').forEach(btn => {
+            listEl.querySelectorAll('.btn-danger').forEach(btn => {
                 btn.addEventListener('click', async (e) => {
                     const id = parseInt(e.currentTarget.dataset.id, 10);
                     if (confirm('この種類を削除しますか？')) {
@@ -723,7 +732,7 @@ async function showTrapTypeManagementPage(onCloseCallback) {
             });
             
         } catch (err) {
-            listEl.innerHTML = `<li class="no-data error">読み込み失敗</li>`;
+            listEl.innerHTML = `<div class="error-box">読み込み失敗</div>`;
         }
     }
     
