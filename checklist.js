@@ -1,4 +1,5 @@
-// このファイルは checklist.js です
+// このファイルは checklist.js です (再修正版)
+// ★ 修正: DBスキーマ v3 (checklist_sets) に対応
 
 /**
  * 「チェック」タブがクリックされたときに main.js から呼ばれるメイン関数
@@ -46,8 +47,8 @@ async function renderChecklistSets() {
         if (!newName) return;
 
         try {
-            // DBに追加
-            await db.checklist_lists.add({ name: newName });
+            // ★ 修正: db.checklist_lists -> db.checklist_sets
+            await db.checklist_sets.add({ name: newName });
             input.value = ''; // フォームをクリア
             await renderChecklistSetList(); // リストを再描画
         } catch (err) {
@@ -69,7 +70,8 @@ async function renderChecklistSetList() {
     if (!container) return;
 
     try {
-        const lists = await db.checklist_lists.orderBy('name').toArray();
+        // ★ 修正: db.checklist_lists -> db.checklist_sets
+        const lists = await db.checklist_sets.orderBy('name').toArray();
         
         if (lists.length === 0) {
             container.innerHTML = `<p class="text-gray-500 text-center py-4">チェックリストがありません。作成してください。</p>`;
@@ -221,7 +223,8 @@ async function showChecklistItemsPage(listId, listName) {
             // 1. 関連する項目をすべて削除
             await db.checklist_items.where('list_id').equals(listId).delete();
             // 2. リストセット自体を削除
-            await db.checklist_lists.delete(listId);
+            // ★ 修正: db.checklist_lists -> db.checklist_sets
+            await db.checklist_sets.delete(listId);
             
             alert('リストを削除しました。');
             showChecklistPage(); // リスト一覧に戻る

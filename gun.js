@@ -1,4 +1,6 @@
-// このファイルは gun.js です (修正版)
+// このファイルは gun.js です (再修正版)
+// ★ 修正: 'db.catch' を 'db.catch_records' に変更
+// ★ 修正: DBスキーマ v3 (gun, gun_log) に対応
 
 /**
  * 「銃」タブのメインページを表示する
@@ -31,7 +33,7 @@ async function showGunPage() {
     headerActions.innerHTML = ''; // クリア
     const newGunButton = document.createElement('button');
     newGunButton.id = 'new-gun-button';
-    newGunButton.className = 'btn btn-primary'; // 修正: スタイル適用
+    newGunButton.className = 'btn btn-primary'; // スタイル適用
     newGunButton.textContent = '新規登録';
     newGunButton.onclick = () => showGunEditForm(null);
     headerActions.appendChild(newGunButton);
@@ -53,6 +55,7 @@ async function renderGunList() {
     listElement.innerHTML = `<p class="text-gray-500 text-center py-4">読み込み中...</p>`;
     
     try {
+        // ★ 修正: db.guns -> db.gun
         const guns = await db.gun.orderBy('name').toArray();
 
         if (guns.length === 0) {
@@ -60,7 +63,7 @@ async function renderGunList() {
             return;
         }
 
-        // 修正: trap-card スタイルを流用
+        // trap-card スタイルを流用
         listElement.innerHTML = guns.map(gun => `
             <div class="trap-card" data-id="${gun.id}">
                 <div class="flex-grow">
@@ -91,6 +94,7 @@ async function renderGunList() {
  */
 async function showGunDetailPage(id) {
     try {
+        // ★ 修正: db.guns -> db.gun
         const gun = await db.gun.get(id);
         if (!gun) {
             app.innerHTML = `<div class="error-box">該当するデータが見つかりません。</div>`;
@@ -105,7 +109,7 @@ async function showGunDetailPage(id) {
             { label: '許可期限', value: formatDate(gun.permit_expiry) },
         ];
 
-        // 修正: card と Tailwind テーブル
+        // card と Tailwind テーブル
         let tableHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">許可情報</h2>
@@ -124,7 +128,7 @@ async function showGunDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
         
-        // 修正: card と btn
+        // card と btn
         const logButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">関連メニュー</h2>
@@ -149,13 +153,13 @@ async function showGunDetailPage(id) {
         headerActions.innerHTML = ''; // クリア
         
         const editButton = document.createElement('button');
-        editButton.className = 'btn btn-secondary'; // 修正
+        editButton.className = 'btn btn-secondary';
         editButton.textContent = '編集';
         editButton.onclick = () => showGunEditForm(id);
         headerActions.appendChild(editButton);
 
         const deleteButton = document.createElement('button');
-        deleteButton.className = 'btn btn-danger ml-2'; // 修正
+        deleteButton.className = 'btn btn-danger ml-2';
         deleteButton.textContent = '削除';
         deleteButton.onclick = () => deleteGun(id);
         headerActions.appendChild(deleteButton);
@@ -189,13 +193,14 @@ async function showGunEditForm(id) {
 
     if (id) {
         pageTitle = '銃の編集';
+        // ★ 修正: db.guns -> db.gun
         const existingGun = await db.gun.get(id);
         if (existingGun) {
             gun = existingGun;
         }
     }
 
-    // 修正: card, form-group, form-input, btn
+    // card, form-group, form-input, btn
     app.innerHTML = `
         <div class="card">
             <form id="gun-form" class="space-y-4">
@@ -267,9 +272,11 @@ async function showGunEditForm(id) {
         
         try {
             if (id) {
+                // ★ 修正: db.guns -> db.gun
                 await db.gun.put({ ...formData, id: id });
                 showGunDetailPage(id);
             } else {
+                // ★ 修正: db.guns -> db.gun
                 const newId = await db.gun.add(formData);
                 showGunDetailPage(newId);
             }
@@ -286,6 +293,7 @@ async function showGunEditForm(id) {
 
 /**
  * 銃を削除する
+ * @param {number} id - 削除する銃のID
  */
 async function deleteGun(id) {
     if (!confirm('この銃を本当に削除しますか？\nこの銃に関連する【使用履歴】や【捕獲記録】は削除されません。')) {
@@ -293,6 +301,7 @@ async function deleteGun(id) {
     }
     
     try {
+        // ★ 修正: db.guns -> db.gun
         await db.gun.delete(id);
         showGunPage(); // リストに戻る
         
@@ -316,6 +325,7 @@ async function renderGunLogList() {
     const filters = appState.gunLogFilters;
     
     // 銃のリストを非同期で取得
+    // ★ 修正: db.guns -> db.gun
     const guns = await db.gun.toArray();
     const gunOptions = guns.map(gun => 
         `<option value="${gun.id}" ${filters.gun_id === gun.id.toString() ? 'selected' : ''}>
@@ -323,7 +333,7 @@ async function renderGunLogList() {
         </option>`
     ).join('');
 
-    // HTMLを構築 (修正: form-group, form-select, btn)
+    // HTMLを構築 (form-group, form-select, btn)
     container.innerHTML = `
         <div class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
@@ -401,6 +411,7 @@ async function renderGunLogListItems() {
         const filters = appState.gunLogFilters;
         const sort = appState.gunLogSort;
         
+        // ★ 修正: db.gun_logs -> db.gun_log
         let query = db.gun_log;
         
         // 1. 目的フィルター
@@ -430,17 +441,18 @@ async function renderGunLogListItems() {
         let listItems = '';
         for (const log of logs) {
             // 銃の名前を非同期で取得
+            // ★ 修正: db.guns -> db.gun
             const gun = log.gun_id ? await db.gun.get(log.gun_id) : null;
             const gunName = gun ? escapeHTML(gun.name) : '不明な銃';
             
             // 関連する捕獲数を非同期で取得
             const catchCount = await db.catch_records.where('gun_log_id').equals(log.id).count();
-            // 修正: Tailwind バッジ
+            // Tailwind バッジ
             const catchBadge = catchCount > 0 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
 
-            // 修正: trap-card スタイルを流用
+            // trap-card スタイルを流用
             listItems += `
                 <div class="trap-card" data-id="${log.id}">
                     <div class="flex-grow">
@@ -465,7 +477,7 @@ async function renderGunLogListItems() {
             });
         });
 
-    } catch (err {
+    } catch (err) {
         console.error("Failed to render gun log list items:", err);
         listElement.innerHTML = `<div class="error-box">履歴の読み込みに失敗しました。</div>`;
     }
@@ -473,9 +485,11 @@ async function renderGunLogListItems() {
 
 /**
  * 銃使用履歴の「詳細ページ」を表示する
+ * @param {number} id - 表示する履歴のDB ID
  */
 async function showGunLogDetailPage(id) {
     try {
+        // ★ 修正: db.gun_logs -> db.gun_log
         const log = await db.gun_log.get(id);
         if (!log) {
             app.innerHTML = `<div class="error-box">該当するデータが見つかりません。</div>`;
@@ -483,9 +497,10 @@ async function showGunLogDetailPage(id) {
         }
         
         // 銃の名前を取得
+        // ★ 修正: db.guns -> db.gun
         const gun = log.gun_id ? await db.gun.get(log.gun_id) : null;
         
-        // --- 画像の表示 (修正: card, photo-preview) ---
+        // --- 画像の表示 (card, photo-preview) ---
         let imageHTML = '';
         if (log.image_blob) {
             const blobUrl = URL.createObjectURL(log.image_blob);
@@ -499,7 +514,7 @@ async function showGunLogDetailPage(id) {
             `;
         }
         
-        // --- 基本情報のテーブル (修正: card, Tailwind テーブル) ---
+        // --- 基本情報のテーブル (card, Tailwind テーブル) ---
         const tableData = [
             { label: '使用日', value: formatDate(log.use_date) },
             { label: '目的', value: log.purpose },
@@ -527,7 +542,7 @@ async function showGunLogDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
         
-        // --- メモ (修正: card) ---
+        // --- メモ (card) ---
         let memoHTML = '';
         if (log.memo) {
             memoHTML = `
@@ -540,7 +555,7 @@ async function showGunLogDetailPage(id) {
             `;
         }
         
-        // --- 関連する捕獲記録 (修正: card, btn) ---
+        // --- 関連する捕獲記録 (card, btn) ---
         const catchButtonHTML = `
             <div class="card">
                  <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
@@ -572,13 +587,13 @@ async function showGunLogDetailPage(id) {
         headerActions.innerHTML = ''; // クリア
         
         const editButton = document.createElement('button');
-        editButton.className = 'btn btn-secondary'; // 修正
+        editButton.className = 'btn btn-secondary';
         editButton.textContent = '編集';
         editButton.onclick = () => showGunLogEditForm(id);
         headerActions.appendChild(editButton);
 
         const deleteButton = document.createElement('button');
-        deleteButton.className = 'btn btn-danger ml-2'; // 修正
+        deleteButton.className = 'btn btn-danger ml-2';
         deleteButton.textContent = '削除';
         deleteButton.onclick = () => deleteGunLog(id);
         headerActions.appendChild(deleteButton);
@@ -613,6 +628,7 @@ async function showGunLogDetailPage(id) {
 
 /**
  * 銃使用履歴の「編集/新規作成フォーム」を表示する
+ * @param {number | null} id - 編集する履歴のID (新規の場合は null)
  */
 async function showGunLogEditForm(id) {
     let log = {
@@ -630,6 +646,7 @@ async function showGunLogEditForm(id) {
     let currentImageHTML = '';
 
     // 銃のリストを非同期で取得
+    // ★ 修正: db.guns -> db.gun
     const guns = await db.gun.toArray();
     const gunOptions = guns.map(gun => 
         `<option value="${gun.id}">${escapeHTML(gun.name)}</option>`
@@ -646,13 +663,14 @@ async function showGunLogEditForm(id) {
 
     if (id) {
         pageTitle = '銃使用履歴の編集';
+        // ★ 修正: db.gun_logs -> db.gun_log
         const existingLog = await db.gun_log.get(id);
         if (existingLog) {
             log = existingLog;
             
             if (log.image_blob) {
                 const blobUrl = URL.createObjectURL(log.image_blob);
-                // 修正: photo-preview
+                // photo-preview
                 currentImageHTML = `
                     <div class="form-group">
                         <label class="form-label">現在の写真:</label>
@@ -669,7 +687,7 @@ async function showGunLogEditForm(id) {
         log.gun_id = guns[0].id;
     }
 
-    // 修正: card, form-group, form-input, btn, photo-preview
+    // card, form-group, form-input, btn, photo-preview
     app.innerHTML = `
         <div class="card">
             <form id="gun-log-form" class="space-y-4">
@@ -779,7 +797,7 @@ async function showGunLogEditForm(id) {
         try {
             resizedImageBlob = await resizeImage(file, 800);
             const previewUrl = URL.createObjectURL(resizedImageBlob);
-            // 修正: photo-preview
+            // photo-preview
             previewContainer.innerHTML = `
                 <div class="photo-preview">
                     <img src="${previewUrl}" alt="プレビュー">
@@ -834,9 +852,11 @@ async function showGunLogEditForm(id) {
         
         try {
             if (id) {
+                // ★ 修正: db.gun_logs -> db.gun_log
                 await db.gun_log.put({ ...formData, id: id });
                 showGunLogDetailPage(id);
             } else {
+                // ★ 修正: db.gun_logs -> db.gun_log
                 const newId = await db.gun_log.add(formData);
                 showGunLogDetailPage(newId);
             }
@@ -849,6 +869,7 @@ async function showGunLogEditForm(id) {
 
 /**
  * 銃使用履歴を削除する
+ * @param {number} id - 削除する履歴のID
  */
 async function deleteGunLog(id) {
     if (!confirm('この銃使用履歴を本当に削除しますか？\nこの履歴に関連する【捕獲記録もすべて削除】されます。\nこの操作は元に戻せません。')) {
@@ -856,8 +877,14 @@ async function deleteGunLog(id) {
     }
 
     try {
+        // ★ 修正: db.gun_logs -> db.gun_log
         await db.transaction('rw', db.gun_log, db.catch_records, async () => {
+            
+            // 1. 関連する捕獲記録を削除
             await db.catch_records.where('gun_log_id').equals(id).delete();
+            
+            // 2. 履歴本体を削除
+            // ★ 修正: db.gun_logs -> db.gun_log
             await db.gun_log.delete(id);
         });
         

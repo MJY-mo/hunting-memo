@@ -1,4 +1,5 @@
-// このファイルは settings.js です
+// このファイルは settings.js です (再修正版)
+// ★ 修正: インポート/エクスポート機能が v3 スキーマ (単数形テーブル) を参照するように修正
 
 /**
  * 「設定」タブがクリックされたときに main.js から呼ばれるメイン関数
@@ -93,7 +94,7 @@ async function renderSettingsMenu() {
         </div>
     `;
     
-    // ★★★ 修正: イベントリスナーを（ほぼ）全書き換え ★★★
+    // イベントリスナーを（ほぼ）全書き換え
     const themeSelect = document.getElementById('setting-theme');
     const fontSizeSelect = document.getElementById('setting-font-size');
     const exportBtn = document.getElementById('export-data-btn');
@@ -212,7 +213,7 @@ async function renderSettingsMenu() {
 
 
 // =======================================================
-// ★★★ 新規: インポート/エクスポート機能 ★★★
+// ★★★ インポート/エクスポート機能 (v3 スキーマ対応) ★★★
 // =======================================================
 
 /**
@@ -220,61 +221,66 @@ async function renderSettingsMenu() {
  */
 async function exportData() {
     const backupData = {
-        export_format_version: '1.0',
+        export_format_version: '3.0', // v3 スキーマ
         export_date: new Date().toISOString(),
         tables: {}
     };
-
-    // 1. 全テーブルのデータを取得
+    
+    // ★ 修正: v3 のテーブル名 (単数形) に修正
     const [
-        hunter_profile, settings, traps, trap_types, guns, gun_logs,
-        ammo_purchases, ammo_types, catches, checklist_lists, checklist_items,
-        photos, profile_photos
+        hunter_profile, settings, trap, trap_type, gun, gun_log,
+        catch_records, checklist_sets, checklist_items, game_animal_list
     ] = await Promise.all([
         db.hunter_profile.toArray(),
         db.settings.toArray(),
-        db.traps.toArray(),
-        db.trap_types.toArray(),
-        db.guns.toArray(),
-        db.gun_logs.toArray(),
-        db.ammo_purchases.toArray(),
-        db.ammo_types.toArray(),
-        db.catches.toArray(),
-        db.checklist_lists.toArray(),
+        db.trap.toArray(),
+        db.trap_type.toArray(),
+        db.gun.toArray(),
+        db.gun_log.toArray(),
+        db.catch_records.toArray(),
+        db.checklist_sets.toArray(),
         db.checklist_items.toArray(),
-        db.photos.toArray(),
-        db.profile_photos.toArray()
+        db.game_animal_list.toArray() // v3 で追加
     ]);
     
-    // 2. BlobをBase64に非同期変換 (catch.js の photos)
-    const convertedPhotos = await Promise.all(
-        photos.map(async (photo) => ({
-            ...photo,
-            image_data: await blobToBase64(photo.image_data)
+    // 2. BlobをBase64に非同期変換 (trap, catch_records, gun_log)
+    // (画像持ちテーブルのみ変換)
+    const convertedTrap = await Promise.all(
+        trap.map(async (item) => ({
+            ...item,
+            image_blob: await blobToBase64(item.image_blob)
         }))
     );
-    
-    // 3. BlobをBase64に非同期変換 (info.js の profile_photos)
-    const convertedProfilePhotos = await Promise.all(
-        profile_photos.map(async (photo) => ({
-            ...photo,
-            image_data: await blobToBase64(photo.image_data)
+    const convertedCatchRecords = await Promise.all(
+        catch_records.map(async (item) => ({
+            ...item,
+            image_blob: await blobToBase64(item.image_blob)
+        }))
+    );
+    const convertedGunLog = await Promise.all(
+        gun_log.map(async (item) => ({
+            ...item,
+            image_blob: await blobToBase64(item.image_blob)
         }))
     );
     
     // 4. バックアップオブジェクトに格納
     backupData.tables = {
-        hunter_profile, settings, traps, trap_types, guns, gun_logs,
-        ammo_purchases, ammo_types, catches, checklist_lists, checklist_items,
-        photos: convertedPhotos, // 変換後のデータを格納
-        profile_photos: convertedProfilePhotos // 変換後のデータを格納
+        hunter_profile, settings, 
+        trap: convertedTrap, // 変換後
+        trap_type, 
+        gun, 
+        gun_log: convertedGunLog, // 変換後
+        catch_records: convertedCatchRecords, // 変換後
+        checklist_sets, checklist_items, 
+        game_animal_list
     };
 
     // 5. ファイル名の決定
     const profile = await db.hunter_profile.get('main');
-    const hunterName = profile && profile.name ? profile.name : 'BLNCR狩猟アプリ';
+    const hunterName = profile && profile.name ? profile.name.replace(/ /g, '_') : 'BLNCR';
     const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
-    const filename = `${hunterName}_${dateStr}_backup.json`;
+    const filename = `${hunterName}_backup_v3_${dateStr}.json`;
 
     // 6. JSONファイルとしてダウンロード
     const jsonString = JSON.stringify(backupData);
@@ -302,68 +308,70 @@ async function importData(file) {
         throw new Error('無効なバックアップファイル形式です。');
     }
     
+    // v3 スキーマのインポートを想定
     const { tables } = backupData;
     
-    // 1. Base64をBlobに非同期変換 (photos)
-    const convertedPhotos = await Promise.all(
-        (tables.photos || []).map(async (photo) => ({
-            ...photo,
-            image_data: await base64ToBlob(photo.image_data)
+    // 1. Base64をBlobに非同期変換
+    const convertedTrap = await Promise.all(
+        (tables.trap || []).map(async (item) => ({
+            ...item,
+            image_blob: await base64ToBlob(item.image_blob)
         }))
     );
-    
-    // 2. Base64をBlobに非同期変換 (profile_photos)
-    const convertedProfilePhotos = await Promise.all(
-        (tables.profile_photos || []).map(async (photo) => ({
-            ...photo,
-            image_data: await base64ToBlob(photo.image_data)
+    const convertedCatchRecords = await Promise.all(
+        (tables.catch_records || []).map(async (item) => ({
+            ...item,
+            image_blob: await base64ToBlob(item.image_blob)
+        }))
+    );
+    const convertedGunLog = await Promise.all(
+        (tables.gun_log || []).map(async (item) => ({
+            ...item,
+            image_blob: await base64ToBlob(item.image_blob)
         }))
     );
 
     // 3. トランザクションですべてのデータを書き込む
-    // (db.js で定義されている全テーブルを記載)
+    // ★ 修正: v3 のテーブル名 (単数形)
     await db.transaction(
         'rw',
         [
-            db.hunter_profile, db.profile_photos, db.settings,
-            db.traps, db.trap_types,
-            db.guns, db.gun_logs, db.ammo_purchases, db.ammo_types,
-            db.catches, db.photos,
-            db.checklist_lists, db.checklist_items
+            db.hunter_profile, db.settings,
+            db.trap, db.trap_type,
+            db.gun, db.gun_log,
+            db.catch_records, 
+            db.checklist_sets, db.checklist_items,
+            db.game_animal_list
         ],
         async () => {
             // 3.1. 全テーブルをクリア
             await Promise.all([
                 db.hunter_profile.clear(),
-                db.profile_photos.clear(),
                 db.settings.clear(),
-                db.traps.clear(),
-                db.trap_types.clear(),
-                db.guns.clear(),
-                db.gun_logs.clear(),
-                db.ammo_purchases.clear(),
-                db.ammo_types.clear(),
-                db.catches.clear(),
-                db.photos.clear(),
-                db.checklist_lists.clear(),
-                db.checklist_items.clear()
+                db.trap.clear(),
+                db.trap_type.clear(),
+                db.gun.clear(),
+                db.gun_log.clear(),
+                db.catch_records.clear(),
+                db.checklist_sets.clear(),
+                db.checklist_items.clear(),
+                db.game_animal_list.clear()
             ]);
             
             // 3.2. 全テーブルにデータをバルク追加
             await Promise.all([
                 db.hunter_profile.bulkAdd(tables.hunter_profile || []),
                 db.settings.bulkAdd(tables.settings || []),
-                db.traps.bulkAdd(tables.traps || []),
-                db.trap_types.bulkAdd(tables.trap_types || []),
-                db.guns.bulkAdd(tables.guns || []),
-                db.gun_logs.bulkAdd(tables.gun_logs || []),
-                db.ammo_purchases.bulkAdd(tables.ammo_purchases || []),
-                db.ammo_types.bulkAdd(tables.ammo_types || []),
-                db.catches.bulkAdd(tables.catches || []),
-                db.checklist_lists.bulkAdd(tables.checklist_lists || []),
+                db.trap_type.bulkAdd(tables.trap_type || []),
+                db.gun.bulkAdd(tables.gun || []),
+                db.checklist_sets.bulkAdd(tables.checklist_sets || []),
                 db.checklist_items.bulkAdd(tables.checklist_items || []),
-                db.photos.bulkAdd(convertedPhotos), // 変換後データを追加
-                db.profile_photos.bulkAdd(convertedProfilePhotos) // 変換後データを追加
+                db.game_animal_list.bulkAdd(tables.game_animal_list || []),
+                
+                // 変換後データを追加
+                db.trap.bulkAdd(convertedTrap), 
+                db.catch_records.bulkAdd(convertedCatchRecords),
+                db.gun_log.bulkAdd(convertedGunLog)
             ]);
         }
     );
@@ -371,12 +379,10 @@ async function importData(file) {
 
 /**
  * Blob を Base64 データURL に変換する
- * @param {Blob} blob
- * @returns {Promise<string>}
  */
 function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
-        if (!blob) {
+        if (!blob || !(blob instanceof Blob)) {
             resolve(null);
             return;
         }
@@ -389,13 +395,16 @@ function blobToBase64(blob) {
 
 /**
  * Base64 データURL を Blob に変換する
- * @param {string} base64Data (e.g., "data:image/jpeg;base64,...")
- * @returns {Promise<Blob>}
  */
 async function base64ToBlob(base64Data) {
     if (!base64Data) {
         return null;
     }
-    const response = await fetch(base64Data);
-    return await response.blob();
+    try {
+        const response = await fetch(base64Data);
+        return await response.blob();
+    } catch (e) {
+        console.error("Failed to convert base64 to blob", e);
+        return null;
+    }
 }
