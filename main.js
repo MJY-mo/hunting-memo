@@ -86,8 +86,8 @@ window.addEventListener('load', () => {
         // 4. デフォルトの狩猟者プロファイルを作成 (存在しない場合)
         await populateDefaultHunterProfile();
         
-        // 5. 狩猟鳥獣「一覧」データ(図鑑兼用)をDBに投入
-        await populateGameAnimalList();
+        // 5. 狩猟鳥獣「一覧」データ(図鑑兼用)をDBに投入 (初回のみ)
+        await populateGameAnimalListIfNeeded();
         
         // 6. タブ切り替えのリスナーを設定
         setupTabs();
@@ -146,13 +146,26 @@ async function populateDefaultHunterProfile() {
 
 
 /**
- * ★★★ 修正: 狩猟鳥獣のデフォルトデータ(図鑑兼一覧)をDBに登録する ★★★
- * (CSV の全データを正確に反映)
+ * ★★★ 修正: 狩猟鳥獣データを「必要であれば」DBに登録する ★★★
+ * (DBが空の場合のみ実行し、2回目以降はスキップする)
  */
-async function populateGameAnimalList() {
+async function populateGameAnimalListIfNeeded() {
     try {
+        // 1. データが既に存在するか(件数)をチェック
+        const count = await db.game_animal_list.count();
+        
+        // 2. 1件以上データがあれば、何もしないで処理を終了
+        if (count > 0) {
+            console.log(`Game animal list is already populated (${count} items). Skipping.`);
+            return;
+        }
+
+        // 3. データが0件なら、投入処理を実行
+        console.log("Game animal list is empty. Populating now...");
+        
         // v18のスキーマに合わせた完全なデータ
         // (ドバト、ゴイサギ、カワウなど、CSVにない種を削除)
+        // (★ ウズラ を削除)
         const animals = [
             { category: "哺乳類", is_game_animal: "〇", species_name: "イノシシ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州、淡路島 (沖縄は亜種リュウキュウイノシシ)", notes: "" },
             { category: "哺乳類", is_game_animal: "〇", species_name: "ニホンジカ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道(エゾシカ)、本州、四国、九州", notes: "" },
@@ -175,7 +188,7 @@ async function populateGameAnimalList() {
             { category: "哺乳類", is_game_animal: "〇", species_name: "ノイヌ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したイヌ）", notes: "（外来種）" },
             { category: "哺乳類", is_game_animal: "〇", species_name: "ノネコ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したネコ）", notes: "（外来種）" },
             { category: "哺乳類", is_game_animal: "×", species_name: "ニホンザル", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "ニホンカモシカ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "天然記念物" },
+Jav { category: "哺乳類", is_game_animal: "×", species_name: "ニホンカモシカ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "天然記念物" },
             { category: "哺乳類", is_game_animal: "×", species_name: "キョン", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）" },
             { category: "哺乳類", is_game_animal: "×", species_name: "ハリネズミ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）" },
             { category: "鳥類", is_game_animal: "〇", species_name: "ヒドリガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
@@ -194,7 +207,6 @@ async function populateGameAnimalList() {
             { category: "鳥類", is_game_animal: "〇", species_name: "コウライキジ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "北海道（放鳥）", notes: "" },
             { category: "鳥類", is_game_animal: "〇", species_name: "ヤマドリ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "本州、四国、九州", notes: "" },
             { category: "鳥類", is_game_animal: "〇", species_name: "コジュケイ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "本州、四国、九州（放鳥）", notes: "（外来種）" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ウズラ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国", notes: "" },
             { category: "鳥類", is_game_animal: "〇", species_name: "ヤマシギ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国（冬鳥・一部留鳥）", notes: "" },
             { category: "鳥類", is_game_animal: "〇", species_name: "タシギ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国（冬鳥・旅鳥）", notes: "" },
             { category: "鳥類", is_game_animal: "〇", species_name: "キジバト", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "10羽/日", prohibited_area: "", habitat: "全国（留鳥）", notes: "" },
@@ -206,15 +218,12 @@ async function populateGameAnimalList() {
             { category: "鳥類", is_game_animal: "〇", species_name: "ハシブトガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" }
         ];
 
-        // データを一旦クリアして、CSVのデータのみで再登録
-        // (主キーが ++id のため、clear/bulkAdd が最も安全)
-        console.log("Clearing and re-populating game animal list (CSV) data...");
-        await db.game_animal_list.clear();
+        // (DBは空なので clear() は不要)
         await db.game_animal_list.bulkAdd(animals);
         console.log("Game animal list (CSV) populated accurately.");
         
     } catch (err) {
-        console.error("Failed to populate game animal list (CSV):", err);
+        console.error("Failed to populate game animal list (IfNeeded):", err);
     }
 }
 
