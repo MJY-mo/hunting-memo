@@ -102,10 +102,11 @@ window.addEventListener('load', () => {
 
 /**
  * アプリ起動時に、デフォルトの罠種類をDBに登録する
+ * ★ 修正: db.trap_types -> db.trap_type (単数形)
  */
 async function populateDefaultTrapTypes() {
     try {
-        await db.trap_types.bulkAdd([
+        await db.trap_type.bulkAdd([ // ★ 修正
             { name: 'くくり罠' },
             { name: '箱罠' }
         ]);
@@ -453,7 +454,7 @@ function escapeHTML(str) {
 function formatDate(dateString) {
     if (!dateString) return '未設定';
     try {
-        // YYYY-MM-DD 形式を正しくパースする
+        // YYYT-MM-DD 形式を正しくパースする
         const parts = dateString.split('-');
         if (parts.length === 3) {
             const year = parts[0];
@@ -564,7 +565,7 @@ function resizeImage(file, maxSize = 800) {
 // ★★★ 画像拡大モーダル ★★★
 /**
  * 画像を拡大表示するモーダルを表示する
- * @param {string} blobUrl - URL.createObjectURL() で生成したURL
+ * @param {string} blobUrl - URL.createObjectURL() で生成したURL (または通常の画像パス)
  */
 function showImageModal(blobUrl) {
     // 既存のモーダルがあれば削除
@@ -598,6 +599,7 @@ function closeImageModal() {
     const modalOverlay = document.getElementById('image-modal-overlay');
     if (modalOverlay) {
         // メモリリーク防止のため、imgのsrcを解放
+        // ★ 修正: blob: で始まるURLのみ revokeObjectUrl を呼ぶ
         const img = modalOverlay.querySelector('img');
         if (img && img.src.startsWith('blob:')) {
             URL.revokeObjectURL(img.src);
