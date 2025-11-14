@@ -61,7 +61,7 @@ const appState = {
         order: 'desc'      
     },
     
-    // ★★★ 新規: 狩猟鳥獣図鑑の絞り込み状態 ★★★
+    // 狩猟鳥獣図鑑の絞り込み状態
     gameAnimalFilters: {
         category: 'all', // 'all', '哺乳類', '鳥類'
         status: 'all'    // 'all', 'game', 'pest'
@@ -86,13 +86,16 @@ window.addEventListener('load', () => {
         // 4. デフォルトの狩猟者プロファイルを作成 (存在しない場合)
         await populateDefaultHunterProfile();
         
-        // ★★★ 新規: 狩猟鳥獣データをDBに投入 ★★★
+        // 5. 狩猟鳥獣図鑑(game_animals)データをDBに投入
         await populateDefaultGameAnimals();
+        
+        // ★★★ 新規 (2/3): 狩猟鳥獣一覧(game_animal_list)データをDBに投入 ★★★
+        await populateGameAnimalList();
 
-        // 5. タブ切り替えのリスナーを設定
+        // 6. タブ切り替えのリスナーを設定
         setupTabs();
         
-        // 6. 初期タブ（「罠」タブ）
+        // 7. 初期タブ（「罠」タブ）
         navigateTo('trap', showTrapPage, '罠');
     }).catch(err => {
         console.error("Failed to open database:", err);
@@ -145,18 +148,18 @@ async function populateDefaultHunterProfile() {
 }
 
 /**
- * ★★★ 新規: 狩猟鳥獣のデフォルトデータをDBに登録する ★★★
+ * ★★★ 修正: 狩猟鳥獣のデフォルトデータ(図鑑用)をDBに登録する ★★★
+ * (v15で追加した 'notes' が抜けていたバグを修正)
  */
 async function populateDefaultGameAnimals() {
     try {
-        // 既にデータが1件でもあれば、登録処理をスキップ
         const count = await db.game_animals.count();
         if (count > 0) {
-            console.log("Game animals data already populated.");
+            console.log("Game animals (zukan) data already populated.");
             return;
         }
 
-        // ユーザー提供のCSVに基づくデータ
+        // v15のDB定義に合わせたデータ
         const animals = [
             { species_name: "イノシシ", category: "哺乳類", is_game_animal: true, notes: "" },
             { species_name: "ニホンジカ", category: "哺乳類", is_game_animal: true, notes: "" },
@@ -174,9 +177,66 @@ async function populateDefaultGameAnimals() {
         ];
         
         await db.game_animals.bulkAdd(animals);
-        console.log("Default game animals populated.");
+        console.log("Default game animals (zukan) populated.");
     } catch (err) {
-        console.error("Failed to populate game animals:", err);
+        console.error("Failed to populate game animals (zukan):", err);
+    }
+}
+
+/**
+ * ★★★ 新規 (2/3): 狩猟鳥獣のデフォルトデータ(一覧用CSV)をDBに登録する ★★★
+ */
+async function populateGameAnimalList() {
+    try {
+        // 既にデータが1件でもあれば、登録処理をスキップ
+        const count = await db.game_animal_list.count();
+        if (count > 0) {
+            console.log("Game animal list (CSV) data already populated.");
+            return;
+        }
+
+        // ユーザー提供のCSVに基づくデータ
+        const animals = [
+            { category: "哺乳類", species_name: "イノシシ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "哺乳類", species_name: "ニホンジカ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "哺乳類", species_name: "ツキノワグマ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "哺乳類", species_name: "ヒグマ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "哺乳類", species_name: "タヌキ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "哺乳類", species_name: "キツネ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "哺乳類", species_name: "ノウサギ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "哺乳類", species_name: "テン（オス）", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "メスは禁止" },
+            { category: "哺乳類", species_name: "ハクビシン", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "哺乳類", species_name: "イタチ（オス）", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "メスは禁止" },
+            { category: "哺乳類", species_name: "アライグマ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "マガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "カルガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "コガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ヨシガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ヒドリガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "オナガガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ハシビロガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ホシハジロ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "キンクロハジロ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "スズガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "クロガモ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "キジ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "メスは禁止（一部除く）" },
+            { category: "鳥類", species_name: "ヤマドリ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "メスは禁止（一部除く）" },
+            { category: "鳥類", species_name: "コジュケイ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ヤマシギ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "タシギ", method_net: "〇", method_trap: "×", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "キジバト", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ヒヨドリ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "スズメ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ムクドリ", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ミヤマガラス", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ハシボソガラス", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" },
+            { category: "鳥類", species_name: "ハシブトガラス", method_net: "〇", method_trap: "〇", method_gun: "〇", notes: "" }
+        ];
+        
+        await db.game_animal_list.bulkAdd(animals);
+        console.log("Default game animal list (CSV) populated.");
+    } catch (err) {
+        console.error("Failed to populate game animal list (CSV):", err);
     }
 }
 

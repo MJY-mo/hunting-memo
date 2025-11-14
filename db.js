@@ -4,7 +4,7 @@
 const db = new Dexie('BLNCRHuntingApp');
 
 // データベースのスキーマ（構造）を定義
-// (v1〜v13 までは変更なしのため省略)
+// (v1〜v14 までは変更なしのため省略)
 // --- version(1) ---
 db.version(1).stores({
   traps: `
@@ -391,8 +391,7 @@ db.version(13).stores({
     console.log("Upgraded hunter_profile from v12 to v13, added explosives_permit_renewal.");
 });
 
-// --- ★★★ 新規: version(15) を追加 (v14をスキップしてv15に) ★★★
-// (v14の定義に notes を追加します)
+// --- version(15) ---
 db.version(15).stores({
   // 13. 狩猟鳥獣ストア
   game_animals: `
@@ -419,7 +418,6 @@ db.version(15).stores({
   settings: `&key`
 }).upgrade(async (tx) => {
     // v14 -> v15 への移行
-    // main.js の populateDefaultGameAnimals と同じデータで備考(notes)を更新
     const animalsData = [
         { species_name: "イノシシ", notes: "" },
         { species_name: "ニホンジカ", notes: "" },
@@ -436,7 +434,6 @@ db.version(15).stores({
         { species_name: "カラス（ハシブトガラス、ハシボソガラス）", notes: "有害鳥獣" }
     ];
     
-    // 既存のデータを更新
     await tx.game_animals.toCollection().modify(animal => {
         const data = animalsData.find(d => d.species_name === animal.species_name);
         if (data) {
@@ -445,6 +442,38 @@ db.version(15).stores({
     });
     
     console.log("Upgraded game_animals from v14 to v15, added notes data.");
+});
+
+
+// --- ★★★ 新規: version(16) を追加 ★★★ ---
+// (狩猟鳥獣「一覧」CSV用ストアを追加)
+db.version(16).stores({
+  // 14. 狩猟鳥獣一覧ストア (CSV)
+  game_animal_list: `
+    ++id,
+    &species_name,
+    category,
+    method_net,
+    method_trap,
+    method_gun,
+    notes
+  `,
+  
+  // (既存のストアは変更なし)
+  game_animals: `++id, &species_name, category, is_game_animal, notes`,
+  hunter_profile: `&key, name, gun_license_renewal, hunting_license_renewal, registration_renewal, explosives_permit_renewal`,
+  profile_photos: `++id, type, image_data`,
+  ammo_types: `&name`,
+  checklist_lists: `++id, &name`,
+  checklist_items: `++id, list_id, name, checked, [list_id+name]`,
+  catches: `++id, catch_date, method, relation_id, species, gender, age, location_detail, [method+catch_date]`,
+  photos: `++id, catch_id, image_data`,
+  ammo_purchases: `++id, ammo_type, purchase_date, purchase_count`,
+  gun_logs: `++id, gun_id, use_date, purpose, location, companion, ammo_data`,
+  trap_types: `&name`,
+  traps: `++id, &trap_number, trap_type, close_date, category, [category+close_date]`,
+  guns: `++id, &gun_name`,
+  settings: `&key`
 });
 
 

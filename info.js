@@ -9,7 +9,7 @@ function showInfoPage() {
 }
 
 /**
- * 情報タブのメインメニューを描画する
+ * ★★★ 修正: 情報タブのメインメニューを描画する
  */
 function renderInfoMenu() {
     // 戻るボタンを非表示
@@ -32,9 +32,8 @@ function renderInfoMenu() {
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">法令情報</h2>
                 <ul class="space-y-2">
-                    <li><button id="show-game-animals-btn" class="btn btn-secondary w-full">狩猟鳥獣（有害鳥獣）</button></li>
-                    <li><button class="btn btn-secondary w-full" disabled>狩猟法 (未実装)</button></li>
-                    <li><button class="btn btn-secondary w-full" disabled>猟期一覧 (未実装)</button></li>
+                    <li><button id="show-game-animal-list-csv-btn" class="btn btn-secondary w-full">狩猟鳥獣一覧</button></li>
+                    <li><button id="show-game-animals-btn" class="btn btn-secondary w-full">狩猟鳥獣（有害鳥獣）図鑑</button></li>
                 </ul>
             </div>
         </div>
@@ -45,6 +44,10 @@ function renderInfoMenu() {
         showHunterDataPage();
     });
     
+    // ★★★ 修正: リスナーの対象を変更 ★★★
+    document.getElementById('show-game-animal-list-csv-btn').addEventListener('click', () => {
+        showGameAnimalListPageCSV();
+    });
     document.getElementById('show-game-animals-btn').addEventListener('click', () => {
         showGameAnimalListPage();
     });
@@ -477,13 +480,14 @@ function setupProfilePhotoUpload(key, tempPhotos, photosToDelete) {
 }
 
 // ===============================================
-// ★★★ 新規: 狩猟鳥獣図鑑 (v14) ★★★
+// ★★★ 狩猟鳥獣図鑑 (v14) ★★★
 // ===============================================
 
 /**
  * 「狩猟鳥獣」図鑑リストページを表示する
  */
 async function showGameAnimalListPage() {
+    // ★★★ 修正: ヘッダータイトル ★★★
     updateHeader('狩猟鳥獣図鑑', true); 
     // 戻るボタンの動作を上書き
     backButton.onclick = () => showInfoPage();
@@ -602,8 +606,7 @@ async function renderGameAnimalList() {
 }
 
 /**
- * ★★★ 修正: 狩猟鳥獣の「詳細」ページ (「備考」を追加) ★★★
- * @param {number} animalId - 表示する鳥獣のID
+ * 狩猟鳥獣の「詳細」ページ
  */
 async function showGameAnimalDetailPage(animalId) {
     try {
@@ -630,19 +633,122 @@ async function showGameAnimalDetailPage(animalId) {
                     </span>
                 </div>
                 
-                ${animal.notes ? `
+                ${(animal.notes && animal.notes.trim() !== "") ? `
                 <hr>
                 <div>
                     <h3 class="text-md font-semibold mb-1">備考</h3>
                     <p class="text-gray-700">${escapeHTML(animal.notes)}</p>
                 </div>
                 ` : ''}
-
-                </div>
+                
+            </div>
         `;
 
     } catch (err) {
         console.error("Failed to load game animal detail:", err);
         app.innerHTML = `<div class="error-box">鳥獣詳細の読み込みに失敗しました。</div>`;
+    }
+}
+
+// ===============================================
+// ★★★ 新規: 狩猟鳥獣一覧 (CSV) ★★★
+// ===============================================
+
+/**
+ * 「狩猟鳥獣一覧」ページ (CSVベース)
+ */
+async function showGameAnimalListPageCSV() {
+    updateHeader('狩猟鳥獣一覧', true); 
+    // 戻るボタンの動作を上書き
+    backButton.onclick = () => showInfoPage();
+
+    app.innerHTML = `
+        <div class="card">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-300" style="border-collapse: collapse;">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">種類</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">種名</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">網</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">わな</th>
+                            <th class="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">銃器</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">備考</th>
+                        </tr>
+                    </thead>
+                    <tbody id="game-csv-list-container" class="divide-y divide-gray-200">
+                        <tr><td colspan="6" class="p-4 text-center text-gray-500">読み込み中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    // リストを描画
+    await renderGameAnimalListCSV();
+}
+
+/**
+ * 狩猟鳥獣一覧(CSV)をDBから読み込んでテーブルに描画する
+ */
+async function renderGameAnimalListCSV() {
+    const container = document.getElementById('game-csv-list-container');
+    if (!container) return;
+    
+    // style.css のテーマ変数を利用
+    const textColor = 'var(--color-text-primary)';
+    const borderColor = 'var(--color-border)';
+
+    try {
+        // カテゴリ(哺乳類→鳥類)でソートし、次に種名でソート
+        const animals = await db.game_animal_list
+            .orderBy('category')
+            .reverse() // 鳥類を上にする (哺乳類 > 鳥類 なので)
+            .sortBy('species_name');
+            
+        // カテゴリでグループ化
+        const grouped = animals.reduce((acc, animal) => {
+            (acc[animal.category] = acc[animal.category] || []).push(animal);
+            return acc;
+        }, {});
+
+        if (animals.length === 0) {
+            container.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500">データがありません。</td></tr>`;
+            return;
+        }
+
+        let html = '';
+        // カテゴリ順 (鳥類、哺乳類) で描画
+        ['鳥類', '哺乳類'].forEach(category => {
+            if (grouped[category]) {
+                // カテゴリ行
+                html += `
+                    <tr class="bg-gray-100" style="background-color: var(--color-bg-primary);">
+                        <td colspan="6" class="px-3 py-2 text-sm font-bold" style="color: ${textColor}; border: 1px solid ${borderColor};">
+                            ${escapeHTML(category)}
+                        </td>
+                    </tr>
+                `;
+                // データ行
+                grouped[category].forEach(animal => {
+                    html += `
+                        <tr class="hover:bg-gray-50" style="background-color: var(--color-bg-secondary);">
+                            <td class="px-3 py-2 text-sm" style="color: ${textColor}; border: 1px solid ${borderColor};">${escapeHTML(animal.category)}</td>
+                            <td class="px-3 py-2 text-sm font-medium" style="color: ${textColor}; border: 1px solid ${borderColor};">${escapeHTML(animal.species_name)}</td>
+                            <td class="px-3 py-2 text-sm text-center" style="color: ${textColor}; border: 1px solid ${borderColor};">${escapeHTML(animal.method_net)}</td>
+                            <td class="px-3 py-2 text-sm text-center" style="color: ${textColor}; border: 1px solid ${borderColor};">${escapeHTML(animal.method_trap)}</td>
+                            <td class="px-3 py-2 text-sm text-center" style="color: ${textColor}; border: 1px solid ${borderColor};">${escapeHTML(animal.method_gun)}</td>
+                            <td class="px-3 py-2 text-sm" style="color: ${textColor}; border: 1px solid ${borderColor};">${escapeHTML(animal.notes)}</td>
+                        </tr>
+                    `;
+                });
+            }
+        });
+        
+        container.innerHTML = html;
+
+    } catch (err) {
+        console.error("Failed to render game animal list (CSV):", err);
+        container.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-600">リストの読み込みに失敗しました。</td></tr>`;
     }
 }
