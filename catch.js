@@ -1,650 +1,763 @@
 // このファイルは catch.js です
+// ★ 修正: 'db.catch' を 'db.catch_records' に変更
 
 /**
- * 「捕獲」タブがクリックされたときに main.js から呼ばれるメイン関数
+ * 「捕獲記録」タブのメインページを表示する
+ * (タブがクリックされたときの初期化)
  */
 function showCatchPage() {
-    // デフォルトは全件表示
-    showCatchListPage('all', null);
+    // 状態をリセット
+    appState.currentCatchMethod = 'all';
+    appState.currentCatchRelationId = null;
+    
+    // リストページを表示
+    showCatchListPage();
 }
 
 /**
- * 捕獲記録リストページを表示する
- * @param {string} method - 'all', 'trap', 'gun'
- * @param {number | null} relationId - 関連するID (trapId または gunLogId)
+ * 捕獲記録の「一覧ページ」を表示する
  */
-async function showCatchListPage(method, relationId) {
-    // グローバルな状態を保存 (編集画面から戻る時に使う)
-    appState.currentPage = 'catch';
-    appState.currentCatchMethod = method;
-    appState.currentCatchRelationId = relationId;
-
-    let title = '捕獲記録 (すべて)';
-    let headerNote = ''; // ヘッダー下の注釈
-    let filterSortUI = ''; // 絞り込み・並び替えUI
-
-    // クエリの準備
-    let query = null; // null の場合は main リスト
-
-    if (method === 'trap') {
-        const trap = await db.traps.get(relationId);
-        title = `罠 [${trap.trap_number}] の捕獲`;
-        headerNote = `<p class="text-sm text-gray-500 mb-3 -mt-3 text-center">罠: ${escapeHTML(trap.trap_number)}</p>`;
-        // 関連リストの場合は、ここでクエリを確定
-        query = db.catches.orderBy('catch_date')
-            .filter(log => log.method === 'trap' && log.relation_id === relationId);
-
-    } else if (method === 'gun') {
-        const gunLog = await db.gun_logs.get(relationId);
-        title = `銃使用履歴 [${formatDate(gunLog.use_date)}] の捕獲`;
-        headerNote = `<p class="text-sm text-gray-500 mb-3 -mt-3 text-center">銃使用日: ${formatDate(gunLog.use_date)}</p>`;
-        // 関連リストの場合は、ここでクエリを確定
-        query = db.catches.orderBy('catch_date')
-            .filter(log => log.method === 'gun' && log.relation_id === relationId);
-            
-    } else {
-        // ★★★ 新規: メインの「捕獲一覧」ページの場合 ★★★
-        
-        // 1. 絞り込み条件の初期化 (main.js で定義済み)
-        if (!appState.catchFilters) {
-            appState.catchFilters = { method: 'all', species: '', gender: 'all', age: 'all' };
-        }
-        if (!appState.catchSort) {
-            appState.catchSort = { key: 'catch_date', order: 'desc' };
-        }
-        
-        // 2. 絞り込みと並び替えのUIを生成
-        filterSortUI = `
-            <div class="card mb-4">
-                <div class="form-group">
-                    <label for="filter-catch-species" class="form-label">種類 (獣種名) で絞り込み</label>
-                    <input type="text" id="filter-catch-species" class="form-input" placeholder="例: ニホンジカ">
-                </div>
-                <div class="grid grid-cols-3 gap-3">
-                    <div class="form-group mb-0">
-                        <label for="filter-catch-method" class="form-label">方法</label>
-                        <select id="filter-catch-method" class="form-select mt-1">
-                            <option value="all">すべて</option>
-                            <option value="trap">罠</option>
-                            <option value="gun">銃</option>
-                        </select>
-                    </div>
-                    <div class="form-group mb-0">
-                        <label for="filter-catch-gender" class="form-label">雌雄</label>
-                        <select id="filter-catch-gender" class="form-select mt-1">
-                            <option value="all">すべて</option>
-                            <option value="オス">オス</option>
-                            <option value="メス">メス</option>
-                            <option value="不明">不明</option>
-                        </select>
-                    </div>
-                    <div class="form-group mb-0">
-                        <label for="filter-catch-age" class="form-label">成幼</label>
-                        <select id="filter-catch-age" class="form-select mt-1">
-                            <option value="all">すべて</option>
-                            <option value="成獣">成獣</option>
-                            <option value="幼獣">幼獣</option>
-                            <option value="不明">不明</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="card mb-4 grid grid-cols-2 gap-3">
-                <div>
-                    <label for="sort-key-catch" class="form-label">並び替え</label>
-                    <select id="sort-key-catch" class="form-select mt-1">
-                        <option value="catch_date">捕獲日</option>
-                        <option value="species">種類 (獣種名)</option>
-                        <option value="method">方法</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="sort-order-catch" class="form-label">順序</label>
-                    <select id="sort-order-catch" class="form-select mt-1">
-                        <option value="asc">昇順 (A→Z / 古→新)</option>
-                        <option value="desc">降順 (Z→A / 新→古)</option>
-                    </select>
-                </div>
-            </div>
-        `;
+async function showCatchListPage() {
+    // フィルター状態の読み込み
+    const filters = appState.catchFilters;
+    
+    // ★ 修正: currentCatchMethod が 'all' でない場合（＝罠や銃から遷移した場合）
+    // フィルターを強制的にリセットする
+    if (appState.currentCatchMethod !== 'all') {
+        filters.method = 'all';
+        filters.species = '';
+        filters.gender = 'all';
+        filters.age = 'all';
+        // ソート順もリセット
+        appState.catchSort.key = 'catch_date';
+        appState.catchSort.order = 'desc';
     }
     
-    // タブが 'catch' でない場合 (罠や銃の編集画面から飛んできた場合)、
-    // 戻るボタンを表示し、タブを 'catch' に強制的に設定
-    const showBack = (method !== 'all');
-    updateHeader(title, showBack);
-    if (showBack) {
-        // 戻るボタンの動作を上書き
-        backButton.onclick = () => {
-            if (method === 'trap') {
-                showTrapEditForm(relationId);
-            } else if (method === 'gun') {
-                showGunLogEditForm(relationId);
-            }
-        };
-        // タブを「捕獲」に強制的に合わせる
-        Object.values(tabs).forEach(tab => tab.classList.replace('tab-active', 'tab-inactive'));
-        tabs.catch.classList.replace('tab-inactive', 'tab-active');
-    }
+    const sort = appState.catchSort;
 
-    app.innerHTML = `
-        ${headerNote}
-        ${filterSortUI} ${(method !== 'all') ? `
-            <div class="card mb-4">
-                <button id="add-new-catch-btn" class="btn btn-primary w-full">
-                    新しい捕獲個体を登録する
-                </button>
+    let html = `
+        <div class="page-content">
+            <div class="filter-controls">
+                
+                <div class="filter-group">
+                    <label for="catch-filter-method">方法:</label>
+                    <select id="catch-filter-method" class="filter-select">
+                        <option value="all" ${filters.method === 'all' ? 'selected' : ''}>すべて</option>
+                        <option value="trap" ${filters.method === 'trap' ? 'selected' : ''}>罠</option>
+                        <option value="gun" ${filters.method === 'gun' ? 'selected' : ''}>銃</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="catch-filter-species">種名:</label>
+                    <input type_="text" id="catch-filter-species" class="filter-input" value="${escapeHTML(filters.species)}" placeholder="例: イノシシ">
+                </div>
+                
+                <div class="filter-group">
+                    <label for="catch-filter-gender">性別:</label>
+                    <select id="catch-filter-gender" class="filter-select">
+                        <option value="all" ${filters.gender === 'all' ? 'selected' : ''}>すべて</option>
+                        <option value="オス" ${filters.gender === 'オス' ? 'selected' : ''}>オス</option>
+                        <option value="メス" ${filters.gender === 'メス' ? 'selected' : ''}>メス</option>
+                        <option value="不明" ${filters.gender === '不明' ? 'selected' : ''}>不明</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="catch-filter-age">年齢:</label>
+                    <select id="catch-filter-age" class="filter-select">
+                        <option value="all" ${filters.age === 'all' ? 'selected' : ''}>すべて</option>
+                        <option value="成獣" ${filters.age === '成獣' ? 'selected' : ''}>成獣</option>
+                        <option value="亜成獣" ${filters.age === '亜成獣' ? 'selected' : ''}>亜成獣</option>
+                        <option value="幼獣" ${filters.age === '幼獣' ? 'selected' : ''}>幼獣</option>
+                        <option value="不明" ${filters.age === '不明' ? 'selected' : ''}>不明</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="catch-sort-key">ソート:</label>
+                    <select id="catch-sort-key" class="filter-select">
+                        <option value="catch_date" ${sort.key === 'catch_date' ? 'selected' : ''}>捕獲日</option>
+                        <option value="species_name" ${sort.key === 'species_name' ? 'selected' : ''}>種名</option>
+                    </select>
+                    <select id="catch-sort-order" class="filter-select">
+                        <option value="desc" ${sort.order === 'desc' ? 'selected' : ''}>降順</option>
+                        <option value="asc" ${sort.order === 'asc' ? 'selected' : ''}>昇順</option>
+                    </select>
+                </div>
+                
+                <button id="catch-filter-reset" class="button button-secondary button-small">リセット</button>
             </div>
-        ` : ''}
-        
-        <div id="catch-list-container" class="space-y-3">
-            <p class="text-gray-500 text-center py-4">読み込み中...</p>
+
+            <ul id="catch-list" class="data-list">
+                <li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>
+            </ul>
         </div>
     `;
+    
+    app.innerHTML = html;
 
-    // --- メインリスト('all')の場合のみ、絞り込み・並び替えリスナーを設定 ---
-    if (method === 'all') {
-        // 1. DOM要素を取得
-        const speciesInput = document.getElementById('filter-catch-species');
-        const methodSelect = document.getElementById('filter-catch-method');
-        const genderSelect = document.getElementById('filter-catch-gender');
-        const ageSelect = document.getElementById('filter-catch-age');
-        const sortKeySelect = document.getElementById('sort-key-catch');
-        const sortOrderSelect = document.getElementById('sort-order-catch');
-
-        // 2. appState から現在の状態を反映
-        speciesInput.value = appState.catchFilters.species;
-        methodSelect.value = appState.catchFilters.method;
-        genderSelect.value = appState.catchFilters.gender;
-        ageSelect.value = appState.catchFilters.age;
-        sortKeySelect.value = appState.catchSort.key;
-        sortOrderSelect.value = appState.catchSort.order;
-
-        // 3. イベントリスナーを設定 (inputイベントで即時反映)
-        speciesInput.addEventListener('input', (e) => {
-            appState.catchFilters.species = e.target.value;
-            renderCatchList(null); // メインリストを再描画
-        });
-        methodSelect.addEventListener('change', (e) => {
-            appState.catchFilters.method = e.target.value;
-            renderCatchList(null);
-        });
-        genderSelect.addEventListener('change', (e) => {
-            appState.catchFilters.gender = e.target.value;
-            renderCatchList(null);
-        });
-        ageSelect.addEventListener('change', (e) => {
-            appState.catchFilters.age = e.target.value;
-            renderCatchList(null);
-        });
-        sortKeySelect.addEventListener('change', (e) => {
-            appState.catchSort.key = e.target.value;
-            renderCatchList(null);
-        });
-        sortOrderSelect.addEventListener('change', (e) => {
-            appState.catchSort.order = e.target.value;
-            renderCatchList(null);
-        });
+    // ヘッダーの制御
+    if (appState.currentCatchMethod === 'trap') {
+        // 罠から来た場合
+        updateHeader('罠の捕獲記録', true);
+        backButton.onclick = () => showTrapDetailPage(appState.currentCatchRelationId);
+        // 新規登録ボタンを非表示 (罠詳細からのみ登録)
+        headerActions.innerHTML = ''; 
+    } else if (appState.currentCatchMethod === 'gun') {
+        // 銃から来た場合
+        updateHeader('銃の捕獲記録', true);
+        backButton.onclick = () => showGunLogDetailPage(appState.currentCatchRelationId);
+        // 新規登録ボタンを非表示 (銃詳細からのみ登録)
+        headerActions.innerHTML = '';
+    } else {
+        // 通常のタブ表示
+        updateHeader('捕獲記録', false);
+        
+        // 新規登録ボタン（総合）
+        const newButton = document.createElement('button');
+        newButton.id = 'new-catch-button-general';
+        newButton.className = 'button-header-action';
+        newButton.innerHTML = '<i class="fas fa-plus"></i>';
+        newButton.onclick = () => {
+            // 罠にも銃にも紐付かない捕獲記録を作成
+            showCatchEditForm(null, { trapId: null, gunLogId: null });
+        };
+        headerActions.appendChild(newButton);
     }
-
-    // リストを描画
-    await renderCatchList(query);
-
-    // 新規登録ボタンのイベント
-    if (method !== 'all') {
-        document.getElementById('add-new-catch-btn').addEventListener('click', () => {
-            showCatchEditForm(null, method, relationId);
+    
+    // --- イベントリスナー設定 ---
+    
+    // フィルター値の更新とリスト再描画
+    const setupFilterListener = (id, stateKey, stateSubKey = null) => {
+        document.getElementById(id).addEventListener('change', (e) => {
+            if (stateSubKey) {
+                appState[stateKey][stateSubKey] = e.target.value;
+            } else {
+                appState[stateKey] = e.target.value;
+            }
+            renderCatchList();
         });
-    }
+    };
+
+    setupFilterListener('catch-filter-method', 'catchFilters', 'method');
+    setupFilterListener('catch-filter-gender', 'catchFilters', 'gender');
+    setupFilterListener('catch-filter-age', 'catchFilters', 'age');
+    setupFilterListener('catch-sort-key', 'catchSort', 'key');
+    setupFilterListener('catch-sort-order', 'catchSort', 'order');
+
+    // 種名フィルター (入力中も反映)
+    document.getElementById('catch-filter-species').addEventListener('input', (e) => {
+        appState.catchFilters.species = e.target.value;
+        renderCatchList();
+    });
+
+    // リセットボタン
+    document.getElementById('catch-filter-reset').addEventListener('click', () => {
+        appState.catchFilters.method = 'all';
+        appState.catchFilters.species = '';
+        appState.catchFilters.gender = 'all';
+        appState.catchFilters.age = 'all';
+        appState.catchSort.key = 'catch_date';
+        appState.catchSort.order = 'desc';
+        // フォームをリセットして再描画
+        showCatchListPage();
+    });
+
+    // リストの初回描画
+    await renderCatchList();
 }
 
 /**
- * ★★★ 修正: 捕獲個体リスト (絞り込み・並び替えロジック追加) ★★★
- * @param {Dexie.Collection | null} specificQuery - 関連リスト用のクエリ (nullの場合はメインリスト)
+ * 捕獲リストを描画する (フィルタリング実行)
  */
-async function renderCatchList(specificQuery = null) {
-    const container = document.getElementById('catch-list-container');
-    if (!container) return;
+async function renderCatchList() {
+    const listElement = document.getElementById('catch-list');
+    if (!listElement) return;
+    
+    listElement.innerHTML = `<li><i class="fas fa-spinner fa-spin"></i> 読み込み中...</li>`;
 
     try {
-        // 罠と銃のマスタデータ (名前解決用)
-        const traps = await db.traps.toArray();
-        const trapMap = new Map(traps.map(t => [t.id, t.trap_number]));
-        const gunLogs = await db.gun_logs.toArray();
-        const gunLogMap = new Map(gunLogs.map(g => [g.id, formatDate(g.use_date)]));
-        const guns = await db.guns.toArray();
-        const gunMap = new Map(guns.map(g => [g.id, g.gun_name]));
-
-        let logs;
-
-        if (specificQuery) {
-            // --- 1. 関連リスト (罠/銃の編集画面から) の場合 ---
-            // query は 'orderBy(catch_date)' 済み
-            logs = await specificQuery.reverse().toArray(); // 新しい順
-            
-        } else {
-            // --- 2. メインの「捕獲一覧」の場合 ---
-            
-            // 2a. 絞り込み
-            const { method, species, gender, age } = appState.catchFilters;
-            let query = db.catches.toCollection(); // 全件取得
-            
-            if (method !== 'all') {
-                query = query.filter(l => l.method === method);
-            }
-            if (species) {
-                const lowerSpecies = species.toLowerCase();
-                query = query.filter(l => l.species && l.species.toLowerCase().includes(lowerSpecies));
-            }
-            if (gender !== 'all') {
-                query = query.filter(l => l.gender === gender);
-            }
-            if (age !== 'all') {
-                query = query.filter(l => l.age === age);
-            }
-            
-            logs = await query.toArray();
-            
-            // 2b. JavaScript側で並び替え
-            const { key, order } = appState.catchSort;
-            
-            logs.sort((a, b) => {
-                const valA = a[key] || ''; // null/undefined を空文字に
-                const valB = b[key] || '';
-                
-                // localeCompare は文字列比較 (日付 'YYYY-MM-DD' も正しくソート可)
-                const comparison = valA.localeCompare(valB, 'ja'); 
-                
-                return (order === 'asc') ? comparison : -comparison;
-            });
+        // ★ 修正: db.catch -> db.catch_records
+        let query = db.catch_records;
+        
+        const filters = appState.catchFilters;
+        
+        // --- フィルタリング ---
+        // 1. 方法 (インデックス利用)
+        if (filters.method === 'trap') {
+            // trap_id が 0 でないもの (0 は 'general' 登録)
+            query = query.where('trap_id').notEqual(0);
+        } else if (filters.method === 'gun') {
+            // gun_log_id が 0 でないもの
+            query = query.where('gun_log_id').notEqual(0);
         }
         
-        // --- 3. 描画 ---
+        // 2. 種名 (インデックスが使えないため、Dexieの filter)
+        if (filters.species) {
+            const speciesFilter = filters.species.toLowerCase();
+            query = query.filter(c => c.species_name && c.species_name.toLowerCase().includes(speciesFilter));
+        }
         
-        if (logs.length === 0) {
-            container.innerHTML = `<p class="text-gray-500 text-center py-4">捕獲記録はありません。</p>`;
+        // 3. 性別 (インデックス利用)
+        if (filters.gender !== 'all') {
+            query = query.where('gender').equals(filters.gender);
+        }
+        
+        // 4. 年齢 (インデックス利用)
+        if (filters.age !== 'all') {
+            query = query.where('age').equals(filters.age);
+        }
+
+        // --- 特定の罠/銃からの遷移の場合、さらに絞り込む ---
+        if (appState.currentCatchMethod === 'trap') {
+            // 罠IDで絞り込み (currentCatchRelationId には trapId が入っている)
+            query = query.where('trap_id').equals(appState.currentCatchRelationId);
+        } else if (appState.currentCatchMethod === 'gun') {
+            // 銃ログIDで絞り込み (currentCatchRelationId には gunLogId が入っている)
+            query = query.where('gun_log_id').equals(appState.currentCatchRelationId);
+        }
+        
+        // --- ソート ---
+        const sortKey = appState.catchSort.key;
+        const sortOrder = appState.catchSort.order;
+        
+        query = query.orderBy(sortKey);
+        const catches = await query.toArray();
+
+        if (sortOrder === 'desc') {
+            catches.reverse(); // Dexie は reverse() が簡単
+        }
+
+        if (catches.length === 0) {
+            listElement.innerHTML = `<li class="no-data">該当する捕獲記録はありません。</li>`;
             return;
         }
 
-        container.innerHTML = logs.map(log => {
-            const species = log.species || '種類不明';
-            const gender = log.gender || '性別不明';
-            const age = log.age || '成幼不明';
-            
-            let sourceInfo = ''; // 捕獲手段
-            if(log.method === 'trap') {
-                sourceInfo = `罠: ${escapeHTML(trapMap.get(log.relation_id) || '不明')}`;
-            } else if (log.method === 'gun') {
-                const gunLog = gunLogs.find(g => g.id === log.relation_id);
-                const gunName = gunLog ? gunMap.get(gunLog.gun_id) : '不明';
-                sourceInfo = `銃: ${escapeHTML(gunName || '不明')} (${gunLogMap.get(log.relation_id) || '不明日'})`;
+        // --- HTML構築 ---
+        let listItems = '';
+        for (const record of catches) {
+            // 関連情報を取得
+            let relationText = '';
+            if (record.trap_id) {
+                const trap = await db.trap.get(record.trap_id);
+                relationText = trap 
+                    ? `<span class="badge badge-trap">${escapeHTML(trap.trap_number)} (${escapeHTML(trap.type)})</span>`
+                    : `<span class="badge badge-secondary">罠 (削除済)</span>`;
+            } else if (record.gun_log_id) {
+                const log = await db.gun_log.get(record.gun_log_id);
+                if (log) {
+                    const gun = await db.gun.get(log.gun_id);
+                    relationText = gun
+                        ? `<span class="badge badge-gun">${escapeHTML(gun.name)}</span>`
+                        : `<span class="badge badge-gun">銃 (削除済)</span>`;
+                } else {
+                    relationText = `<span class="badge badge-secondary">銃使用 (削除済)</span>`;
+                }
+            } else {
+                relationText = `<span class="badge badge-general">直接記録</span>`;
             }
 
-            return `
-                <div class="trap-card" data-id="${log.id}">
-                    <div class="flex-grow min-w-0">
-                        <h3 class="text-lg font-semibold text-blue-600 truncate">${formatDate(log.catch_date)}</h3>
-                        <p class="text-sm text-gray-700 truncate">${escapeHTML(species)} (${gender}, ${age})</p>
-                        <p class="text-sm text-gray-500 truncate">
-                            ${sourceInfo}
-                        </p>
+            listItems += `
+                <li class="data-list-item" data-id="${record.id}">
+                    <div class="item-main-content">
+                        <strong>${escapeHTML(record.species_name)}</strong>
+                        <span class="item-sub-text">${formatDate(record.catch_date)}</span>
                     </div>
-                    <span>&gt;</span>
-                </div>
+                    <div class="item-action-content">
+                        ${relationText}
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                </li>
             `;
-        }).join('');
+        }
+        
+        listElement.innerHTML = listItems;
 
-        // 描画された各カードにクリックイベントを設定
-        container.querySelectorAll('.trap-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const logId = Number(card.dataset.id);
-                
-                // ★ 修正: 押されたカードの情報を元に method/relationId を設定
-                const clickedLog = logs.find(l => l.id === logId);
-                let method = 'all';
-                let relationId = null;
-                
-                // メインリスト('all')以外から来た場合は、元の状態を維持
-                if (appState.currentCatchMethod !== 'all') {
-                    method = appState.currentCatchMethod;
-                    relationId = appState.currentCatchRelationId;
-                }
-                
-                showCatchEditForm(logId, method, relationId); 
+        // --- クリックイベント ---
+        listElement.querySelectorAll('.data-list-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = parseInt(item.dataset.id, 10);
+                showCatchDetailPage(id);
             });
         });
 
     } catch (err) {
         console.error("Failed to render catch list:", err);
-        container.innerHTML = `<div class="error-box">捕獲リストの読み込みに失敗しました。</div>`;
+        listElement.innerHTML = `<li class="no-data error">捕獲記録の読み込みに失敗しました: ${err.message}</li>`;
     }
 }
 
+
+// --- 捕獲記録 (詳細) ---------------------------------
+
 /**
- * 捕獲個体の新規登録・編集フォームを表示する
- * @param {number | null} catchId 編集する個体のID (新規の場合は null)
- * @param {string} method - 'all', 'trap', 'gun'
- * @param {number | null} relationId - 関連するID (trapId または gunLogId)
+ * 捕獲記録の「詳細ページ」を表示する
+ * @param {number} id - 表示する捕獲記録のDB ID
  */
-async function showCatchEditForm(catchId, method, relationId) {
-    const isNew = (catchId === null);
-    let log = {}; 
+async function showCatchDetailPage(id) {
+    try {
+        // ★ 修正: db.catch -> db.catch_records
+        const record = await db.catch_records.get(id);
+        if (!record) {
+            app.innerHTML = `<div class="error-box">該当するデータが見つかりません。</div>`;
+            return;
+        }
 
-    // ★★★ 新規 (写真管理用) ★★★
-    // フォーム内で一時的に保持するBlobの配列
-    let newPhotoBlobs = []; 
-    // 削除対象の既存Photo IDの配列
-    let photosToDelete = [];
+        // --- 関連情報の表示 ---
+        let relationHTML = '';
+        if (record.trap_id) {
+            const trap = await db.trap.get(record.trap_id);
+            relationHTML = `
+                <div class="info-section relation-link" data-trap-id="${record.trap_id}">
+                    <h4><i class="fas fa-link icon"></i> 関連する罠</h4>
+                    <p>${trap ? `${escapeHTML(trap.trap_number)} (${escapeHTML(trap.type)})` : '削除された罠'}</p>
+                </div>
+            `;
+        } else if (record.gun_log_id) {
+            const log = await db.gun_log.get(record.gun_log_id);
+            if (log) {
+                const gun = await db.gun.get(log.gun_id);
+                relationHTML = `
+                    <div class="info-section relation-link" data-gun-log-id="${record.gun_log_id}">
+                        <h4><i class="fas fa-link icon"></i> 関連する銃使用履歴</h4>
+                        <p>${gun ? escapeHTML(gun.name) : '不明な銃'} (${formatDate(log.use_date)})</p>
+                    </div>
+                `;
+            }
+        } else {
+             relationHTML = `
+                <div class="info-section">
+                    <h4><i class="fas fa-link icon"></i> 関連</h4>
+                    <p>この捕獲は、罠や銃使用履歴に紐付いていません。</p>
+                </div>
+            `;
+        }
 
-    // デフォルト値
-    log = {
-        catch_date: new Date().toISOString().split('T')[0], // 本日の日付
-        method: method,
-        relation_id: relationId,
-        species: '',
+        // --- 画像の表示 ---
+        let imageHTML = '';
+        if (record.image_blob) {
+            const blobUrl = URL.createObjectURL(record.image_blob);
+            imageHTML = `
+                <div class="info-section">
+                    <h4>写真</h4>
+                    <div class="info-image-container">
+                        <img src="${blobUrl}" alt="捕獲写真" id="detail-image" class="clickable-image">
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- 基本情報のテーブル ---
+        const tableData = [
+            { label: '種名', value: record.species_name },
+            { label: '捕獲日', value: formatDate(record.catch_date) },
+            { label: '性別', value: record.gender },
+            { label: '年齢', value: record.age },
+            { label: '緯度', value: record.latitude },
+            { label: '経度', value: record.longitude },
+        ];
+
+        let tableHTML = '<div class="info-section"><h4>基本情報</h4><table class="info-table">';
+        tableData.forEach(row => {
+            if (row.value) { // 値が設定されているものだけ表示
+                tableHTML += `
+                    <tr>
+                        <th>${escapeHTML(row.label)}</th>
+                        <td>${escapeHTML(row.value)}</td>
+                    </tr>
+                `;
+            }
+        });
+        tableHTML += '</table></div>';
+        
+        // --- メモ ---
+        let memoHTML = '';
+        if (record.memo) {
+            memoHTML = `
+                <div class="info-section">
+                    <h4>メモ</h4>
+                    <p class="info-memo">${escapeHTML(record.memo).replace(/\n/g, '<br>')}</p>
+                </div>
+            `;
+        }
+
+        // --- 最終的なHTML ---
+        app.innerHTML = `
+            <div class="page-content info-detail-page">
+                ${relationHTML}
+                ${imageHTML}
+                ${tableHTML}
+                ${memoHTML}
+            </div>
+        `;
+
+        // --- ヘッダーの更新 ---
+        updateHeader('捕獲記録 詳細', true);
+        backButton.onclick = () => {
+            // 状態に応じてリストに戻る
+            showCatchListPage();
+        };
+
+        // アクションボタン（編集・削除）
+        headerActions.innerHTML = ''; // クリア
+        
+        // 編集ボタン
+        const editButton = document.createElement('button');
+        editButton.className = 'button-header-action';
+        editButton.innerHTML = '<i class="fas fa-edit"></i>';
+        editButton.onclick = () => showCatchEditForm(id);
+        headerActions.appendChild(editButton);
+
+        // 削除ボタン
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'button-header-action';
+        deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteButton.onclick = () => deleteCatchRecord(id);
+        headerActions.appendChild(deleteButton);
+        
+        // --- イベントリスナー ---
+        
+        // 画像モーダル
+        const imgElement = document.getElementById('detail-image');
+        if (imgElement) {
+            imgElement.addEventListener('click', () => {
+                showImageModal(imgElement.src); // (main.js 側で revokeURL 処理)
+            });
+        }
+        
+        // 関連リンク
+        const relationLink = document.querySelector('.relation-link');
+        if (relationLink) {
+            if (relationLink.dataset.trapId) {
+                relationLink.addEventListener('click', () => showTrapDetailPage(parseInt(relationLink.dataset.trapId, 10)));
+            } else if (relationLink.dataset.gunLogId) {
+                relationLink.addEventListener('click', () => showGunLogDetailPage(parseInt(relationLink.dataset.gunLogId, 10)));
+            }
+        }
+
+    } catch (err) {
+        console.error("Failed to show catch detail:", err);
+        app.innerHTML = `<div class="error-box">詳細の読み込みに失敗しました: ${err.message}</div>`;
+    }
+}
+
+
+// --- 捕獲記録 (編集/新規) -----------------------------
+
+/**
+ * 捕獲記録の「編集/新規作成フォーム」を表示する
+ * @param {number | null} id - 編集する記録のID (新規の場合は null)
+ * @param {object | null} relationIds - 関連ID (新規用)
+ * @param {number | null} relationIds.trapId - 関連する罠ID
+ * @param {number | null} relationIds.gunLogId - 関連する銃使用ID
+ */
+async function showCatchEditForm(id, relationIds = null) {
+    let record = {
+        trap_id: relationIds?.trapId || null,
+        gun_log_id: relationIds?.gunLogId || null,
+        catch_date: new Date().toISOString().split('T')[0], // デフォルトを今日に
+        species_name: '',
         gender: '不明',
         age: '不明',
-        location_detail: '' 
+        memo: '',
+        image_blob: null,
+        latitude: '',
+        longitude: ''
     };
+    
+    let pageTitle = '新規捕獲記録';
+    let currentImageHTML = '';
 
-    if (isNew) {
-        updateHeader('新規の捕獲個体', true);
-    } else {
-        updateHeader('捕獲個体の編集', true);
-        try {
-            const loadedLog = await db.catches.get(catchId);
-            if (!loadedLog) {
-                alert('捕獲データが見つかりません。');
-                showCatchListPage(method, relationId);
-                return;
+    if (id) {
+        // 編集の場合
+        pageTitle = '捕獲記録の編集';
+        // ★ 修正: db.catch -> db.catch_records
+        const existingRecord = await db.catch_records.get(id);
+        if (existingRecord) {
+            record = existingRecord;
+            
+            // 既存画像の表示
+            if (record.image_blob) {
+                const blobUrl = URL.createObjectURL(record.image_blob);
+                currentImageHTML = `
+                    <div class="form-group">
+                        <label>現在の写真:</label>
+                        <div class="info-image-container">
+                            <img src="${blobUrl}" alt="既存の写真" id="current-image" class="clickable-image">
+                        </div>
+                        <button type=_button" id="remove-image-btn" class="button button-danger button-small">写真を削除</button>
+                    </div>
+                `;
             }
-            log = loadedLog; // DBからのデータで上書き
-        } catch (err) {
-            alert('捕獲データの取得に失敗しました。');
-            showCatchListPage(method, relationId);
+        } else {
+            app.innerHTML = `<div class="error-box">編集対象のデータが見つかりません。</div>`;
             return;
         }
     }
 
-    // ★ 戻るボタンの動作を上書き
-    backButton.onclick = () => {
-        showCatchListPage(method, relationId);
-    };
-
-    // ★★★ 修正: ラベルを動的に変更 (ご要望 1 & 2) ★★★
-    let locationLabel = '詳細位置';
-    let locationPlaceholder = '';
-    if (log.method === 'gun') {
-        locationLabel = '着弾位置';
-        locationPlaceholder = '例: 頸部、胸部';
-    } else if (log.method === 'trap') {
-        locationLabel = 'かかった位置';
-        locationPlaceholder = '例: 右前脚、首';
-    }
-
     app.innerHTML = `
-        <form id="catch-form" class="card space-y-4">
-            
-            <div>
-                <h3 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h3>
-                <div class="space-y-4">
-                    
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="form-group">
-                            <label for="catch_date" class="form-label">捕獲日</label>
-                            <input type="date" id="catch_date" name="catch_date" value="${escapeHTML(log.catch_date || '')}" class="form-input" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="species" class="form-label">種類 (獣種名)</label>
-                            <input type="text" id="species" name="species" value="${escapeHTML(log.species || '')}" class="form-input" placeholder="例: ニホンジカ" required>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="form-group">
-                            <label for="gender" class="form-label">雌雄</label>
-                            <select id="gender" name="gender" class="form-select">
-                                <option value="不明" ${log.gender === '不明' ? 'selected' : ''}>不明</option>
-                                <option value="オス" ${log.gender === 'オス' ? 'selected' : ''}>オス</option>
-                                <option value="メス" ${log.gender === 'メス' ? 'selected' : ''}>メス</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="age" class="form-label">成幼</label>
-                            <select id="age" name="age" class="form-select">
-                                <option value="不明" ${log.age === '不明' ? 'selected' : ''}>不明</option>
-                                <option value="成獣" ${log.age === '成獣' ? 'selected' : ''}>成獣</option>
-                                <option value="幼獣" ${log.age === '幼獣' ? 'selected' : ''}>幼獣</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="location_detail" class="form-label">${locationLabel} (着弾位置/かかった位置)</label>
-                        <input type="text" id="location_detail" name="location_detail" value="${escapeHTML(log.location_detail || '')}" class="form-input" placeholder="${locationPlaceholder}">
-                    </div>
-                </div>
-            </div>
-
-            <hr class="my-4">
-            <div>
-                <h3 class="text-lg font-semibold border-b pb-2 mb-4">写真</h3>
-                <div id="photo-preview-container" class="grid grid-cols-3 gap-2 mb-3">
-                    </div>
+        <div class="page-content">
+            <form id="catch-form" class="form-container">
                 <div class="form-group">
-                    <label for="photo-upload" class="btn btn-secondary w-full">＋ 写真を選択</label>
-                    <input type="file" id="photo-upload" class="hidden" accept="image/*" multiple>
+                    <label for="catch-species">種名 <span class="required">*</span>:</label>
+                    <input type="text" id="catch-species" value="${escapeHTML(record.species_name)}" required list="species-datalist">
+                    <datalist id="species-datalist">
+                        </datalist>
                 </div>
-                <p id="photo-status" class="text-sm text-gray-500 text-center"></p>
-            </div>
-            
-            <hr class="my-4">
-            <div class="space-y-4">
-                <div class="grid grid-cols-2 gap-3">
-                    <button type="button" id="cancel-btn" class="btn btn-secondary">キャンセル</button>
-                    <button type="submit" id="save-btn" class="btn btn-primary">保存</button>
+
+                <div class="form-group">
+                    <label for="catch-date">捕獲日 <span class="required">*</span>:</label>
+                    <input type="date" id="catch-date" value="${escapeHTML(record.catch_date)}" required>
                 </div>
-                ${!isNew ? `
-                    <button type="button" id="delete-btn" class="btn btn-danger w-full mt-4">この捕獲記録を削除</button>
-                ` : ''}
-            </div>
-        </form>
+
+                <div class="form-group">
+                    <label for="catch-gender">性別:</label>
+                    <select id="catch-gender">
+                        <option value="不明" ${record.gender === '不明' ? 'selected' : ''}>不明</option>
+                        <option value="オス" ${record.gender === 'オス' ? 'selected' : ''}>オス</option>
+                        <option value="メス" ${record.gender === 'メス' ? 'selected' : ''}>メス</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="catch-age">年齢:</label>
+                    <select id="catch-age">
+                        <option value="不明" ${record.age === '不明' ? 'selected' : ''}>不明</option>
+                        <option value="成獣" ${record.age === '成獣' ? 'selected' : ''}>成獣</option>
+                        <option value="亜成獣" ${record.age === '亜成獣' ? 'selected' : ''}>亜成獣</option>
+                        <option value="幼獣" ${record.age === '幼獣' ? 'selected' : ''}>幼獣</option>
+                    </select>
+                </div>
+
+                <h3 class="form-section-title">位置情報</h3>
+                <div class="form-group-row">
+                    <div class="form-group">
+                        <label for="catch-latitude">緯度:</label>
+                        <input type="number" step="any" id="catch-latitude" value="${escapeHTML(record.latitude)}" placeholder="例: 35.12345">
+                    </div>
+                    <div class="form-group">
+                        <label for="catch-longitude">経度:</label>
+                        <input type="number" step="any" id="catch-longitude" value="${escapeHTML(record.longitude)}" placeholder="例: 139.12345">
+                    </div>
+                </div>
+                <button type="button" id="get-catch-gps-btn" class="button button-secondary button-full">
+                    <i class="fas fa-map-marker-alt"></i> 現在地を取得
+                </button>
+
+                <h3 class="form-section-title">写真</h3>
+                ${currentImageHTML}
+                <div class="form-group">
+                    <label for="catch-image">${id && record.image_blob ? '写真を変更:' : '写真を追加:'}</label>
+                    <input type="file" id="catch-image" accept="image/*">
+                    <div id="image-preview-container" class="image-preview-container"></div>
+                </div>
+
+                <h3 class="form-section-title">メモ</h3>
+                <div class="form-group">
+                    <textarea id="catch-memo" rows="4">${escapeHTML(record.memo)}</textarea>
+                </div>
+                
+                <button type="submit" class="button button-primary button-full">
+                    <i class="fas fa-save"></i> 保存する
+                </button>
+                <div id="form-error" class="form-error"></div>
+            </form>
+        </div>
     `;
 
-    // --- フォームのイベントリスナーを設定 ---
+    // ヘッダーを更新
+    updateHeader(pageTitle, true);
+    backButton.onclick = () => {
+        if (id) {
+            showCatchDetailPage(id); // 編集中の場合は詳細に戻る
+        } else {
+            showCatchListPage(); // 新規の場合はリストに戻る
+        }
+    };
 
-    // 1. キャンセルボタン
-    document.getElementById('cancel-btn').addEventListener('click', () => {
-        showCatchListPage(method, relationId);
-    });
+    // --- フォームの動的処理 ---
 
-    // 2. 保存ボタン
-    document.getElementById('catch-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const form = e.target;
-        const saveBtn = document.getElementById('save-btn');
-        saveBtn.disabled = true;
-        saveBtn.classList.add('btn-loading');
-        saveBtn.textContent = '保存中...';
-
-        const formData = new FormData(form);
+    // 1. 図鑑から種名リストをdatalistに読み込む
+    loadSpeciesDataList();
+    
+    // 2. GPS取得ボタン
+    document.getElementById('get-catch-gps-btn').addEventListener('click', async (e) => {
+        const button = e.currentTarget;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 測位中...';
+        button.disabled = true;
         
-        // データを整形
-        const data = {
-            catch_date: formData.get('catch_date'),
-            species: formData.get('species').trim(),
-            gender: formData.get('gender'),
-            age: formData.get('age'),
-            // ★ 修正: 'location_detail' を保存
-            location_detail: formData.get('location_detail'),
-            method: log.method,
-            relation_id: log.relation_id
-        };
-
         try {
-            let savedCatchId = catchId;
-            
-            if (isNew) {
-                // 新規の場合は、add() して新しいIDを取得
-                savedCatchId = await db.catches.add(data);
-            } else {
-                // 編集の場合は、put()
-                data.id = catchId; // 忘れずにIDをセット
-                await db.catches.put(data);
-            }
-            
-            // ★★★ 新規 (写真保存処理) ★★★
-            // 1. 削除対象の写真をDBから削除
-            if (photosToDelete.length > 0) {
-                await db.photos.bulkDelete(photosToDelete);
-            }
-            // 2. 新規追加のBlobをDBに保存
-            if (newPhotoBlobs.length > 0) {
-                const photosToAdd = newPhotoBlobs.map(blob => ({
-                    catch_id: savedCatchId,
-                    image_data: blob
-                }));
-                await db.photos.bulkAdd(photosToAdd);
-            }
-            
-            showCatchListPage(method, relationId); // 保存後にリストに戻る
-
+            const location = await getCurrentLocation(); // (main.js の共通関数)
+            document.getElementById('catch-latitude').value = location.latitude;
+            document.getElementById('catch-longitude').value = location.longitude;
         } catch (err) {
-            console.error("Failed to save catch log:", err);
-            alert(`保存に失敗しました: ${err.message}`);
-            saveBtn.disabled = false;
-            saveBtn.classList.remove('btn-loading');
-            saveBtn.textContent = '保存';
+            document.getElementById('form-error').textContent = err.message;
+        } finally {
+            button.innerHTML = originalText;
+            button.disabled = false;
         }
     });
+    
+    // 3. 画像プレビュー処理
+    const imageInput = document.getElementById('catch-image');
+    const previewContainer = document.getElementById('image-preview-container');
+    let resizedImageBlob = null; // リサイズ後のBlobを保持
 
-    // 3. 削除ボタン（編集時のみ）
-    if (!isNew) {
-        document.getElementById('delete-btn').addEventListener('click', async () => {
-            if (window.confirm(`この捕獲記録（${log.species}）を本当に削除しますか？\n（関連する写真もすべて削除されます）`)) {
-                try {
-                    // ★ 修正: 関連する写真も削除
-                    await db.photos.where('catch_id').equals(catchId).delete();
-                    await db.catches.delete(catchId);
-                    
-                    alert('捕獲記録と関連写真を削除しました。');
-                    showCatchListPage(method, relationId);
-                } catch (err) {
-                    console.error("Failed to delete catch log:", err);
-                    alert(`削除に失敗しました: ${err.message}`);
-                }
+    imageInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            previewContainer.innerHTML = '';
+            resizedImageBlob = null;
+            return;
+        }
+        
+        previewContainer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 画像処理中...';
+        
+        try {
+            resizedImageBlob = await resizeImage(file, 800); // (main.js の共通関数)
+            const previewUrl = URL.createObjectURL(resizedImageBlob);
+            
+            previewContainer.innerHTML = `
+                <img src="${previewUrl}" alt="プレビュー">
+                <span class="image-preview-info">
+                    リサイズ済み (約 ${Math.round(resizedImageBlob.size / 1024)} KB)
+                </span>
+            `;
+            // メモリリーク防止 (表示後すぐにURLを解放)
+            URL.revokeObjectURL(previewUrl); 
+            
+        } catch (err) {
+            console.error("Image resize failed:", err);
+            previewContainer.innerHTML = `<span class="error">画像処理に失敗: ${err.message}</span>`;
+            resizedImageBlob = null;
+        }
+    });
+    
+    // 4. 既存写真の削除ボタン
+    const removeBtn = document.getElementById('remove-image-btn');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+            // プレビューを削除
+            const currentImageDiv = document.getElementById('current-image').closest('.form-group');
+            if (currentImageDiv) {
+                currentImageDiv.remove();
             }
+            // データを null 化 (保存時にDBも更新)
+            record.image_blob = null; 
+            // 状態を "削除済み" に
+            currentImageHTML = '<div class="form-group"><label>現在の写真:</label><p>(削除されます)</p></div>'; 
         });
     }
 
-    // ★★★ 新規 (写真機能のリスナー) ★★★
-    const photoInput = document.getElementById('photo-upload');
-    const photoPreviewContainer = document.getElementById('photo-preview-container');
-    const photoStatus = document.getElementById('photo-status');
-    
-    // 写真プレビューを描画する内部関数
-    const renderPhotoList = async () => {
-        photoPreviewContainer.innerHTML = ''; // いったんクリア
+    // 5. 画像モーダル (既存画像)
+    const currentImg = document.getElementById('current-image');
+    if (currentImg) {
+        currentImg.addEventListener('click', () => {
+            showImageModal(currentImg.src);
+        });
+        // 編集フォームを離れるときに revoke
+        backButton.addEventListener('click', () => {
+             URL.revokeObjectURL(currentImg.src);
+        }, { once: true });
+    }
+
+    // 6. フォーム保存処理
+    document.getElementById('catch-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
         
-        // 1. 既存の写真をDBから読み込む
-        if (!isNew) {
-            const existingPhotos = await db.photos.where('catch_id').equals(catchId).toArray();
-            existingPhotos.forEach(photo => {
-                // 削除対象に含まれていなければ表示
-                if (!photosToDelete.includes(photo.id)) {
-                    let url;
-                    try {
-                        url = URL.createObjectURL(photo.image_data);
-                    } catch (e) {
-                        console.error("Failed to create ObjectURL for existing photo:", e);
-                        return; // Blobが不正ならスキップ
-                    }
-                    
-                    const div = document.createElement('div');
-                    div.className = 'relative';
-                    div.innerHTML = `
-                        <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="既存の写真" data-url="${url}">
-                        <button class="absolute top-0 right-0 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm" data-photoid="${photo.id}">×</button>
-                    `;
-                    // 拡大イベント
-                    div.querySelector('img').onclick = () => showImageModal(URL.createObjectURL(photo.image_data));
-                    
-                    div.querySelector('button').onclick = (e) => {
-                        e.preventDefault();
-                        if (window.confirm('この写真を削除しますか？')) {
-                            photosToDelete.push(photo.id); // 削除リストに追加
-                            div.remove(); // 画面から削除
-                        }
-                    };
-                    photoPreviewContainer.appendChild(div);
-                }
-            });
+        const species = document.getElementById('catch-species').value;
+        const date = document.getElementById('catch-date').value;
+        
+        // バリデーション
+        if (!species || !date) {
+            document.getElementById('form-error').textContent = '種名と捕獲日は必須です。';
+            return;
         }
         
-        // 2. 新規追加のBlobを表示 (newPhotoBlobs)
-        newPhotoBlobs.forEach((blob, index) => {
-            const url = URL.createObjectURL(blob);
-            const div = document.createElement('div');
-            div.className = 'relative opacity-80'; // 新規追加は少し薄く
-            div.innerHTML = `
-                <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="新規の写真" data-url="${url}">
-                <button class="absolute top-0 right-0 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm" data-blobindex="${index}">×</button>
-            `;
-            // 拡大イベント
-            div.querySelector('img').onclick = () => showImageModal(URL.createObjectURL(blob));
-            
-            div.querySelector('button').onclick = (e) => {
-                e.preventDefault();
-                newPhotoBlobs.splice(index, 1); // 配列から削除
-                renderPhotoList(); // リストを再描画
-            };
-            photoPreviewContainer.appendChild(div);
-        });
+        // フォームデータをまとめる
+        const formData = {
+            trap_id: record.trap_id, // 編集では既存のIDを保持
+            gun_log_id: record.gun_log_id, // 編集では既存のIDを保持
+            catch_date: date,
+            species_name: species,
+            gender: document.getElementById('catch-gender').value,
+            age: document.getElementById('catch-age').value,
+            latitude: document.getElementById('catch-latitude').value,
+            longitude: document.getElementById('catch-longitude').value,
+            memo: document.getElementById('catch-memo').value,
+            image_blob: record.image_blob // デフォルトは既存の画像
+        };
 
-        // メモリリーク防止のため、表示に使ったObject URLをクリーンアップ
-        // (非同期で実行)
-        setTimeout(() => {
-            photoPreviewContainer.querySelectorAll('img').forEach(img => {
-                // img.src が "blob:..." で始まっているか確認
-                if (img.src.startsWith('blob:')) {
-                    URL.revokeObjectURL(img.src);
-                }
-            });
-        }, 1000);
-    };
-
-    // 写真ファイルが選択された時の処理
-    photoInput.addEventListener('change', async (e) => {
-        const files = e.target.files;
-        if (!files || files.length === 0) return;
-        
-        photoStatus.textContent = `写真${files.length}件をリサイズ中...`;
+        // 新しい画像が選択されていれば、それを採用
+        if (resizedImageBlob) {
+            formData.image_blob = resizedImageBlob;
+        }
         
         try {
-            const resizePromises = [];
-            for (const file of files) {
-                // main.js の resizeImage を呼び出す
-                resizePromises.push(resizeImage(file, 800));
+            if (id) {
+                // 更新
+                // ★ 修正: db.catch -> db.catch_records
+                await db.catch_records.put({ ...formData, id: id });
+                showCatchDetailPage(id); // 詳細ページに戻る
+            } else {
+                // 新規作成
+                // ★ 修正: db.catch -> db.catch_records
+                const newId = await db.catch_records.add(formData);
+                showCatchDetailPage(newId); // 作成した詳細ページに飛ぶ
             }
-            
-            const resizedBlobs = await Promise.all(resizePromises);
-            newPhotoBlobs.push(...resizedBlobs); // 処理済みのBlobを配列に追加
-            
-            photoStatus.textContent = `写真${files.length}件を追加しました。`;
-            await renderPhotoList(); // プレビューを更新
-            
         } catch (err) {
-            console.error("Photo processing failed:", err);
-            photoStatus.textContent = '写真の処理に失敗しました。';
+            console.error("Failed to save catch record:", err);
+            document.getElementById('form-error').textContent = `保存に失敗しました: ${err.message}`;
         }
-        
-        // inputをリセットして、同じファイルを選び直せるようにする
-        photoInput.value = null;
     });
+}
 
-    // 初期描画（編集時のみ）
-    if (!isNew) {
-        renderPhotoList();
+/**
+ * datalist用に図鑑から種名リストを読み込む
+ */
+async function loadSpeciesDataList() {
+    const datalist = document.getElementById('species-datalist');
+    if (!datalist) return;
+    
+    try {
+        // 狩猟対象 (〇) のみ
+        const animals = await db.game_animal_list.where('is_game_animal').equals('〇').toArray();
+        // 重複を除外
+        const speciesNames = [...new Set(animals.map(a => a.species_name))];
+        
+        datalist.innerHTML = speciesNames.map(name => 
+            `<option value="${escapeHTML(name)}"></option>`
+        ).join('');
+        
+    } catch (err) {
+        console.error("Failed to load species datalist:", err);
+    }
+}
+
+
+// --- 捕獲記録 (削除) ---------------------------------
+
+/**
+ * 捕獲記録を削除する
+ * @param {number} id - 削除する記録のID
+ */
+async function deleteCatchRecord(id) {
+    if (!confirm('この捕獲記録を本当に削除しますか？\nこの操作は元に戻せません。')) {
+        return;
+    }
+
+    try {
+        // ★ 修正: db.catch -> db.catch_records
+        await db.catch_records.delete(id);
+        
+        // 削除後はリストに戻る
+        showCatchListPage();
+        
+    } catch (err) {
+        console.error("Failed to delete catch record:", err);
+        // エラー通知 (
+        alert(`削除に失敗しました: ${err.message}`);
     }
 }

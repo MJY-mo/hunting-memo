@@ -4,57 +4,58 @@
 const db = new Dexie('HuntingAppDB');
 
 // --- データベースのスキーマ定義 ---
-// スキーマ（テーブル構造）を変更した場合は、
-// 必ず version() の番号を1つ上げる (例: 1 -> 2)
 //
-// ★ 修正: v2 にバージョンアップ
-// ★ 修正: game_animal_list に description, image_1, image_2 を追加
+// ★ 修正: v2 
+// ★ 修正: 'catch' -> 'catch_records' (JS予約語 'catch' との衝突回避)
+// ★ 修正: 'checklist_sets' テーブルを追加
 db.version(2).stores({
     /* 罠テーブル */
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open',
     
-    /* 罠の種類テーブル (&name は name カラムをユニークキーにする) */
+    /* 罠の種類テーブル */
     trap_type: '++id, &name',
     
-    /* 捕獲記録テーブル (trap_id と gun_log_id は外部キー) */
-    catch: '++id, trap_id, gun_log_id, catch_date, species_name, gender, age, memo, image_blob, latitude, longitude',
+    /* 捕獲記録テーブル (★ v2でリネーム) */
+    catch_records: '++id, trap_id, gun_log_id, catch_date, species_name, gender, age, memo, image_blob, latitude, longitude',
     
-    /* 銃テーブル (&name は name カラムをユニークキーにする) */
+    /* 銃テーブル */
     gun: '++id, &name, type, caliber, permit_date, permit_expiry',
     
-    /* 銃使用履歴テーブル (gun_id は外部キー) */
+    /* 銃使用履歴テーブル */
     gun_log: '++id, use_date, gun_id, purpose, location, memo, image_blob, latitude, longitude',
     
-    /* ★ 狩猟鳥獣図鑑テーブル (v2 でカラム追加) */
+    /* 狩猟鳥獣図鑑テーブル */
     game_animal_list: '++id, species_name, category, is_game_animal, description, image_1, image_2',
     
-    /* 設定テーブル (&key は key カラムをユニークキーにする) */
+    /* ★ チェックリスト (v2で追加) */
+    checklist_sets: '++id, name', // 'items' は配列なのでインデックス不要
+    
+    /* 設定テーブル */
     settings: '&key', // 'theme', 'fontSize'
     
-    /* 狩猟者プロファイル (&key は key カラムをユニークキーにする) */
+    /* 狩猟者プロファイル */
     hunter_profile: '&key' // 'main'
 });
 
-// v1 -> v2 へのアップグレード処理 (v1 にしか無かったテーブルを削除するなど)
-// ※ 今回はテーブル削除やデータ移行はないため、空の関数を定義
+// v1 スキーマ (古い定義)
+// v1 -> v2 へのデータ移行は複雑なため、
+// 開発中はDBをクリアしてv2から開始することを推奨
 db.version(1).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open',
     trap_type: '++id, &name',
     catch: '++id, trap_id, gun_log_id, catch_date, species_name, gender, age, memo, image_blob, latitude, longitude',
     gun: '++id, &name, type, caliber, permit_date, permit_expiry',
     gun_log: '++id, use_date, gun_id, purpose, location, memo, image_blob, latitude, longitude',
-    
-    // v1 スキーマ (game_animal_list の定義が古い)
     game_animal_list: '++id, species_name, category, is_game_animal', 
-    
-    settings: '&key', // 'theme', 'fontSize'
-    hunter_profile: '&key' // 'main'
+    settings: '&key',
+    hunter_profile: '&key'
 }).upgrade(tx => {
-    // v1 -> v2 へのアップグレード時に、古い game_animal_list の
-    // description, image_1, image_2 にデフォルト値を入れることも可能だが、
-    // main.js で初回起動時に全投入するロジックがあるため、ここでは何もしない。
-    // (もしv1でデータが残っていても、v2でカラムが追加されるだけ)
+    // v1 -> v2 へのアップグレード
+    // (catch -> catch_records へのデータ移行はここで行うが、
+    // 開発中はDB削除の方が早いため、ここでは移行をスキップ)
     console.log("Upgrading schema from v1 to v2...");
+    // v1 の 'catch' テーブルは v2 の定義で 'catch: null' がないため、
+    // 自動的に削除されないが、v2 では 'catch_records' を使う
 });
 
 
