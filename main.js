@@ -296,7 +296,7 @@ function setupTabs() {
         appState.trapView = 'open'; 
         navigateTo('trap', showTrapPage, '罠');
     });
-    tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃');
+    tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
     tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
     tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲記録'));
