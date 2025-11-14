@@ -21,29 +21,95 @@ async function showCatchListPage(method, relationId) {
 
     let title = '捕獲記録 (すべて)';
     let headerNote = ''; // ヘッダー下の注釈
+    let filterSortUI = ''; // 絞り込み・並び替えUI
 
-    // ★★★ 修正: クエリの構築方法を .orderBy().filter() に変更 ★★★
-    
-    // 1. 最初に日付でソートするクエリを作成
-    let query = db.catches.orderBy('catch_date');
+    // クエリの準備
+    let query = null; // null の場合は main リスト
 
-    // 2. method と relationId に応じて絞り込み (filter) を行う
     if (method === 'trap') {
         const trap = await db.traps.get(relationId);
         title = `罠 [${trap.trap_number}] の捕獲`;
         headerNote = `<p class="text-sm text-gray-500 mb-3 -mt-3 text-center">罠: ${escapeHTML(trap.trap_number)}</p>`;
-        
-        query = query.filter(log => log.method === 'trap' && log.relation_id === relationId);
+        // 関連リストの場合は、ここでクエリを確定
+        query = db.catches.orderBy('catch_date')
+            .filter(log => log.method === 'trap' && log.relation_id === relationId);
 
     } else if (method === 'gun') {
         const gunLog = await db.gun_logs.get(relationId);
         title = `銃使用履歴 [${formatDate(gunLog.use_date)}] の捕獲`;
         headerNote = `<p class="text-sm text-gray-500 mb-3 -mt-3 text-center">銃使用日: ${formatDate(gunLog.use_date)}</p>`;
+        // 関連リストの場合は、ここでクエリを確定
+        query = db.catches.orderBy('catch_date')
+            .filter(log => log.method === 'gun' && log.relation_id === relationId);
+            
+    } else {
+        // ★★★ 新規: メインの「捕獲一覧」ページの場合 ★★★
         
-        query = query.filter(log => log.method === 'gun' && log.relation_id === relationId);
+        // 1. 絞り込み条件の初期化 (main.js で定義済み)
+        if (!appState.catchFilters) {
+            appState.catchFilters = { method: 'all', species: '', gender: 'all', age: 'all' };
+        }
+        if (!appState.catchSort) {
+            appState.catchSort = { key: 'catch_date', order: 'desc' };
+        }
+        
+        // 2. 絞り込みと並び替えのUIを生成
+        filterSortUI = `
+            <div class="card mb-4">
+                <div class="form-group">
+                    <label for="filter-catch-species" class="form-label">種類 (獣種名) で絞り込み</label>
+                    <input type="text" id="filter-catch-species" class="form-input" placeholder="例: ニホンジカ">
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="form-group mb-0">
+                        <label for="filter-catch-method" class="form-label">方法</label>
+                        <select id="filter-catch-method" class="form-select mt-1">
+                            <option value="all">すべて</option>
+                            <option value="trap">罠</option>
+                            <option value="gun">銃</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="filter-catch-gender" class="form-label">雌雄</label>
+                        <select id="filter-catch-gender" class="form-select mt-1">
+                            <option value="all">すべて</option>
+                            <option value="オス">オス</option>
+                            <option value="メス">メス</option>
+                            <option value="不明">不明</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="filter-catch-age" class="form-label">成幼</label>
+                        <select id="filter-catch-age" class="form-select mt-1">
+                            <option value="all">すべて</option>
+                            <option value="成獣">成獣</option>
+                            <option value="幼獣">幼獣</option>
+                            <option value="不明">不明</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4 grid grid-cols-2 gap-3">
+                <div>
+                    <label for="sort-key-catch" class="form-label">並び替え</label>
+                    <select id="sort-key-catch" class="form-select mt-1">
+                        <option value="catch_date">捕獲日</option>
+                        <option value="species">種類 (獣種名)</option>
+                        <option value="method">方法</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="sort-order-catch" class="form-label">順序</label>
+                    <select id="sort-order-catch" class="form-select mt-1">
+                        <option value="asc">昇順 (A→Z / 古→新)</option>
+                        <option value="desc">降順 (Z→A / 新→古)</option>
+                    </select>
+                </div>
+            </div>
+        `;
     }
-    // ★★★ 修正ここまで ★★★
-
+    
     // タブが 'catch' でない場合 (罠や銃の編集画面から飛んできた場合)、
     // 戻るボタンを表示し、タブを 'catch' に強制的に設定
     const showBack = (method !== 'all');
@@ -64,7 +130,7 @@ async function showCatchListPage(method, relationId) {
 
     app.innerHTML = `
         ${headerNote}
-        ${(method !== 'all') ? `
+        ${filterSortUI} ${(method !== 'all') ? `
             <div class="card mb-4">
                 <button id="add-new-catch-btn" class="btn btn-primary w-full">
                     新しい捕獲個体を登録する
@@ -77,7 +143,52 @@ async function showCatchListPage(method, relationId) {
         </div>
     `;
 
-    // 絞り込み/ソート済みのクエリを渡す
+    // --- メインリスト('all')の場合のみ、絞り込み・並び替えリスナーを設定 ---
+    if (method === 'all') {
+        // 1. DOM要素を取得
+        const speciesInput = document.getElementById('filter-catch-species');
+        const methodSelect = document.getElementById('filter-catch-method');
+        const genderSelect = document.getElementById('filter-catch-gender');
+        const ageSelect = document.getElementById('filter-catch-age');
+        const sortKeySelect = document.getElementById('sort-key-catch');
+        const sortOrderSelect = document.getElementById('sort-order-catch');
+
+        // 2. appState から現在の状態を反映
+        speciesInput.value = appState.catchFilters.species;
+        methodSelect.value = appState.catchFilters.method;
+        genderSelect.value = appState.catchFilters.gender;
+        ageSelect.value = appState.catchFilters.age;
+        sortKeySelect.value = appState.catchSort.key;
+        sortOrderSelect.value = appState.catchSort.order;
+
+        // 3. イベントリスナーを設定 (inputイベントで即時反映)
+        speciesInput.addEventListener('input', (e) => {
+            appState.catchFilters.species = e.target.value;
+            renderCatchList(null); // メインリストを再描画
+        });
+        methodSelect.addEventListener('change', (e) => {
+            appState.catchFilters.method = e.target.value;
+            renderCatchList(null);
+        });
+        genderSelect.addEventListener('change', (e) => {
+            appState.catchFilters.gender = e.target.value;
+            renderCatchList(null);
+        });
+        ageSelect.addEventListener('change', (e) => {
+            appState.catchFilters.age = e.target.value;
+            renderCatchList(null);
+        });
+        sortKeySelect.addEventListener('change', (e) => {
+            appState.catchSort.key = e.target.value;
+            renderCatchList(null);
+        });
+        sortOrderSelect.addEventListener('change', (e) => {
+            appState.catchSort.order = e.target.value;
+            renderCatchList(null);
+        });
+    }
+
+    // リストを描画
     await renderCatchList(query);
 
     // 新規登録ボタンのイベント
@@ -89,10 +200,10 @@ async function showCatchListPage(method, relationId) {
 }
 
 /**
- * 捕獲個体リストをDBから読み込んで描画する
- * @param {Dexie.Collection} query - 実行するクエリ (★既にソート済み)
+ * ★★★ 修正: 捕獲個体リスト (絞り込み・並び替えロジック追加) ★★★
+ * @param {Dexie.Collection | null} specificQuery - 関連リスト用のクエリ (nullの場合はメインリスト)
  */
-async function renderCatchList(query) {
+async function renderCatchList(specificQuery = null) {
     const container = document.getElementById('catch-list-container');
     if (!container) return;
 
@@ -105,8 +216,51 @@ async function renderCatchList(query) {
         const guns = await db.guns.toArray();
         const gunMap = new Map(guns.map(g => [g.id, g.gun_name]));
 
-        // ★★★ 修正: query は既に orderBy 済みなので、.reverse() だけ呼ぶ ★★★
-        const logs = await query.reverse().toArray();
+        let logs;
+
+        if (specificQuery) {
+            // --- 1. 関連リスト (罠/銃の編集画面から) の場合 ---
+            // query は 'orderBy(catch_date)' 済み
+            logs = await specificQuery.reverse().toArray(); // 新しい順
+            
+        } else {
+            // --- 2. メインの「捕獲一覧」の場合 ---
+            
+            // 2a. 絞り込み
+            const { method, species, gender, age } = appState.catchFilters;
+            let query = db.catches.toCollection(); // 全件取得
+            
+            if (method !== 'all') {
+                query = query.filter(l => l.method === method);
+            }
+            if (species) {
+                const lowerSpecies = species.toLowerCase();
+                query = query.filter(l => l.species && l.species.toLowerCase().includes(lowerSpecies));
+            }
+            if (gender !== 'all') {
+                query = query.filter(l => l.gender === gender);
+            }
+            if (age !== 'all') {
+                query = query.filter(l => l.age === age);
+            }
+            
+            logs = await query.toArray();
+            
+            // 2b. JavaScript側で並び替え
+            const { key, order } = appState.catchSort;
+            
+            logs.sort((a, b) => {
+                const valA = a[key] || ''; // null/undefined を空文字に
+                const valB = b[key] || '';
+                
+                // localeCompare は文字列比較 (日付 'YYYY-MM-DD' も正しくソート可)
+                const comparison = valA.localeCompare(valB, 'ja'); 
+                
+                return (order === 'asc') ? comparison : -comparison;
+            });
+        }
+        
+        // --- 3. 描画 ---
         
         if (logs.length === 0) {
             container.innerHTML = `<p class="text-gray-500 text-center py-4">捕獲記録はありません。</p>`;
@@ -145,8 +299,19 @@ async function renderCatchList(query) {
         container.querySelectorAll('.trap-card').forEach(card => {
             card.addEventListener('click', () => {
                 const logId = Number(card.dataset.id);
-                // method と relationId は現在のグローバル状態を引き継ぐ
-                showCatchEditForm(logId, appState.currentCatchMethod, appState.currentCatchRelationId); 
+                
+                // ★ 修正: 押されたカードの情報を元に method/relationId を設定
+                const clickedLog = logs.find(l => l.id === logId);
+                let method = 'all';
+                let relationId = null;
+                
+                // メインリスト('all')以外から来た場合は、元の状態を維持
+                if (appState.currentCatchMethod !== 'all') {
+                    method = appState.currentCatchMethod;
+                    relationId = appState.currentCatchRelationId;
+                }
+                
+                showCatchEditForm(logId, method, relationId); 
             });
         });
 
@@ -180,7 +345,6 @@ async function showCatchEditForm(catchId, method, relationId) {
         species: '',
         gender: '不明',
         age: '不明',
-        // ★ 修正: 'hit_location' -> 'location_detail'
         location_detail: '' 
     };
 
@@ -400,9 +564,12 @@ async function showCatchEditForm(catchId, method, relationId) {
                     const div = document.createElement('div');
                     div.className = 'relative';
                     div.innerHTML = `
-                        <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="既存の写真">
+                        <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="既存の写真" data-url="${url}">
                         <button class="absolute top-0 right-0 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm" data-photoid="${photo.id}">×</button>
                     `;
+                    // 拡大イベント
+                    div.querySelector('img').onclick = () => showImageModal(URL.createObjectURL(photo.image_data));
+                    
                     div.querySelector('button').onclick = (e) => {
                         e.preventDefault();
                         if (window.confirm('この写真を削除しますか？')) {
@@ -421,9 +588,12 @@ async function showCatchEditForm(catchId, method, relationId) {
             const div = document.createElement('div');
             div.className = 'relative opacity-80'; // 新規追加は少し薄く
             div.innerHTML = `
-                <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="新規の写真">
+                <img src="${url}" class="w-full h-24 object-cover rounded shadow" alt="新規の写真" data-url="${url}">
                 <button class="absolute top-0 right-0 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center font-bold text-sm" data-blobindex="${index}">×</button>
             `;
+            // 拡大イベント
+            div.querySelector('img').onclick = () => showImageModal(URL.createObjectURL(blob));
+            
             div.querySelector('button').onclick = (e) => {
                 e.preventDefault();
                 newPhotoBlobs.splice(index, 1); // 配列から削除

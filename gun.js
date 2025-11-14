@@ -63,7 +63,6 @@ function renderGunMenu() {
         showGunListPage();
     });
 
-    // ★★★ 新規 (1/3) ★★★
     document.getElementById('manage-ammo-types-btn').addEventListener('click', () => {
         showAmmoTypeListPage();
     });
@@ -269,9 +268,9 @@ async function showGunEditForm(gunId) {
 // ===============================================
 // ★ 銃使用履歴 (OUT)
 // ===============================================
-// (変更なしのため省略)
+
 /**
- * 「銃使用履歴」リストページを表示する
+ * ★★★ 修正: 「銃使用履歴」リストページ (絞り込み・並び替えUI追加) ★★★
  */
 async function showGunLogListPage() {
     updateHeader('銃使用履歴', true); 
@@ -282,24 +281,102 @@ async function showGunLogListPage() {
                 新しい使用履歴を登録する
             </button>
         </div>
+
+        <div class="card mb-4">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="form-group mb-0">
+                    <label for="filter-gun-purpose" class="form-label">目的で絞り込み</label>
+                    <select id="filter-gun-purpose" class="form-select mt-1">
+                        <option value="all">すべての目的</option>
+                        <option value="狩猟">狩猟</option>
+                        <option value="許可捕獲">許可捕獲</option>
+                        <option value="訓練">訓練</option>
+                        <option value="講習">講習</option>
+                    </select>
+                </div>
+                <div class="form-group mb-0">
+                    <label for="filter-gun-id" class="form-label">銃で絞り込み</label>
+                    <select id="filter-gun-id" class="form-select mt-1">
+                        <option value="all">すべての銃</option>
+                        </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4 grid grid-cols-2 gap-3">
+            <div>
+                <label for="sort-key-gunlog" class="form-label">並び替え</label>
+                <select id="sort-key-gunlog" class="form-select mt-1">
+                    <option value="use_date">使用日</option>
+                    <option value="gun_name">銃の名前</option>
+                    <option value="purpose">目的</option>
+                </select>
+            </div>
+            <div>
+                <label for="sort-order-gunlog" class="form-label">順序</label>
+                <select id="sort-order-gunlog" class="form-select mt-1">
+                    <option value="asc">昇順 (A→Z / 古→新)</option>
+                    <option value="desc">降順 (Z→A / 新→古)</option>
+                </select>
+            </div>
+        </div>
         
         <div id="gun-log-list-container" class="space-y-3">
             <p class="text-gray-500 text-center py-4">読み込み中...</p>
         </div>
     `;
 
+    // ★★★ 新規: 絞り込み・並び替えのプルダウンを描画＆状態反映 ★★★
+    
+    // 1. 銃フィルターのプルダウンを描画
+    // (renderGunOptions は「銃を選択」が先頭に入るので、'all' を手動で追加)
+    await renderGunOptions('filter-gun-id', null);
+    const gunFilterSelect = document.getElementById('filter-gun-id');
+    gunFilterSelect.insertAdjacentHTML('afterbegin', '<option value="all">すべての銃</option>');
+
+    // 2. 各プルダウンのDOMを取得
+    const filterPurposeSelect = document.getElementById('filter-gun-purpose');
+    const filterGunSelect = document.getElementById('filter-gun-id');
+    const sortKeySelect = document.getElementById('sort-key-gunlog');
+    const sortOrderSelect = document.getElementById('sort-order-gunlog');
+
+    // 3. appState から現在の状態を反映
+    filterPurposeSelect.value = appState.gunLogFilters.purpose;
+    filterGunSelect.value = appState.gunLogFilters.gun_id;
+    sortKeySelect.value = appState.gunLogSort.key;
+    sortOrderSelect.value = appState.gunLogSort.order;
+
+    // 4. イベントリスナーを設定
+    filterPurposeSelect.addEventListener('change', (e) => {
+        appState.gunLogFilters.purpose = e.target.value;
+        renderGunLogList();
+    });
+    filterGunSelect.addEventListener('change', (e) => {
+        appState.gunLogFilters.gun_id = e.target.value;
+        renderGunLogList();
+    });
+    sortKeySelect.addEventListener('change', (e) => {
+        appState.gunLogSort.key = e.target.value;
+        renderGunLogList();
+    });
+    sortOrderSelect.addEventListener('change', (e) => {
+        appState.gunLogSort.order = e.target.value;
+        renderGunLogList();
+    });
+    
+    // ★★★ 修正ここまで ★★★
+
     // リストを描画
     await renderGunLogList();
 
     // 新規登録ボタンのイベント
     document.getElementById('add-new-gun-log-btn').addEventListener('click', () => {
-        // null を渡して新規登録フォームを開く
         showGunLogEditForm(null);
     });
 }
 
 /**
- * 銃使用履歴リストをDBから読み込んで描画する
+ * ★★★ 修正: 銃使用履歴リスト (絞り込み・並び替えロジック追加) ★★★
  */
 async function renderGunLogList() {
     const container = document.getElementById('gun-log-list-container');
@@ -310,19 +387,60 @@ async function renderGunLogList() {
         const guns = await db.guns.toArray();
         const gunIdToNameMap = new Map(guns.map(gun => [gun.id, gun.gun_name]));
 
-        // 2. 銃使用履歴を日付の新しい順に取得
-        const logs = await db.gun_logs.orderBy('use_date').reverse().toArray();
+        // 2. 絞り込みと並び替えの状態を取得
+        const { key, order } = appState.gunLogSort;
+        const { purpose, gun_id } = appState.gunLogFilters;
+
+        // 3. Dexieクエリを作成 (JS .filter() を使う)
+        let query = db.gun_logs.toCollection(); // .toCollection() で全件取得
+
+        // 4. 絞り込み (filter)
+        if (purpose !== 'all') {
+            query = query.filter(log => log.purpose === purpose);
+        }
+        if (gun_id !== 'all') {
+            query = query.filter(log => log.gun_id === Number(gun_id));
+        }
+
+        // 5. データを配列として取得
+        let logs = await query.toArray();
         
+        // 6. JavaScript側で並び替え (名前ソートに対応するため)
+        
+        // 6a. ソート用の名前を全ログに付与
+        logs.forEach(log => {
+            log.gunName = gunIdToNameMap.get(log.gun_id) || '不明な銃';
+        });
+        
+        // 6b. ソートキーを決定 (keyが 'gun_name' なら 'gunName' を使う)
+        const sortKey = (key === 'gun_name') ? 'gunName' : key;
+        
+        // 6c. JSの .sort() を実行
+        logs.sort((a, b) => {
+            const valA = a[sortKey];
+            const valB = b[sortKey];
+
+            let comparison = 0;
+            if (valA > valB) {
+                comparison = 1;
+            } else if (valA < valB) {
+                comparison = -1;
+            }
+            // 昇順(asc)ならそのまま、降順(desc)なら反転
+            return (order === 'asc') ? comparison : -comparison;
+        });
+
+        // 7. 結果を描画
         if (logs.length === 0) {
-            container.innerHTML = `<p class="text-gray-500 text-center py-4">登録されている使用履歴はありません。</p>`;
+            container.innerHTML = `<p class="text-gray-500 text-center py-4">該当する使用履歴はありません。</p>`;
             return;
         }
 
         container.innerHTML = logs.map(log => {
-            // 銃IDを名前に変換 (見つからない場合は '不明な銃' )
-            const gunName = gunIdToNameMap.get(log.gun_id) || '不明な銃';
+            // (gunName はソート時に付与済み)
+            const gunName = log.gunName; 
             const location = log.location || '場所未設定';
-            const purpose = log.purpose || '目的未設定';
+            const purposeText = log.purpose || '目的未設定';
 
             return `
                 <div class="trap-card" data-id="${log.id}">
@@ -330,7 +448,7 @@ async function renderGunLogList() {
                         <h3 class="text-lg font-semibold text-blue-600 truncate">${formatDate(log.use_date)}</h3>
                         <p class="text-sm text-gray-700 truncate">${escapeHTML(gunName)}</p>
                         <p class="text-sm text-gray-500 truncate">
-                            ${escapeHTML(purpose)} / ${escapeHTML(location)}
+                            ${escapeHTML(purposeText)} / ${escapeHTML(location)}
                         </p>
                     </div>
                     <span>&gt;</span>
@@ -477,7 +595,7 @@ async function showGunLogEditForm(logId) {
     // 1. 所持銃プルダウンを描画
     await renderGunOptions('gun_id', log.gun_id);
 
-    // ★★★ 新規 (2/3): 弾種候補の datalist を描画 ★★★
+    // ★ 弾種候補の datalist を描画
     await renderAmmoTypeDatalist('ammo-type-suggestions');
 
     // 2. 使用弾数リストを描画・管理
@@ -615,6 +733,7 @@ async function renderGunOptions(selectId, selectedId) {
                     ${escapeHTML(gun.gun_name)}
                 </option>
             `).join('');
+            // ★★★ 修正: 「すべての銃」ではなく、「銃を選択」をデフォルトに
             optionsHtml = `<option value="">銃を選択してください</option>` + optionsHtml;
         } else {
             optionsHtml = `<option value="">銃が登録されていません</option>`;
@@ -787,7 +906,7 @@ async function showAmmoPurchaseEditForm(logId) {
 
     // --- フォームのイベントリスナーを設定 ---
 
-    // ★★★ 新規 (2/3): 弾種候補の datalist を描画 ★★★
+    // ★ 弾種候補の datalist を描画
     await renderAmmoTypeDatalist('ammo-type-suggestions');
 
     // 1. キャンセルボタン
@@ -944,12 +1063,11 @@ async function showAmmoLedgerPage() {
 
 
 // ===============================================
-// ★★★ 新規 (3/3): 実包の種類マスタ管理 ★★★
+// ★★★ 実包の種類マスタ管理 ★★★
 // ===============================================
-
+// (変更なし)
 /**
  * 「実包の種類を登録」ページを表示する
- * (trap.js の showManageTrapTypesPage とほぼ同じ)
  */
 async function showAmmoTypeListPage() {
     updateHeader('実包の種類の登録', true); // 戻るボタンを表示
@@ -1007,7 +1125,6 @@ async function showAmmoTypeListPage() {
 
 /**
  * 実包の種類リストをDBから読み込んで描画する
- * (trap.js の renderTrapTypeList とほぼ同じ)
  */
 async function renderAmmoTypeList() {
     const container = document.getElementById('ammo-type-list');
@@ -1056,9 +1173,8 @@ async function renderAmmoTypeList() {
 }
 
 /**
- * ★★★ 新規 (3/3) ★★★
  * 弾種の <option> タグを <datalist> に描画するヘルパー関数
- * @param {string} datalistId - <datalist> タグのID
+ * (変更なし)
  */
 async function renderAmmoTypeDatalist(datalistId) {
     const datalistEl = document.getElementById(datalistId);

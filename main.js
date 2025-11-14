@@ -25,18 +25,40 @@ const appState = {
     currentCatchMethod: 'all', // 'all', 'trap', 'gun'
     currentCatchRelationId: null, // trapId または gunLogId
     
+    // 罠タブの状態
     trapView: 'open', // 'open' (開いている罠) または 'closed' (過去の罠)
-    trapFilters: { // 罠の絞り込み状態
-        type: 'all'    // all, くくり罠, 箱罠, ...
+    trapFilters: {
+        type: 'all'
     },
-    // ★★★ 新規: 並び替え状態 ★★★
     trapSortOpen: {
-        key: 'trap_number', // 開いている罠のデフォルト (名前 昇順)
+        key: 'trap_number',
         order: 'asc'
     },
     trapSortClosed: {
-        key: 'close_date', // 過去の罠のデフォルト (回収日 降順)
+        key: 'close_date',
         order: 'desc'
+    },
+    
+    // 銃使用履歴の状態
+    gunLogFilters: {
+        purpose: 'all',
+        gun_id: 'all'
+    },
+    gunLogSort: {
+        key: 'use_date', 
+        order: 'desc'    
+    },
+    
+    // ★★★ 新規: 捕獲一覧の絞り込み・並び替え状態 ★★★
+    catchFilters: {
+        method: 'all',
+        species: '', // 獣種 (テキスト入力)
+        gender: 'all',
+        age: 'all'
+    },
+    catchSort: {
+        key: 'catch_date', // デフォルトは捕獲日
+        order: 'desc'      // 降順 (新しい順)
     }
 };
 
