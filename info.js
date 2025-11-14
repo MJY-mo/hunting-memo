@@ -1,11 +1,11 @@
-// このファイルは info.js です (修正版)
+// このファイルは info.js です (再々修正版)
 
 /**
  * 「情報」タブのメインページを表示する
  */
 async function showInfoPage() {
     app.innerHTML = `
-        <div classclass="space-y-4">
+        <div class="space-y-4">
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">情報メニュー</h2>
                 <div class="space-y-3">
@@ -123,7 +123,9 @@ async function renderGameAnimalList() {
         }
         
         // 2. データを取得 (名前順でソート)
-        const animals = await query.sortBy('species_name');
+        // ★ 修正: .sortBy(...) -> .orderBy(...).toArray()
+        // (query が Table または WhereClause のため)
+        const animals = await query.orderBy('species_name').toArray();
 
         if (animals.length === 0) {
             listContainer.innerHTML = `<p class="text-center text-gray-500 py-4">該当する鳥獣はいません。</p>`;
@@ -168,12 +170,9 @@ async function renderGameAnimalList() {
 }
 
 // --- 狩猟鳥獣 図鑑 (詳細) ---------------------------------
-
+// (このセクションは修正なし)
 /**
  * 狩猟鳥獣図鑑の「詳細ページ」を表示する
- * ★ 修正: description, image_1, image_2 を表示するロジック (機能は維持)
- * ★ 修正: スタイルを card ベースに戻す
- * @param {number} id - 表示する鳥獣のDB ID
  */
 async function showGameAnimalDetailPage(id) {
     try {
@@ -278,10 +277,9 @@ async function showGameAnimalDetailPage(id) {
 
 
 // --- 狩猟者プロファイル ---------------------------------
-
+// (このセクションは修正なし)
 /**
  * 狩猟者プロファイルページ（編集フォーム）を表示する
- * ★ 修正: スタイルを card, form-input 等に戻す
  */
 async function showHunterProfilePage() {
     try {
@@ -380,6 +378,6 @@ async function showHunterProfilePage() {
 
     } catch (err) {
         console.error("Failed to load hunter profile:", err);
-        app.innerHTML = `<div class="error-box">プロファイルの読み込みに失敗しました。</div>`;
+        app.innerHTML = `<div class="error-box">プロファイルの読み込みに失敗しました: ${err.message}</div>`;
     }
 }
