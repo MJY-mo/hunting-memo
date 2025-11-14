@@ -148,6 +148,8 @@ async function populateDefaultHunterProfile() {
 /**
  * ★★★ 修正: 狩猟鳥獣データを「必要であれば」DBに登録する ★★★
  * (DBが空の場合のみ実行し、2回目以降はスキップする)
+ * (★ 修正: ウズラを削除)
+ * (★ 修正: DBスキーマ v2 に合わせ、description, image_1, image_2 を追加)
  */
 async function populateGameAnimalListIfNeeded() {
     try {
@@ -163,59 +165,62 @@ async function populateGameAnimalListIfNeeded() {
         // 3. データが0件なら、投入処理を実行
         console.log("Game animal list is empty. Populating now...");
         
-        // v18のスキーマに合わせた完全なデータ
-        // (ドバト、ゴイサギ、カワウなど、CSVにない種を削除)
-        // (★ ウズラ を削除)
+        // ★★★
+        // ここにCSVのデータを反映させてください。
+        // description: "（説明文をここに）"
+        // image_1: "画像ファイル名1.jpg" (なければ "")
+        // image_2: "画像ファイル名2.jpg" (なければ "")
+        // ★★★
         const animals = [
-            { category: "哺乳類", is_game_animal: "〇", species_name: "イノシシ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州、淡路島 (沖縄は亜種リュウキュウイノシシ)", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ニホンジカ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道(エゾシカ)、本州、四国、九州", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ツキノワグマ", method_gun: "○", method_trap: "✕", method_net: "△", gender: "オスメス", count: "", prohibited_area: "三重県、奈良県、和歌山県、島根県、広島県、山口県、徳島県、香川県、愛媛県、高知県", habitat: "本州、四国 ", notes: "IUCN VU" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ヒグマ", method_gun: "○", method_trap: "✕", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "タヌキ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国 (北海道はエゾタヌキ)", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "キツネ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国 (北海道はキタキツネ)", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ノウサギ", method_gun: "○", method_trap: "○", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ユキウサギ", method_gun: "○", method_trap: "○", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "テン", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "(※亜種ツシマテンを除く)", habitat: "本州、四国、九州 ", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "アナグマ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "イタチ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オス", count: "", prohibited_area: "", habitat: "本州、四国、九州 (北海道は人為移入)", notes: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "チョウセンイタチ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オス", count: "", prohibited_area: "", habitat: "西日本中心", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ミンク", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道、長野など", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "アライグマ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ハクビシン", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ヌートリア", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州西部（岡山、兵庫、京都など）", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "タイワンリス", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "神奈川、静岡、大阪など局所的", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "シマリス", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "北海道", habitat: "北海道 (本州等で見られるのは外来種)", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ノイヌ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したイヌ）", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ノネコ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したネコ）", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "ニホンザル", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "ニホンカモシカ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "天然記念物" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "キョン", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "ハリネズミ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヒドリガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "マガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥・一部留鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "カルガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（留鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ハシビロガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "オナガガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "コガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヨシガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ホシハジロ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "キンクロハジロ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "スズガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "クロガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "エゾライチョウ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "キジ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "本州、四国、九州", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "コウライキジ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "北海道（放鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヤマドリ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "本州、四国、九州", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "コジュケイ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "本州、四国、九州（放鳥）", notes: "（外来種）" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヤマシギ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国（冬鳥・一部留鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "タシギ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国（冬鳥・旅鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "キジバト", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "10羽/日", prohibited_area: "", habitat: "全国（留鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヒヨドリ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "スズメ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（留鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ムクドリ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ミヤマガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "西日本（冬鳥）", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ハシボソガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ハシブトガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "" }
+            { category: "哺乳類", is_game_animal: "〇", species_name: "イノシシ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州、淡路島 (沖縄は亜種リュウキュウイノシシ)", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ニホンジカ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道(エゾシカ)、本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ツキノワグマ", method_gun: "○", method_trap: "✕", method_net: "△", gender: "オスメス", count: "", prohibited_area: "三重県、奈良県、和歌山県、島根県、広島県、山口県、徳島県、香川県、愛媛県、高知県", habitat: "本州、四国 ", notes: "IUCN VU", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ヒグマ", method_gun: "○", method_trap: "✕", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "タヌキ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国 (北海道はエゾタヌキ)", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "キツネ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国 (北海道はキタキツネ)", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ノウサギ", method_gun: "○", method_trap: "○", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ユキウサギ", method_gun: "○", method_trap: "○", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "テン", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "(※亜種ツシマテンを除く)", habitat: "本州、四国、九州 ", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "アナグマ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "イタチ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オス", count: "", prohibited_area: "", habitat: "本州、四国、九州 (北海道は人為移入)", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "チョウセンイタチ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オス", count: "", prohibited_area: "", habitat: "西日本中心", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ミンク", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道、長野など", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "アライグマ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ハクビシン", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ヌートリア", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州西部（岡山、兵庫、京都など）", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "タイワンリス", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "神奈川、静岡、大阪など局所的", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "シマリス", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "北海道", habitat: "北海道 (本州等で見られるのは外来種)", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ノイヌ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したイヌ）", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "〇", species_name: "ノネコ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したネコ）", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "×", species_name: "ニホンザル", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "×", species_name: "ニホンカモシカ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "天然記念物", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "×", species_name: "キョン", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "哺乳類", is_game_animal: "×", species_name: "ハリネズミ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ヒドリガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "マガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥・一部留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "カルガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ハシビロガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "オナガガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "コガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ヨシガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ホシハジロ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "キンクロハジロ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "スズガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "クロガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "エゾライチョウ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "キジ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "コウライキジ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "北海道（放鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ヤマドリ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "コジュケイ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "本州、四国、九州（放鳥）", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ヤマシギ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国（冬鳥・一部留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "タシギ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国（冬鳥・旅鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "キジバト", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "10羽/日", prohibited_area: "", habitat: "全国（留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ヒヨドリ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "スズメ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ムクドリ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ミヤマガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "西日本（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ハシボソガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
+            { category: "鳥類", is_game_animal: "〇", species_name: "ハシブトガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" }
         ];
 
         // (DBは空なので clear() は不要)
