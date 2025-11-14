@@ -52,9 +52,8 @@ window.addEventListener('load', () => {
         // 5. タブ切り替えのリスナーを設定
         setupTabs();
         
-        // 6. 初期タブ（「罠」タブ）
-        // (起動時は「罠メインメニュー」ではなく、直接「架設状態」に飛ぶ)
-        navigateTo('trap', showTrapStatusPage, '罠 (設置中)');
+        // ★★★ 修正: 初期タブを「罠」タブのトップページに変更 ★★★
+        navigateTo('trap', showTrapPage, '罠');
     }).catch(err => {
         console.error("Failed to open database:", err);
         app.innerHTML = `<div class="error-box">データベースの起動に失敗しました。アプリが使用できません。</div>`;
@@ -81,13 +80,11 @@ async function populateDefaultTrapTypes() {
 }
 
 /**
- * ★★★ 修正 (バグ修正): v12/v13 のスキーマに合わせる ★★★
  * 狩猟者プロファイルのデフォルト行を作成する
  */
 async function populateDefaultHunterProfile() {
     try {
         // 'main' というキーで単一のプロファイルを作成
-        // (写真Blobカラムは v12 で削除された)
         await db.hunter_profile.add({
             key: 'main',
             name: '',
