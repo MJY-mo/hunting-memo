@@ -1,5 +1,6 @@
 // このファイルは catch.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
+// ★ 修正: type_ のタイプミスを type に修正
 
 /**
  * 「捕獲記録」タブのメインページを表示する
@@ -50,7 +51,7 @@ async function showCatchListPage() {
                 
                 <div class="filter-group">
                     <label for="catch-filter-species">種名:</label>
-                    <input type_="text" id="catch-filter-species" class="filter-input" value="${escapeHTML(filters.species)}" placeholder="例: イノシシ">
+                    <input type="text" id="catch-filter-species" class="filter-input" value="${escapeHTML(filters.species)}" placeholder="例: イノシシ">
                 </div>
                 
                 <div class="filter-group">
@@ -486,7 +487,7 @@ async function showCatchEditForm(id, relationIds = null) {
                         <div class="info-image-container">
                             <img src="${blobUrl}" alt="既存の写真" id="current-image" class="clickable-image">
                         </div>
-                        <button type=_button" id="remove-image-btn" class="button button-danger button-small">写真を削除</button>
+                        <button type="button" id="remove-image-btn" class="button button-danger button-small">写真を削除</button>
                     </div>
                 `;
             }

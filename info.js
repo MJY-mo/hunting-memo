@@ -1,4 +1,5 @@
 // このファイルは info.js です
+// ★ 修正: classid のタイプミスを class に修正
 
 /**
  * 「情報」タブのメインページを表示する
@@ -8,7 +9,7 @@ async function showInfoPage() {
         <div class="page-content">
             <h2 class="page-title">情報</h2>
             
-            <div classid="info-menu-list">
+            <div class="info-menu-list">
                 <button id="info-game-animal-btn" class="menu-button">
                     <i class="fas fa-paw icon"></i>
                     狩猟鳥獣 図鑑
