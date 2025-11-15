@@ -1,8 +1,7 @@
 // このファイルは gun.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v7 (gunテーブルのカラム削除, gun_log に ammo_count 追加) に対応
+// ★ 修正: DBスキーマ v8 (gunテーブルのカラム削除, gun_log に ammo_count/companion 追加, ammo_purchases 新設) に対応
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
-// ★ 修正: renderGunLogListItems の Dexieクエリロジックを根本的に修正 (orderByが先)
 
 /**
  * 「銃」タブのメインページを表示する
@@ -93,6 +92,7 @@ async function renderGunList() {
 
 /**
  * 銃の「詳細ページ」を表示する
+ * ★ 修正: 弾の管理機能を追加
  */
 async function showGunDetailPage(id) {
     try {
@@ -102,7 +102,7 @@ async function showGunDetailPage(id) {
             return;
         }
         
-        // 編集・削除ボタンをページ上部に配置
+        // ★ 修正: 編集・削除ボタンをページ上部に配置
         const editButtonsHTML = `
             <div class="card">
                 <div class="flex space-x-2">
@@ -112,7 +112,7 @@ async function showGunDetailPage(id) {
             </div>
         `;
         
-        // 許可日・期限を削除 (v7 スキーマ対応)
+        // ★ 修正: 許可日・期限を削除 (v8 スキーマ対応)
         const tableData = [
             { label: '名前', value: gun.name },
             { label: '銃種', value: gun.type },
@@ -121,7 +121,7 @@ async function showGunDetailPage(id) {
 
         let tableHTML = `
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">許可情報</h2>
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">銃の情報</h2>
                 <table class="w-full text-sm">
                     <tbody>
         `;
@@ -146,12 +146,68 @@ async function showGunDetailPage(id) {
                 </button>
             </div>
         `;
+        
+        // ★ 修正: 弾の管理セクションを新設
+        const today = new Date().toISOString().split('T')[0];
+        const ammoManagementHTML = `
+            <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">弾の管理</h2>
+                
+                <form id="ammo-purchase-form" class="space-y-3 mb-4">
+                    <div class="form-group">
+                        <label for="ammo-purchase-date" class="form-label">購入日:</label>
+                        <input type="date" id="ammo-purchase-date" class="form-input" value="${today}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="ammo-purchase-amount" class="form-label">購入数:</label>
+                        <input type="number" id="ammo-purchase-amount" class="form-input" min="1" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full">購入を記録</button>
+                    <div id="ammo-form-error" class="text-red-600 text-sm text-center h-4"></div>
+                </form>
+                
+                <h3 class="text-md font-semibold mt-4">集計</h3>
+                <table class="w-full text-sm my-2">
+                    <tbody>
+                        <tr class="border-b">
+                            <th class="w-1/2 text-left font-medium text-gray-600 p-2 bg-gray-50">総購入数</th>
+                            <td id="ammo-total-purchased" class="w-1/2 text-gray-800 p-2">...</td>
+                        </tr>
+                        <tr class="border-b">
+                            <th class="w-1/2 text-left font-medium text-gray-600 p-2 bg-gray-50">総消費数</th>
+                            <td id="ammo-total-consumed" class="w-1/2 text-gray-800 p-2">...</td>
+                        </tr>
+                        <tr class="border-b">
+                            <th class="w-1/2 text-left font-medium text-gray-600 p-2 bg-gray-50">残弾数</th>
+                            <td id="ammo-remaining" class="w-1/2 text-gray-800 p-2 font-bold">...</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <h3 class="text-md font-semibold mt-4">購入・消費履歴</h3>
+                <div id="ammo-log-table-container" class="max-h-60 overflow-y-auto border rounded-lg mt-2">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="p-2 text-left">日付</th>
+                                <th class="p-2 text-left">内容</th>
+                                <th class="p-2 text-right">増減</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ammo-log-table-body">
+                            <tr><td colspan="3" class="p-4 text-center text-gray-500">読み込み中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
 
         app.innerHTML = `
             <div class="space-y-4">
                 ${editButtonsHTML}
                 ${tableHTML}
                 ${logButtonHTML}
+                ${ammoManagementHTML}
             </div>
         `;
 
@@ -160,6 +216,8 @@ async function showGunDetailPage(id) {
         backButton.onclick = () => showGunPage();
         headerActions.innerHTML = ''; // ヘッダーボタンはクリア
 
+        // --- イベントリスナー ---
+        
         // ページ内ボタンのイベントリスナー
         document.getElementById('edit-gun-btn').onclick = () => showGunEditForm(id);
         document.getElementById('delete-gun-btn').onclick = () => deleteGun(id);
@@ -169,12 +227,139 @@ async function showGunDetailPage(id) {
             appState.gunLogFilters.gun_id = id.toString(); // 銃IDでフィルター
             showGunPage(); // 銃ページに戻る (リストがフィルターされる)
         });
+        
+        // ★ 修正: 弾の管理機能のロジックを実行
+        await renderAmmoManagement(id);
 
     } catch (err) {
         console.error("Failed to show gun detail:", err);
         app.innerHTML = `<div class="error-box">詳細の読み込みに失敗しました: ${err.message}</div>`;
     }
 }
+
+/**
+ * ★ 新規: 銃詳細ページの「弾の管理」セクションを描画する
+ * @param {number} gunId - 銃のID
+ */
+async function renderAmmoManagement(gunId) {
+    try {
+        // 1. データを取得
+        const purchases = await db.ammo_purchases.where('gun_id').equals(gunId).toArray();
+        const consumptions = await db.gun_log.where('gun_id').equals(gunId).and(log => log.ammo_count > 0).toArray();
+
+        // 2. 集計を計算
+        const totalPurchased = purchases.reduce((sum, p) => sum + p.amount, 0);
+        const totalConsumed = consumptions.reduce((sum, c) => sum + (c.ammo_count || 0), 0);
+        const remainingAmmo = totalPurchased - totalConsumed;
+
+        // 3. 集計をHTMLに反映
+        document.getElementById('ammo-total-purchased').textContent = `${totalPurchased} 発`;
+        document.getElementById('ammo-total-consumed').textContent = `${totalConsumed} 発`;
+        document.getElementById('ammo-remaining').textContent = `${remainingAmmo} 発`;
+        
+        // 4. 履歴ログを構築
+        const purchaseLogs = purchases.map(p => ({
+            date: p.purchase_date,
+            type: '購入',
+            amount: p.amount,
+            id: `p-${p.id}` // 削除用ID
+        }));
+        
+        const consumptionLogs = consumptions.map(c => ({
+            date: c.use_date,
+            type: `消費 (${c.purpose})`,
+            amount: -c.ammo_count,
+            id: `c-${c.id}` // 参照用ID (消費ログは削除不可)
+        }));
+        
+        const combinedLogs = [...purchaseLogs, ...consumptionLogs];
+        
+        // 日付で降順ソート (新しい順)
+        combinedLogs.sort((a, b) => b.date.localeCompare(a.date));
+
+        // 5. 履歴テーブルをHTMLに反映
+        const tableBody = document.getElementById('ammo-log-table-body');
+        if (combinedLogs.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-gray-500">履歴はありません。</td></tr>`;
+        } else {
+            tableBody.innerHTML = combinedLogs.map(log => {
+                const isPurchase = log.amount > 0;
+                const amountClass = isPurchase ? 'text-green-600' : 'text-red-600';
+                const amountSign = isPurchase ? '+' : '';
+                
+                // 購入履歴のみ削除ボタンを付与
+                const deleteButton = isPurchase ? 
+                    `<button class="btn btn-danger btn-sm ammo-delete-btn" data-id="${log.id}">&times;</button>` : '';
+
+                return `
+                    <tr class="border-b">
+                        <td class="p-2">${formatDate(log.date)}</td>
+                        <td class="p-2">${escapeHTML(log.type)}</td>
+                        <td class="p-2 text-right font-medium ${amountClass} flex justify-end items-center space-x-2">
+                            <span>${amountSign}${log.amount}</span>
+                            ${deleteButton}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // 6. 購入フォームの保存イベント
+        document.getElementById('ammo-purchase-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const dateInput = document.getElementById('ammo-purchase-date');
+            const amountInput = document.getElementById('ammo-purchase-amount');
+            const errorEl = document.getElementById('ammo-form-error');
+            
+            const amount = parseInt(amountInput.value, 10);
+            if (!dateInput.value || !amount || amount <= 0) {
+                errorEl.textContent = '日付と正しい購入数を入力してください。';
+                return;
+            }
+            
+            try {
+                await db.ammo_purchases.add({
+                    gun_id: gunId,
+                    purchase_date: dateInput.value,
+                    amount: amount
+                });
+                // 成功したらフォームをリセットし、管理セクションを再描画
+                dateInput.value = new Date().toISOString().split('T')[0];
+                amountInput.value = '';
+                errorEl.textContent = '';
+                await renderAmmoManagement(gunId); // 再描画
+            } catch (err) {
+                console.error("Failed to save ammo purchase:", err);
+                errorEl.textContent = '保存に失敗しました。';
+            }
+        });
+        
+        // 7. 購入履歴の削除イベント
+        tableBody.querySelectorAll('.ammo-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const logId = e.currentTarget.dataset.id;
+                if (!logId.startsWith('p-')) return;
+                
+                const purchaseId = parseInt(logId.substring(2), 10);
+                if (confirm('この購入履歴を削除しますか？\n（消費履歴は削除されません）')) {
+                    try {
+                        await db.ammo_purchases.delete(purchaseId);
+                        await renderAmmoManagement(gunId); // 再描画
+                    } catch (err) {
+                        console.error("Failed to delete ammo purchase:", err);
+                        alert('削除に失敗しました。');
+                    }
+                }
+            });
+        });
+
+    } catch (err) {
+        console.error("Failed to render ammo management:", err);
+        document.getElementById('ammo-log-table-container').innerHTML = 
+            `<div class="error-box">弾の管理情報の読み込みに失敗しました。</div>`;
+    }
+}
+
 
 /**
  * 銃の「編集/新規作成フォーム」を表示する
@@ -274,18 +459,29 @@ async function showGunEditForm(id) {
 
 /**
  * 銃を削除する
+ * ★ 修正: 関連する ammo_purchases も削除
  */
 async function deleteGun(id) {
-    if (!confirm('この銃を本当に削除しますか？\nこの銃に関連する【使用履歴】や【捕獲記録】は削除されません。')) {
+    if (!confirm('この銃を本当に削除しますか？\nこの銃に関連する【使用履歴】【弾の購入履歴】【捕獲記録】は削除されません。')) {
         return;
     }
-
+    
+    // ★ 修正: トランザクションで ammo_purchases も削除
     try {
-        await db.gun.delete(id);
+        await db.transaction('rw', db.gun, db.ammo_purchases, async () => {
+            // 1. 関連する弾の購入履歴を削除
+            await db.ammo_purchases.where('gun_id').equals(id).delete();
+            
+            // 2. 銃本体を削除
+            await db.gun.delete(id);
+            
+            // TODO: 関連する gun_log の gun_id を null にリセットする
+        });
+        
         showGunPage(); // リストに戻る
         
     } catch (err) {
-        console.error("Failed to delete gun:", err);
+        console.error("Failed to delete gun and related purchases:", err);
         alert(`削除に失敗しました: ${err.message}`);
     }
 }
@@ -395,7 +591,6 @@ async function renderGunLogListItems() {
         const filters = appState.gunLogFilters;
         const sort = appState.gunLogSort;
         
-        // ★★★ 修正ここから ★★★
         // 1. ソートキーでまず並び替える
         let query = db.gun_log.orderBy(sort.key);
 
@@ -419,8 +614,7 @@ async function renderGunLogListItems() {
             const gunId = parseInt(filters.gun_id, 10);
             logs = logs.filter(log => log.gun_id === gunId);
         }
-        // ★★★ 修正ここまで ★★★
-
+        
         if (logs.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">銃の使用履歴はありません。</p>`;
             return;
@@ -509,12 +703,13 @@ async function showGunLogDetailPage(id) {
             `;
         }
         
-        // --- 基本情報のテーブル (★ 修正: ammo_count を追加) ---
+        // --- 基本情報のテーブル (★ 修正: ammo_count, companion を追加) ---
         const tableData = [
             { label: '使用日', value: formatDate(log.use_date) },
             { label: '目的', value: log.purpose },
             { label: '使用した銃', value: gun ? escapeHTML(gun.name) : '不明' },
             { label: '消費弾数', value: log.ammo_count },
+            { label: '同行者', value: log.companion },
             { label: '場所', value: log.location },
             { label: '緯度', value: log.latitude },
             { label: '経度', value: log.longitude },
@@ -625,7 +820,8 @@ async function showGunLogEditForm(id) {
         image_blob: null,
         latitude: '',
         longitude: '',
-        ammo_count: 0 // ★ 修正: ammo_count を追加
+        ammo_count: 0, // ★ 修正: ammo_count を追加
+        companion: ''  // ★ 修正: companion を追加
     };
     
     let pageTitle = '新規 銃使用履歴';
@@ -699,6 +895,11 @@ async function showGunLogEditForm(id) {
                 <div class="form-group">
                     <label for="gun-log-ammo-count" class="form-label">消費弾数:</label>
                     <input type="number" id="gun-log-ammo-count" class="form-input" value="${escapeHTML(log.ammo_count || 0)}" min="0">
+                </div>
+                
+                <div class="form-group">
+                    <label for="gun-log-companion" class="form-label">同行者:</label>
+                    <input type="text" id="gun-log-companion" class="form-input" value="${escapeHTML(log.companion || '')}" placeholder="例: Aさん、Bさん">
                 </div>
                 
                 <div class="form-group">
@@ -817,12 +1018,13 @@ async function showGunLogEditForm(id) {
     document.getElementById('gun-log-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        // ★ 修正: ammo_count を追加
+        // ★ 修正: ammo_count, companion を追加
         const formData = {
             use_date: document.getElementById('gun-log-date').value,
             gun_id: parseInt(document.getElementById('gun-log-gun').value, 10),
             purpose: document.getElementById('gun-log-purpose').value,
             ammo_count: parseInt(document.getElementById('gun-log-ammo-count').value, 10) || 0,
+            companion: document.getElementById('gun-log-companion').value,
             location: document.getElementById('gun-log-location').value,
             latitude: document.getElementById('gun-log-latitude').value,
             longitude: document.getElementById('gun-log-longitude').value,
