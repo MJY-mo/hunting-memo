@@ -1,8 +1,6 @@
 // このファイルは trap.js です (ロジック修正版)
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
 // ★ 修正: DBスキーマ v3/v4 (trap, trap_type) に対応
-// ★ 修正: Dexieのクエリロジックを修正 (orderBy
-)
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
