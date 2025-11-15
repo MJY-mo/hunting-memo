@@ -1,6 +1,7 @@
 // このファイルは trap.js です (ロジック修正版)
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v3/v4 (trap, trap_type) に対応
+// ★ 修正: DBスキーマ v3/v4/v5 (trap, trap_type) に対応
+// ★ 修正: renderTrapList の Dexieクエリロジックを根本的に修正
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
@@ -113,7 +114,7 @@ async function showTrapPage() {
 
 /**
  * 罠リストを描画する (フィルタリング実行)
- * ★★★ ロジック修正 ★★★
+ * ★★★ ロジック根本修正 ★★★
  */
 async function renderTrapList() {
     const listElement = document.getElementById('trap-list');
@@ -126,24 +127,28 @@ async function renderTrapList() {
         const filters = appState.trapFilters;
         const sort = (view === 'open') ? appState.trapSortOpen : appState.trapSortClosed;
 
-        // 1. 基本クエリ (is_open)
-        let query = db.trap.where('is_open').equals(view === 'open' ? 1 : 0);
+        // ★★★ 修正ここから ★★★
+        // 1. ソートキーでまず並び替える (orderByはwhere().equals()の後には呼べないため)
+        let query = db.trap.orderBy(sort.key);
 
-        // 2. ソート (インデックスを利用)
-        query = query.orderBy(sort.key);
-
-        // 3. 昇順/降順の適用
+        // 2. 昇順/降順の適用
         if (sort.order === 'desc') {
             query = query.reverse();
         }
 
-        // 4. ★★★ データベースから配列として取得 ★★★
+        // 3. データベースから配列として取得
         let traps = await query.toArray();
 
-        // 5. ★★★ 種類フィルター (JavaScript側で実行) ★★★
+        // 4. JavaScript側でフィルターを実行
+        
+        // 4a. 設置中/過去 フィルター
+        traps = traps.filter(trap => trap.is_open === (view === 'open' ? 1 : 0));
+
+        // 4b. 種類フィルター
         if (filters.type !== 'all') {
             traps = traps.filter(trap => trap.type === filters.type);
         }
+        // ★★★ 修正ここまで ★★★
 
         if (traps.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">
