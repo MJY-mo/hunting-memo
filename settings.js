@@ -4,6 +4,7 @@
 // ★ 修正: 捕獲タブの「新規記録」ボタンを廃止
 // ★ 修正: 2025/11/15 ユーザー指摘のUI修正を適用 (ボタン色, 注意書き)
 // ★ 修正: 銃使用履歴と捕獲記録のCSVダウンロード機能を追加
+// ★ 修正: 「全データ削除」機能を廃止
 
 /**
  * 「設定」タブのメインページを表示する
@@ -74,10 +75,6 @@ async function renderSettingsMenu() {
                     </button>
                     <input type="file" id="import-file-input" class="hidden" accept="application/json">
                     
-                    <button id="delete-all-data-btn" class="btn btn-danger w-full">
-                        <i class="fas fa-trash-alt"></i> 全データの削除 (リセット)
-                    </button>
-                    
                     <p id="data-status" class="text-sm text-center text-gray-500 h-4"></p>
                     
                     <p class="text-lg text-red-600 font-bold">
@@ -146,10 +143,10 @@ async function renderSettingsMenu() {
         }
     });
     
-    // 全削除
-    document.getElementById('delete-all-data-btn').addEventListener('click', deleteAllData);
+    // ★ 修正: 全削除のリスナーを削除
+    // document.getElementById('delete-all-data-btn').addEventListener('click', deleteAllData);
     
-    // ★ 新規: CSVエクスポートのリスナー
+    // CSVエクスポートのリスナー
     document.getElementById('export-gun-logs-csv-btn').addEventListener('click', exportGunLogsAsCSV);
     document.getElementById('export-catches-csv-btn').addEventListener('click', exportCatchesAsCSV);
 }
@@ -261,47 +258,15 @@ async function importAllData(file) {
     }
 }
 
-/**
- * データベースの全データを削除する
- */
+// ★ 修正: 全データ削除の関数を削除
+/*
 async function deleteAllData() {
-    if (!confirm('本当にすべてのデータを削除しますか？\n【バックアップしていないデータは失われます！】\nこの操作は元に戻せません。')) {
-        return;
-    }
-    if (prompt('確認のため、半角で「delete」と入力してください。') !== 'delete') {
-        alert('入力が一致しなかったため、キャンセルしました。');
-        return;
-    }
-    
-    const statusEl = document.getElementById('data-status');
-    statusEl.textContent = '全データを削除中...';
-
-    try {
-        // 全テーブルをクリア
-        await db.transaction('rw', db.tables, async () => {
-            for (const table of db.tables) {
-                await table.clear();
-            }
-        });
-        
-        statusEl.textContent = '全データを削除しました。リロードします...';
-        
-        // デフォルトデータを再投入してリロード
-        await populateDefaultTrapTypes();
-        await populateDefaultHunterProfile();
-        await populateGameAnimalListIfNeeded();
-        await loadAndApplySettings();
-        
-        location.reload();
-
-    } catch (err) {
-        console.error("Failed to delete all data:", err);
-        statusEl.textContent = 'データの削除に失敗しました。';
-    }
+    ...
 }
+*/
 
 
-// --- ★ 新規: CSVエクスポート機能 -----------------------------
+// --- CSVエクスポート機能 -----------------------------
 
 /**
  * CSV文字列を生成するヘルパー関数
@@ -374,7 +339,7 @@ async function exportGunLogsAsCSV() {
         const guns = await db.gun.toArray();
         const gunMap = new Map(guns.map(g => [g.id, g.name]));
 
-        // CSV用データに整形
+        // CSV用データに整形 (v10 スキーマ)
         const dataForCSV = logs.map(log => ({
             ID: log.id,
             使用日: log.use_date,
