@@ -1,6 +1,6 @@
 // このファイルは gun.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v6 (gunテーブルのカラム削除) に対応
+// ★ 修正: DBスキーマ v7 (gunテーブルのカラム削除, gun_log に ammo_count 追加) に対応
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 
 /**
@@ -111,7 +111,7 @@ async function showGunDetailPage(id) {
             </div>
         `;
         
-        // ★ 修正: 許可日・期限を削除 (v6 スキーマ対応)
+        // ★ 修正: 許可日・期限を削除 (v7 スキーマ対応)
         const tableData = [
             { label: '名前', value: gun.name },
             { label: '銃種', value: gun.type },
@@ -183,7 +183,7 @@ async function showGunEditForm(id) {
         name: '',
         type: '散弾銃',
         caliber: '',
-        // ★ 修正: 許可日・期限を削除 (v6 スキーマ対応)
+        // ★ 修正: 許可日・期限を削除 (v7 スキーマ対応)
     };
     
     let pageTitle = '新規 銃登録';
@@ -247,7 +247,7 @@ async function showGunEditForm(id) {
             return;
         }
         
-        // ★ 修正: 許可日・期限を削除 (v6 スキーマ対応)
+        // ★ 修正: 許可日・期限を削除 (v7 スキーマ対応)
         const formData = {
             name: name,
             type: document.getElementById('gun-type').value,
@@ -282,8 +282,6 @@ async function deleteGun(id) {
     }
     
     // TODO: 関連する gun_log の gun_id を null にリセットする
-    // (現在は Dexie のリレーション機能を使っていないため、手動で行う必要がある)
-    // 現時点では、gun_log は残るが、銃の名前が表示できなくなる
 
     try {
         await db.gun.delete(id);
@@ -317,7 +315,7 @@ async function renderGunLogList() {
         </option>`
     ).join('');
 
-    // HTMLを構築 (★ 修正: ボタンをページメインに移動したため、ここのボタンは削除)
+    // ★ 修正: リセットボタンを廃止し、ソート機能を追加
     container.innerHTML = `
         <div class="card">
             <div class="grid grid-cols-2 gap-4">
@@ -340,7 +338,18 @@ async function renderGunLogList() {
                     </select>
                 </div>
                 
-                <button id="gun-log-filter-reset" class="btn btn-secondary col-span-2">フィルターリセット</button>
+                <div class="form-group mb-0 col-span-2">
+                    <label class="form-label">ソート:</label>
+                    <div class="flex space-x-2">
+                        <select id="gun-log-sort-key" class="form-select">
+                            <option value="use_date" ${sort.key === 'use_date' ? 'selected' : ''}>使用日</option>
+                            </select>
+                        <select id="gun-log-sort-order" class="form-select w-24">
+                            <option value="desc" ${sort.order === 'desc' ? 'selected' : ''}>降順</option>
+                            <option value="asc" ${sort.order === 'asc' ? 'selected' : ''}>昇順</option>
+                        </select>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -360,12 +369,18 @@ async function renderGunLogList() {
         filters.gun_id = e.target.value;
         renderGunLogListItems();
     });
-    // リセット
-    document.getElementById('gun-log-filter-reset').addEventListener('click', () => {
-        filters.purpose = 'all';
-        filters.gun_id = 'all';
-        renderGunLogList(); // フィルターUI自体を再描画
+    
+    // ★ 修正: ソートのリスナーを追加
+    document.getElementById('gun-log-sort-key').addEventListener('change', (e) => {
+        sort.key = e.target.value;
+        renderGunLogListItems();
     });
+    document.getElementById('gun-log-sort-order').addEventListener('change', (e) => {
+        sort.order = e.target.value;
+        renderGunLogListItems();
+    });
+    
+    // ★ 修正: リセットボタンのリスナーを削除
     
     // 履歴リストの描画
     await renderGunLogListItems();
@@ -421,12 +436,15 @@ async function renderGunLogListItems() {
             const catchBadge = catchCount > 0 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
+            
+            // ★ 修正: ammo_count (消費弾数) を表示
+            const ammoText = (log.ammo_count > 0) ? ` / ${log.ammo_count}発` : '';
 
             listItems += `
                 <div class="trap-card" data-id="${log.id}">
                     <div class="flex-grow">
                         <h3 class="text-lg font-semibold text-blue-600">${formatDate(log.use_date)} (${escapeHTML(log.purpose)})</h3>
-                        <span class="text-sm">${gunName}</span>
+                        <span class="text-sm">${gunName}${ammoText}</span>
                     </div>
                     <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
                         ${catchBadge}
@@ -490,11 +508,12 @@ async function showGunLogDetailPage(id) {
             `;
         }
         
-        // --- 基本情報のテーブル ---
+        // --- 基本情報のテーブル (★ 修正: ammo_count を追加) ---
         const tableData = [
             { label: '使用日', value: formatDate(log.use_date) },
             { label: '目的', value: log.purpose },
             { label: '使用した銃', value: gun ? escapeHTML(gun.name) : '不明' },
+            { label: '消費弾数', value: log.ammo_count },
             { label: '場所', value: log.location },
             { label: '緯度', value: log.latitude },
             { label: '経度', value: log.longitude },
@@ -507,7 +526,8 @@ async function showGunLogDetailPage(id) {
                     <tbody>
         `;
         tableData.forEach(row => {
-            if (row.value) {
+            // ★ 修正: 0 も表示するように (value が null や undefined でないこと)
+            if (row.value !== null && row.value !== undefined && row.value !== '') {
                 tableHTML += `
                     <tr class="border-b">
                         <th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${escapeHTML(row.label)}</th>
@@ -603,7 +623,8 @@ async function showGunLogEditForm(id) {
         memo: '',
         image_blob: null,
         latitude: '',
-        longitude: ''
+        longitude: '',
+        ammo_count: 0 // ★ 修正: ammo_count を追加
     };
     
     let pageTitle = '新規 銃使用履歴';
@@ -672,6 +693,11 @@ async function showGunLogEditForm(id) {
                         <option value="射撃練習" ${log.purpose === '射撃練習' ? 'selected' : ''}>射撃練習</option>
                         <option value="その他" ${log.purpose === 'その他' ? 'selected' : ''}>その他</option>
                     </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="gun-log-ammo-count" class="form-label">消費弾数:</label>
+                    <input type="number" id="gun-log-ammo-count" class="form-input" value="${escapeHTML(log.ammo_count || 0)}" min="0">
                 </div>
                 
                 <div class="form-group">
@@ -790,10 +816,12 @@ async function showGunLogEditForm(id) {
     document.getElementById('gun-log-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        // ★ 修正: ammo_count を追加
         const formData = {
             use_date: document.getElementById('gun-log-date').value,
             gun_id: parseInt(document.getElementById('gun-log-gun').value, 10),
             purpose: document.getElementById('gun-log-purpose').value,
+            ammo_count: parseInt(document.getElementById('gun-log-ammo-count').value, 10) || 0,
             location: document.getElementById('gun-log-location').value,
             latitude: document.getElementById('gun-log-latitude').value,
             longitude: document.getElementById('gun-log-longitude').value,

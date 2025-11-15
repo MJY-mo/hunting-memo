@@ -180,10 +180,13 @@ async function renderTrapList() {
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
 
+            // ★ 修正: view === 'closed' の場合、タイトル色を変更
+            const titleColor = view === 'open' ? 'text-blue-600' : 'text-gray-500';
+
             listItems += `
                 <div class="trap-card" data-id="${trap.id}">
                     <div class="flex-grow">
-                        <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(trap.trap_number)}</h3>
+                        <h3 class="text-lg font-semibold ${titleColor}">${escapeHTML(trap.trap_number)}</h3>
                         <p class="text-sm">${escapeHTML(trap.type)} / ${formatDate(trap.setup_date)}</p>
                     </div>
                     <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
@@ -557,8 +560,6 @@ async function showTrapEditForm(id) {
              URL.revokeObjectURL(currentImg.src);
         }, { once: true });
     }
-
-    // ★ 修正: 種類を管理ボタンのリスナーを削除
     
     document.getElementById('trap-form').addEventListener('submit', async (e) => {
         e.preventDefault();
