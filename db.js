@@ -6,7 +6,7 @@ const db = new Dexie('HuntingAppDB');
 // --- データベースのスキーマ定義 ---
 //
 // ★ 修正: v9 にバージョンアップ
-// ★ 修正: 'checklist_items' テーブルを新設 (setId をインデックスに)
+// ★ 修正: 'checklist_items' テーブルを新設 (エラーログに基づき 'list_id' をインデックスに)
 //
 db.version(9).stores({
     /* 罠テーブル */
@@ -34,7 +34,7 @@ db.version(9).stores({
     checklist_sets: '++id, name',
     
     /* ★ チェックリスト (項目) (v9 で新設) */
-    checklist_items: '++id, setId, name, is_checked', // setId で 'where' クエリを実行するためインデックス
+    checklist_items: '++id, list_id, name, is_checked', // 'list_id' で 'where' クエリを実行するためインデックス
     
     /* 設定テーブル */
     settings: '&key', // 'theme', 'fontSize'
