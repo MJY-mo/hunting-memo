@@ -1,12 +1,14 @@
-// このファイルは settings.js です (再修正版)
-// ★ 修正: インポート/エクスポート機能が v3 スキーマ (単数形テーブル) を参照するように修正
-// ★ 修正: 2025/11/15 ユーザー指摘のUI修正を適用
+// このファイルは settings.js です
+// ★ 修正: 'db.catch' を 'db.catch_records' に変更
+// ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用 (UI, 戻るボタン, 哺乳類フィルタ)
+// ★ 修正: 捕獲タブの「新規記録」ボタンを廃止
+// ★ 修正: 2025/11/15 ユーザー指摘のUI修正を適用 (ボタン色, 注意書き)
+// ★ 修正: 銃使用履歴と捕獲記録のCSVダウンロード機能を追加
 
 /**
- * 「設定」タブがクリックされたときに main.js から呼ばれるメイン関数
+ * 「設定」タブのメインページを表示する
  */
 function showSettingsPage() {
-    // navigateTo は main.js で定義されたグローバル関数
     navigateTo('settings', renderSettingsMenu, '設定');
 }
 
@@ -14,278 +16,333 @@ function showSettingsPage() {
  * 設定タブのメインメニューを描画する
  */
 async function renderSettingsMenu() {
-    // 戻るボタンを非表示
-    updateHeader('設定', false);
+    // 現在の設定をDBから読み込む
+    let currentTheme = 'light';
+    let currentFontSize = 'medium';
 
-    // app は main.js で定義されたグローバル変数
-    app.innerHTML = `
-        <input type="file" id="import-file-input" class="hidden" accept="application/json">
+    try {
+        const themeSetting = await db.settings.get('theme');
+        if (themeSetting) currentTheme = themeSetting.value;
+        
+        const fontSizeSetting = await db.settings.get('fontSize');
+        if (fontSizeSetting) currentFontSize = fontSizeSetting.value;
+    } catch (err) {
+        console.error("Failed to load settings:", err);
+    }
     
+    const themeOption = (value, label) => `
+        <option value="${value}" ${currentTheme === value ? 'selected' : ''}>${label}</option>
+    `;
+    const fontOption = (value, label) => `
+        <option value="${value}" ${currentFontSize === value ? 'selected' : ''}>${label}</option>
+    `;
+
+    app.innerHTML = `
         <div class="space-y-4">
-
+            <h2 class="page-title">設定</h2>
+            
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">表示設定</h2>
-                
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">外観</h2>
                 <div class="form-group">
-                    <label for="setting-theme" class="form-label">背景色</label>
+                    <label for="setting-theme" class="form-label">テーマ:</label>
                     <select id="setting-theme" class="form-select">
-                        <option value="light">ライト (デフォルト)</option>
-                        <option value="dark">ダーク</option>
-                        <option value="sepia">セピア</option>
+                        ${themeOption('light', 'ライト')}
+                        ${themeOption('dark', 'ダーク')}
+                        ${themeOption('sepia', 'セピア')}
                     </select>
                 </div>
-                
                 <div class="form-group">
-                    <label for="setting-font-size" class="form-label">文字サイズ</label>
+                    <label for="setting-font-size" class="form-label">文字サイズ:</label>
                     <select id="setting-font-size" class="form-select">
-                        <option value="xsmall">特小 (12px)</option>
-                        <option value="small">小 (14px)</option>
-                        <option value="medium">中 (16px - デフォルト)</option>
-                        <option value="large">大 (18px)</option>
-                        <option value="xlarge">特大 (20px)</option>
+                        ${fontOption('xsmall', '極小')}
+                        ${fontOption('small', '小')}
+                        ${fontOption('medium', '中')}
+                        ${fontOption('large', '大')}
+                        ${fontOption('xlarge', '極大')}
                     </select>
                 </div>
             </div>
-
+            
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">アプリについて</h2>
-                
-                <details class="mb-2">
-                    <summary class="text-md font-semibold cursor-pointer select-none">
-                        基本的な使用方法 (タップで開く)
-                    </summary>
-                    <div class="mt-2 pt-2 border-t text-sm text-gray-700 space-y-2">
-                        <p>このアプリは、狩猟に関する記録をオフラインで管理するためのPWA（プログレッシブ・ウェブ・アプリ）です。</p>
-                        <ul class="list-disc list-inside">
-                            <li><strong>データ保存:</strong> 入力されたすべてのデータ（罠、銃、捕獲記録など）は、お使いのブラウザ（スマホ）の内部ストレージにのみ保存されます。</li>
-                            <li><strong>タブ操作:</strong> 画面下部のタブで各機能（罠、銃、捕獲など）を切り替えます。</li>
-                            <li><strong>項目管理:</strong> 「罠」や「銃」タブ内の管理メニューから、罠の種類や実包の種類などを自分で追加・編集できます。</li>
-                        </ul>
-                    </div>
-                </details>
-
-                <details>
-                    <summary class="text-lg text-red-600 font-bold cursor-pointer select-none">
-                        使用上の注意 (データ管理)
-                    </summary>
-                    <div class="mt-2 pt-2 border-t text-sm text-red-700 space-y-2">
-                        <p class="font-bold">！重要！ データはサーバーに保存されません。</p>
-                        <ul class="list-disc list-inside">
-                            <li>データはすべて、今お使いのデバイス（スマホやPC）のブラウザ内に保存されます。</li>
-                            <li><strong>ブラウザのキャッシュや履歴を（設定から）完全に消去すると、すべてのデータが失われ、復元できません。</strong></li>
-                            <li>機種変更の際、データは自動で引き継がれません。（将来的にエクスポート/インポート機能を実装予定です）</li>
-                            <li>アプリの更新（バグ修正など）でデータが消えることはありませんが、万が一に備えて重要なデータは別途メモを取ることを推奨します。</li>
-                        </ul>
-                    </div>
-                </details>
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">データ管理 (バックアップ)</h2>
+                <div class="space-y-3">
+                    <button id="export-data-btn" class="btn btn-primary w-full">
+                        <i class="fas fa-download"></i> 全データのエクスポート (.json)
+                    </button>
+                    <button id="import-data-btn" class="btn btn-secondary w-full">
+                        <i class="fas fa-upload"></i> データのインポート (.json)
+                    </button>
+                    <input type="file" id="import-file-input" class="hidden" accept="application/json">
+                    
+                    <button id="delete-all-data-btn" class="btn btn-danger w-full">
+                        <i class="fas fa-trash-alt"></i> 全データの削除 (リセット)
+                    </button>
+                    
+                    <p id="data-status" class="text-sm text-center text-gray-500 h-4"></p>
+                    
+                    <p class="text-lg text-red-600 font-bold">
+                        使用上の注意（データ管理）
+                    </p>
+                    <p class="text-sm text-gray-600 leading-relaxed">
+                        データはすべてお使いのブラウザ（端末）内に保存されています。機種変更やブラウザのアンインストール、キャッシュ削除を行うとデータは失われます。
+                        定期的に「全データのエクスポート」を行い、ご自身でバックアップを保存してください。
+                    </p>
+                </div>
             </div>
-
+            
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">データ管理</h2>
-                <p id="import-export-status" class="text-sm text-gray-500 text-center mb-2"></p>
-                <ul class="space-y-2">
-                    <li>
-                        <button id="export-data-btn" class="btn btn-primary w-full">データのエクスポート (バックアップ)</button>
-                    </li>
-                    <li>
-                        <button id="import-data-btn" class="btn btn-danger w-full">データのインポート (復元)</button>
-                    </li>
-                </ul>
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">データ管理 (CSV)</h2>
+                <div class="space-y-3">
+                    <button id="export-gun-logs-csv-btn" class="btn btn-secondary w-full">
+                        <i class="fas fa-file-csv"></i> 銃使用履歴 をCSVで出力
+                    </button>
+                    <button id="export-catches-csv-btn" class="btn btn-secondary w-full">
+                        <i class="fas fa-file-csv"></i> 捕獲記録 をCSVで出力
+                    </button>
+                    <p id="csv-status" class="text-sm text-center text-gray-500 h-4"></p>
+                </div>
             </div>
         </div>
     `;
+
+    // ヘッダーを更新
+    updateHeader('設定', false);
     
-    // イベントリスナーを（ほぼ）全書き換え
-    const themeSelect = document.getElementById('setting-theme');
-    const fontSizeSelect = document.getElementById('setting-font-size');
-    const exportBtn = document.getElementById('export-data-btn');
-    const importBtn = document.getElementById('import-data-btn');
-    const importInput = document.getElementById('import-file-input');
-    const statusEl = document.getElementById('import-export-status');
-
-    try {
-        // 1. DBから現在の設定値を読み込み、プルダウンに反映
-        const themeSetting = await db.settings.get('theme');
-        if (themeSetting) {
-            themeSelect.value = themeSetting.value;
+    // --- イベントリスナー ---
+    
+    // テーマ変更
+    document.getElementById('setting-theme').addEventListener('change', async (e) => {
+        const newTheme = e.target.value;
+        try {
+            await db.settings.put({ key: 'theme', value: newTheme });
+            applyTheme(newTheme); // main.js の共通関数
+        } catch (err) {
+            console.error("Failed to save theme setting:", err);
         }
-        
-        const fontSizeSetting = await db.settings.get('fontSize');
-        if (fontSizeSetting) {
-            fontSizeSelect.value = fontSizeSetting.value;
+    });
+
+    // 文字サイズ変更
+    document.getElementById('setting-font-size').addEventListener('change', async (e) => {
+        const newSize = e.target.value;
+        try {
+            await db.settings.put({ key: 'fontSize', value: newSize });
+            applyFontSize(newSize); // main.js の共通関数
+        } catch (err) {
+            console.error("Failed to save font size setting:", err);
         }
-
-        // 2. テーマ変更時のイベント
-        themeSelect.addEventListener('change', async (e) => {
-            const newValue = e.target.value;
-            try {
-                // DBに保存
-                await db.settings.put({ key: 'theme', value: newValue });
-                // 即時適用 (main.js の関数を呼び出す)
-                applyTheme(newValue);
-            } catch (err) {
-                console.error("Failed to save theme setting:", err);
-                alert('テーマの保存に失敗しました。');
-            }
-        });
-
-        // 3. 文字サイズ変更時のイベント
-        fontSizeSelect.addEventListener('change', async (e) => {
-            const newValue = e.target.value;
-            try {
-                // DBに保存
-                await db.settings.put({ key: 'fontSize', value: newValue });
-                // 即時適用 (main.js の関数を呼び出す)
-                applyFontSize(newValue);
-            } catch (err) {
-                console.error("Failed to save font size setting:", err);
-                alert('文字サイズの保存に失敗しました。');
-            }
-        });
-
-        // 4. エクスポートボタンのイベント
-        exportBtn.addEventListener('click', async () => {
-            if (!window.confirm('現在の全データをバックアップファイルとしてダウンロードしますか？')) return;
-            
-            statusEl.textContent = 'エクスポート準備中... (写真が多いと時間がかかります)';
-            exportBtn.disabled = true;
-            importBtn.disabled = true;
-            
-            try {
-                await exportData();
-                statusEl.textContent = 'エクスポートが完了しました。';
-            } catch (err) {
-                console.error("Export failed:", err);
-                statusEl.textContent = 'エクスポートに失敗しました。';
-                alert(`エクスポートに失敗しました: ${err.message}`);
-            } finally {
-                exportBtn.disabled = false;
-                importBtn.disabled = false;
-            }
-        });
-
-        // 5. インポートボタンのイベント
-        importBtn.addEventListener('click', () => {
-            // 非表示のinputをクリックさせる
-            importInput.click();
-        });
-        
-        // 6. ファイルが選択された時のイベント
-        importInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            // ★★★ 重大な警告 ★★★
-            if (!window.confirm(
-                "！！！警告！！！\n\n" +
-                "データをインポート（復元）すると、\n" +
-                "**現在のアプリ内のデータはすべて消去されます。**\n\n" +
-                "本当に続行しますか？"
-            )) {
-                importInput.value = null; // 選択をリセット
-                return;
-            }
-
-            statusEl.textContent = 'インポート処理中...';
-            exportBtn.disabled = true;
-            importBtn.disabled = true;
-
-            try {
-                await importData(file);
-                statusEl.textContent = 'インポートに成功しました。';
-                alert('インポートが完了しました。アプリをリロードします。');
-                window.location.reload();
-            } catch (err) {
-                console.error("Import failed:", err);
-                statusEl.textContent = 'インポートに失敗しました。';
-                alert(`インポートに失敗しました: ${err.message}`);
-                exportBtn.disabled = false;
-                importBtn.disabled = false;
-            }
-            
-            importInput.value = null; // 選択をリセット
-        });
-
-    } catch (err) {
-        console.error("Failed to load settings in settings page:", err);
-        app.innerHTML = `<div class="error-box">設定の読み込みに失敗しました。</div>`;
-    }
+    });
+    
+    // JSONエクスポート
+    document.getElementById('export-data-btn').addEventListener('click', exportAllData);
+    
+    // JSONインポート (ボタンがファイル入力をクリックする)
+    const importFileInput = document.getElementById('import-file-input');
+    document.getElementById('import-data-btn').addEventListener('click', () => {
+        importFileInput.click();
+    });
+    importFileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            importAllData(e.target.files[0]);
+        }
+    });
+    
+    // 全削除
+    document.getElementById('delete-all-data-btn').addEventListener('click', deleteAllData);
+    
+    // ★ 新規: CSVエクスポートのリスナー
+    document.getElementById('export-gun-logs-csv-btn').addEventListener('click', exportGunLogsAsCSV);
+    document.getElementById('export-catches-csv-btn').addEventListener('click', exportCatchesAsCSV);
 }
 
 
-// =======================================================
-// ★★★ インポート/エクスポート機能 (v3 スキーマ対応) ★★★
-// =======================================================
+// --- JSON (バックアップ) 機能 ---------------------------------
 
 /**
  * データベースの全データをエクスポートする
  */
-async function exportData() {
-    const backupData = {
-        export_format_version: '3.0', // v3 スキーマ
-        export_date: new Date().toISOString(),
-        tables: {}
-    };
-    
-    // ★ 修正: v3 のテーブル名 (単数形) に修正
-    const [
-        hunter_profile, settings, trap, trap_type, gun, gun_log,
-        catch_records, checklist_sets, checklist_items, game_animal_list
-    ] = await Promise.all([
-        db.hunter_profile.toArray(),
-        db.settings.toArray(),
-        db.trap.toArray(),
-        db.trap_type.toArray(),
-        db.gun.toArray(),
-        db.gun_log.toArray(),
-        db.catch_records.toArray(),
-        db.checklist_sets.toArray(),
-        db.checklist_items.toArray(),
-        db.game_animal_list.toArray() // v3 で追加
-    ]);
-    
-    // 2. BlobをBase64に非同期変換 (trap, catch_records, gun_log)
-    // (画像持ちテーブルのみ変換)
-    const convertedTrap = await Promise.all(
-        trap.map(async (item) => ({
-            ...item,
-            image_blob: await blobToBase64(item.image_blob)
-        }))
-    );
-    const convertedCatchRecords = await Promise.all(
-        catch_records.map(async (item) => ({
-            ...item,
-            image_blob: await blobToBase64(item.image_blob)
-        }))
-    );
-    const convertedGunLog = await Promise.all(
-        gun_log.map(async (item) => ({
-            ...item,
-            image_blob: await blobToBase64(item.image_blob)
-        }))
-    );
-    
-    // 4. バックアップオブジェクトに格納
-    backupData.tables = {
-        hunter_profile, settings, 
-        trap: convertedTrap, // 変換後
-        trap_type, 
-        gun, 
-        gun_log: convertedGunLog, // 変換後
-        catch_records: convertedCatchRecords, // 変換後
-        checklist_sets, checklist_items, 
-        game_animal_list
-    };
+async function exportAllData() {
+    const statusEl = document.getElementById('data-status');
+    statusEl.textContent = 'エクスポート準備中...';
+    try {
+        const exportData = {};
+        
+        // 全テーブルのデータを収集 (v10 スキーマ)
+        exportData.trap = await db.trap.toArray();
+        exportData.trap_type = await db.trap_type.toArray();
+        exportData.catch_records = await db.catch_records.toArray();
+        exportData.gun = await db.gun.toArray();
+        exportData.gun_log = await db.gun_log.toArray();
+        exportData.ammo_purchases = await db.ammo_purchases.toArray();
+        exportData.game_animal_list = await db.game_animal_list.toArray();
+        exportData.checklist_sets = await db.checklist_sets.toArray();
+        exportData.checklist_items = await db.checklist_items.toArray();
+        exportData.settings = await db.settings.toArray();
+        exportData.hunter_profile = await db.hunter_profile.toArray();
+        exportData.profile_images = await db.profile_images.toArray();
+        
+        // (画像データはBlobのままエクスポート)
 
-    // 5. ファイル名の決定
-    const profile = await db.hunter_profile.get('main');
-    const hunterName = profile && profile.name ? profile.name.replace(/ /g, '_') : 'BLNCR';
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
-    const filename = `${hunterName}_backup_v3_${dateStr}.json`;
+        // Blobを作成
+        const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        // ダウンロードリンクを作成してクリック
+        const a = document.createElement('a');
+        a.href = url;
+        const timestamp = new Date().toISOString().split('T')[0];
+        a.download = `hunting_app_backup_${timestamp}.json`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // 後片付け
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        statusEl.textContent = 'エクスポートが完了しました。';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
 
-    // 6. JSONファイルとしてダウンロード
-    const jsonString = JSON.stringify(backupData);
-    const blob = new Blob([jsonString], { type: 'application/json' });
+    } catch (err) {
+        console.error("Failed to export data:", err);
+        statusEl.textContent = 'エクスポートに失敗しました。';
+    }
+}
+
+/**
+ * データをインポートする
+ * @param {File} file - インポートする JSON ファイル
+ */
+async function importAllData(file) {
+    if (!confirm('本当にデータをインポートしますか？\n【現在のデータはすべて上書きされます！】\nこの操作は元に戻せません。')) {
+        return;
+    }
+
+    const statusEl = document.getElementById('data-status');
+    statusEl.textContent = 'インポート中...';
+
+    try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        
+        // トランザクションですべてのデータを書き込む
+        await db.transaction('rw', db.tables, async () => {
+            // 全テーブルをクリア
+            for (const table of db.tables) {
+                await table.clear();
+            }
+            
+            // 各テーブルにデータを投入
+            // (v10 スキーマ)
+            if (data.trap) await db.trap.bulkAdd(data.trap);
+            if (data.trap_type) await db.trap_type.bulkAdd(data.trap_type);
+            if (data.catch_records) await db.catch_records.bulkAdd(data.catch_records);
+            if (data.gun) await db.gun.bulkAdd(data.gun);
+            if (data.gun_log) await db.gun_log.bulkAdd(data.gun_log);
+            if (data.ammo_purchases) await db.ammo_purchases.bulkAdd(data.ammo_purchases);
+            if (data.game_animal_list) await db.game_animal_list.bulkAdd(data.game_animal_list);
+            if (data.checklist_sets) await db.checklist_sets.bulkAdd(data.checklist_sets);
+            if (data.checklist_items) await db.checklist_items.bulkAdd(data.checklist_items);
+            if (data.settings) await db.settings.bulkAdd(data.settings);
+            if (data.hunter_profile) await db.hunter_profile.bulkAdd(data.hunter_profile);
+            if (data.profile_images) await db.profile_images.bulkAdd(data.profile_images);
+
+            // 古い 'catch' テーブル (v1-v4) に対応
+            if (data.catch) await db.catch_records.bulkAdd(data.catch);
+        });
+
+        statusEl.textContent = 'インポートが完了しました。リロードします...';
+        
+        // 設定を再適用してリロード
+        await loadAndApplySettings();
+        location.reload();
+
+    } catch (err) {
+        console.error("Failed to import data:", err);
+        statusEl.textContent = 'インポートに失敗しました。ファイルが破損しているか、形式が違います。';
+    }
+}
+
+/**
+ * データベースの全データを削除する
+ */
+async function deleteAllData() {
+    if (!confirm('本当にすべてのデータを削除しますか？\n【バックアップしていないデータは失われます！】\nこの操作は元に戻せません。')) {
+        return;
+    }
+    if (prompt('確認のため、半角で「delete」と入力してください。') !== 'delete') {
+        alert('入力が一致しなかったため、キャンセルしました。');
+        return;
+    }
+    
+    const statusEl = document.getElementById('data-status');
+    statusEl.textContent = '全データを削除中...';
+
+    try {
+        // 全テーブルをクリア
+        await db.transaction('rw', db.tables, async () => {
+            for (const table of db.tables) {
+                await table.clear();
+            }
+        });
+        
+        statusEl.textContent = '全データを削除しました。リロードします...';
+        
+        // デフォルトデータを再投入してリロード
+        await populateDefaultTrapTypes();
+        await populateDefaultHunterProfile();
+        await populateGameAnimalListIfNeeded();
+        await loadAndApplySettings();
+        
+        location.reload();
+
+    } catch (err) {
+        console.error("Failed to delete all data:", err);
+        statusEl.textContent = 'データの削除に失敗しました。';
+    }
+}
+
+
+// --- ★ 新規: CSVエクスポート機能 -----------------------------
+
+/**
+ * CSV文字列を生成するヘルパー関数
+ * @param {Array<object>} data - オブジェクトの配列
+ * @param {Array<string>} headers - CSVのヘッダー配列
+ * @returns {string} CSV文字列
+ */
+function convertToCSV(data, headers) {
+    // BOM を追加してExcelでの文字化けを防ぐ
+    let csv = '\uFEFF';
+    
+    // ヘッダー行
+    csv += headers.join(',') + '\r\n';
+    
+    // データ行
+    data.forEach(row => {
+        const values = headers.map(header => {
+            let value = row[header];
+            if (value === null || value === undefined) {
+                value = '';
+            }
+            // 値にカンマや改行、ダブルクォートが含まれる場合はエスケープ
+            let escaped = value.toString().replace(/"/g, '""');
+            if (escaped.search(/([,\r\n"])/g) >= 0) {
+                escaped = `"${escaped}"`;
+            }
+            return escaped;
+        });
+        csv += values.join(',') + '\r\n';
+    });
+    
+    return csv;
+}
+
+/**
+ * CSVをダウンロードさせるヘルパー関数
+ * @param {string} csvString - CSV文字列
+ * @param {string} filename - ダウンロードファイル名
+ */
+function downloadCSV(csvString, filename) {
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
     const a = document.createElement('a');
@@ -293,119 +350,120 @@ async function exportData() {
     a.download = filename;
     document.body.appendChild(a);
     a.click();
+    
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
 
 /**
- * JSONファイルからデータをインポートする
- * @param {File} file - ユーザーが選択した .json ファイル
+ * 銃使用履歴をCSVでエクスポートする
  */
-async function importData(file) {
-    const fileContent = await file.text();
-    const backupData = JSON.parse(fileContent);
-
-    if (!backupData.export_format_version || !backupData.tables) {
-        throw new Error('無効なバックアップファイル形式です。');
-    }
+async function exportGunLogsAsCSV() {
+    const statusEl = document.getElementById('csv-status');
+    statusEl.textContent = '銃使用履歴を作成中...';
     
-    // v3 スキーマのインポートを想定
-    const { tables } = backupData;
-    
-    // 1. Base64をBlobに非同期変換
-    const convertedTrap = await Promise.all(
-        (tables.trap || []).map(async (item) => ({
-            ...item,
-            image_blob: await base64ToBlob(item.image_blob)
-        }))
-    );
-    const convertedCatchRecords = await Promise.all(
-        (tables.catch_records || []).map(async (item) => ({
-            ...item,
-            image_blob: await base64ToBlob(item.image_blob)
-        }))
-    );
-    const convertedGunLog = await Promise.all(
-        (tables.gun_log || []).map(async (item) => ({
-            ...item,
-            image_blob: await base64ToBlob(item.image_blob)
-        }))
-    );
-
-    // 3. トランザクションですべてのデータを書き込む
-    // ★ 修正: v3 のテーブル名 (単数形)
-    await db.transaction(
-        'rw',
-        [
-            db.hunter_profile, db.settings,
-            db.trap, db.trap_type,
-            db.gun, db.gun_log,
-            db.catch_records, 
-            db.checklist_sets, db.checklist_items,
-            db.game_animal_list
-        ],
-        async () => {
-            // 3.1. 全テーブルをクリア
-            await Promise.all([
-                db.hunter_profile.clear(),
-                db.settings.clear(),
-                db.trap.clear(),
-                db.trap_type.clear(),
-                db.gun.clear(),
-                db.gun_log.clear(),
-                db.catch_records.clear(),
-                db.checklist_sets.clear(),
-                db.checklist_items.clear(),
-                db.game_animal_list.clear()
-            ]);
-            
-            // 3.2. 全テーブルにデータをバルク追加
-            await Promise.all([
-                db.hunter_profile.bulkAdd(tables.hunter_profile || []),
-                db.settings.bulkAdd(tables.settings || []),
-                db.trap_type.bulkAdd(tables.trap_type || []),
-                db.gun.bulkAdd(tables.gun || []),
-                db.checklist_sets.bulkAdd(tables.checklist_sets || []),
-                db.checklist_items.bulkAdd(tables.checklist_items || []),
-                db.game_animal_list.bulkAdd(tables.game_animal_list || []),
-                
-                // 変換後データを追加
-                db.trap.bulkAdd(convertedTrap), 
-                db.catch_records.bulkAdd(convertedCatchRecords),
-                db.gun_log.bulkAdd(convertedGunLog)
-            ]);
-        }
-    );
-}
-
-/**
- * Blob を Base64 データURL に変換する
- */
-function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-        if (!blob || !(blob instanceof Blob)) {
-            resolve(null);
+    try {
+        const logs = await db.gun_log.orderBy('use_date').toArray();
+        if (logs.length === 0) {
+            statusEl.textContent = '出力する履歴がありません。';
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
             return;
         }
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(blob);
-    });
+
+        // 銃のIDと名前のマップを作成
+        const guns = await db.gun.toArray();
+        const gunMap = new Map(guns.map(g => [g.id, g.name]));
+
+        // CSV用データに整形
+        const dataForCSV = logs.map(log => ({
+            ID: log.id,
+            使用日: log.use_date,
+            銃: gunMap.get(log.gun_id) || '不明',
+            目的: log.purpose,
+            消費弾数: log.ammo_count || 0,
+            同行者: log.companion || '',
+            場所: log.location || '',
+            緯度: log.latitude || '',
+            経度: log.longitude || '',
+            メモ: log.memo || ''
+        }));
+        
+        const headers = ['ID', '使用日', '銃', '目的', '消費弾数', '同行者', '場所', '緯度', '経度', 'メモ'];
+        const csv = convertToCSV(dataForCSV, headers);
+        
+        const timestamp = new Date().toISOString().split('T')[0];
+        downloadCSV(csv, `gun_logs_${timestamp}.csv`);
+        
+        statusEl.textContent = '銃使用履歴を出力しました。';
+
+    } catch (err) {
+        console.error("Failed to export gun logs:", err);
+        statusEl.textContent = 'CSVエクスポートに失敗しました。';
+    } finally {
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    }
 }
 
 /**
- * Base64 データURL を Blob に変換する
+ * 捕獲記録をCSVでエクスポートする
  */
-async function base64ToBlob(base64Data) {
-    if (!base64Data) {
-        return null;
-    }
+async function exportCatchesAsCSV() {
+    const statusEl = document.getElementById('csv-status');
+    statusEl.textContent = '捕獲記録を作成中...';
+
     try {
-        const response = await fetch(base64Data);
-        return await response.blob();
-    } catch (e) {
-        console.error("Failed to convert base64 to blob", e);
-        return null;
+        const catches = await db.catch_records.orderBy('catch_date').toArray();
+        if (catches.length === 0) {
+            statusEl.textContent = '出力する記録がありません。';
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
+            return;
+        }
+
+        // 関連データのマップを作成
+        const traps = await db.trap.toArray();
+        const trapMap = new Map(traps.map(t => [t.id, t.trap_number]));
+        
+        const gunLogs = await db.gun_log.toArray();
+        const gunLogMap = new Map(gunLogs.map(gl => [gl.id, gl.use_date])); // ひとまず日付を紐付け
+
+        // CSV用データに整形
+        const dataForCSV = catches.map(record => {
+            let method = '不明';
+            let relation = '';
+            if (record.trap_id) {
+                method = '罠';
+                relation = trapMap.get(record.trap_id) || `(削除済罠 ID:${record.trap_id})`;
+            } else if (record.gun_log_id) {
+                method = '銃';
+                relation = gunLogMap.get(record.gun_log_id) ? `(使用日:${gunLogMap.get(record.gun_log_id)})` : `(削除済履歴 ID:${record.gun_log_id})`;
+            }
+
+            return {
+                ID: record.id,
+                捕獲日: record.catch_date,
+                種名: record.species_name,
+                性別: record.gender,
+                年齢: record.age,
+                方法: method,
+                関連情報: relation,
+                緯度: record.latitude || '',
+                経度: record.longitude || '',
+                メモ: record.memo || ''
+            };
+        });
+        
+        const headers = ['ID', '捕獲日', '種名', '性別', '年齢', '方法', '関連情報', '緯度', '経度', 'メモ'];
+        const csv = convertToCSV(dataForCSV, headers);
+        
+        const timestamp = new Date().toISOString().split('T')[0];
+        downloadCSV(csv, `catch_records_${timestamp}.csv`);
+        
+        statusEl.textContent = '捕獲記録を出力しました。';
+
+    } catch (err) {
+        console.error("Failed to export catches:", err);
+        statusEl.textContent = 'CSVエクスポートに失敗しました。';
+    } finally {
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
     }
 }
