@@ -1,7 +1,7 @@
 // このファイルは catch.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
-// ★ 修正: trap.js と同様の新しいUI (Tailwind CSS) に全面書き換え
+// ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用 (UI, 戻るボタン, 哺乳類フィルタ)
+// ★ 修正: 捕獲タブの「新規記録」ボタンを廃止
 
 /**
  * 「捕獲記録」タブのメインページを表示する
@@ -107,15 +107,9 @@ async function showCatchListPage() {
         // 通常のタブ表示
         updateHeader('捕獲記録', false);
         
-        // 新規登録ボタン（総合）
-        const newButton = document.createElement('button');
-        newButton.id = 'new-catch-button-general';
-        newButton.className = 'btn btn-primary';
-        newButton.textContent = '新規記録';
-        newButton.onclick = () => {
-            showCatchEditForm(null, { trapId: null, gunLogId: null });
-        };
-        headerActions.appendChild(newButton);
+        // ★ 修正: 新規登録ボタン（総合）を削除
+        // const newButton = ...
+        // headerActions.appendChild(newButton);
     }
     
     // --- イベントリスナー設定 ---
