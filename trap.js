@@ -1,7 +1,7 @@
 // このファイルは trap.js です (ロジック修正版)
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v3/v4/v5 (trap, trap_type) に対応
-// ★ 修正: renderTrapList の Dexieクエリロジックを根本的に修正
+// ★ 修正: DBスキーマ v5 (trap, trap_type, close_date) に対応
+// ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
@@ -22,11 +22,11 @@ async function showTrapPage() {
     let html = `
         <div class="space-y-4">
             <div class="flex border-b border-gray-300">
-                <button id="trap-tab-open" class="flex-1 py-3 px-4 text-center text-sm font-medium 
+                <button id="trap-tab-open" class="flex-1 py-3 px-4 text-center text-base font-medium 
                     ${view === 'open' ? 'text-blue-600 border-b-2 border-blue-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}">
                     設置中の罠
                 </button>
-                <button id="trap-tab-closed" class="flex-1 py-3 px-4 text-center text-sm font-medium 
+                <button id="trap-tab-closed" class="flex-1 py-3 px-4 text-center text-base font-medium 
                     ${view === 'closed' ? 'text-blue-600 border-b-2 border-blue-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}">
                     過去の罠
                 </button>
@@ -63,6 +63,15 @@ async function showTrapPage() {
                 </div>
             </div>
 
+            <div class="flex space-x-2">
+                <button id="new-trap-button" class="btn btn-primary flex-1">
+                    <i class="fas fa-plus"></i> 新規設置
+                </button>
+                <button id="manage-trap-types-btn" class="btn btn-secondary flex-1">
+                    <i class="fas fa-cog"></i> 種類を管理
+                </button>
+            </div>
+
             <div id="trap-list" class="space-y-3">
                 <p class="text-gray-500 text-center py-4">読み込み中...</p>
             </div>
@@ -71,16 +80,9 @@ async function showTrapPage() {
     
     app.innerHTML = html;
 
-    // ヘッダーを更新
+    // ヘッダーを更新 (ボタンは置かない)
     updateHeader('罠', false);
-    
-    headerActions.innerHTML = ''; // クリア
-    const newButton = document.createElement('button');
-    newButton.id = 'new-trap-button';
-    newButton.className = 'btn btn-primary';
-    newButton.textContent = '新規設置';
-    newButton.onclick = () => showTrapEditForm(null); // 新規登録
-    headerActions.appendChild(newButton);
+    headerActions.innerHTML = ''; 
     
     // --- イベントリスナー設定 ---
     
@@ -108,13 +110,20 @@ async function showTrapPage() {
         renderTrapList();
     });
 
+    // ★ 修正(1, 2): 移動したボタンのリスナー
+    document.getElementById('new-trap-button').onclick = () => showTrapEditForm(null);
+    document.getElementById('manage-trap-types-btn').onclick = () => {
+        // 管理画面から戻ってきたら、罠ページを再描画
+        showTrapTypeManagementPage(() => showTrapPage());
+    };
+
     // リストの初回描画
     await renderTrapList();
 }
 
 /**
  * 罠リストを描画する (フィルタリング実行)
- * ★★★ ロジック根本修正 ★★★
+ * (ロジックは修正済み)
  */
 async function renderTrapList() {
     const listElement = document.getElementById('trap-list');
@@ -127,8 +136,7 @@ async function renderTrapList() {
         const filters = appState.trapFilters;
         const sort = (view === 'open') ? appState.trapSortOpen : appState.trapSortClosed;
 
-        // ★★★ 修正ここから ★★★
-        // 1. ソートキーでまず並び替える (orderByはwhere().equals()の後には呼べないため)
+        // 1. ソートキーでまず並び替える
         let query = db.trap.orderBy(sort.key);
 
         // 2. 昇順/降順の適用
@@ -148,8 +156,7 @@ async function renderTrapList() {
         if (filters.type !== 'all') {
             traps = traps.filter(trap => trap.type === filters.type);
         }
-        // ★★★ 修正ここまで ★★★
-
+        
         if (traps.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">
                 ${view === 'open' ? '設置中の罠はありません。' : '過去の罠はありません。'}
@@ -157,7 +164,7 @@ async function renderTrapList() {
             return;
         }
 
-        // 6. HTML構築 (trap-card スタイル)
+        // 6. HTML構築
         let listItems = '';
         for (const trap of traps) {
             const catchCount = await db.catch_records.where('trap_id').equals(trap.id).count();
@@ -197,7 +204,10 @@ async function renderTrapList() {
 }
 
 // --- 罠 (詳細) ---------------------------------
-// (このセクションは修正なし)
+
+/**
+ * 罠の「詳細ページ」を表示する
+ */
 async function showTrapDetailPage(id) {
     try {
         const trap = await db.trap.get(id);
@@ -205,6 +215,16 @@ async function showTrapDetailPage(id) {
             app.innerHTML = `<div class="error-box">該当するデータが見つかりません。</div>`;
             return;
         }
+        
+        // --- ★ 修正(3): 編集・削除ボタンをページ上部に配置 ---
+        const editButtonsHTML = `
+            <div class="card">
+                <div class="flex space-x-2">
+                    <button id="edit-trap-btn" class="btn btn-secondary flex-1">編集</button>
+                    <button id="delete-trap-btn" class="btn btn-danger flex-1">削除</button>
+                </div>
+            </div>
+        `;
         
         let imageHTML = '';
         if (trap.image_blob) {
@@ -257,6 +277,7 @@ async function showTrapDetailPage(id) {
             `;
         }
         
+        // --- ★ 修正(4): ボタンの表記を変更 ---
         const catchButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
@@ -265,16 +286,22 @@ async function showTrapDetailPage(id) {
                         <span class="w-6">🐾</span> この罠の捕獲記録を見る
                     </button>
                     <button id="add-catch-to-trap-btn" class="btn btn-primary w-full justify-start text-left">
-                        <span class="w-6">＋</span> この罠で捕獲した
+                        <span class="w-6">＋</span> この罠での捕獲記録を追加
                     </button>
                 </div>
             </div>
         `;
         
+        // --- ★ 修正(5): 解除ボタンを緑色にし、日付入力追加 ---
+        const today = new Date().toISOString().split('T')[0];
         const closeButtonHTML = trap.is_open
             ? `<div class="card">
                  <h2 class="text-lg font-semibold border-b pb-2 mb-4">罠の管理</h2>
-                 <button id="close-trap-btn" class="btn btn-danger w-full">
+                 <div class="form-group">
+                    <label for="trap-close-date" class="form-label">解除日:</label>
+                    <input type="date" id="trap-close-date" class="form-input" value="${today}">
+                 </div>
+                 <button id="close-trap-btn" class="btn btn-success w-full mt-2">
                      この罠を解除する (過去の罠に移動)
                  </button>
                </div>`
@@ -284,6 +311,7 @@ async function showTrapDetailPage(id) {
 
         app.innerHTML = `
             <div class="space-y-4">
+                ${editButtonsHTML}
                 ${imageHTML}
                 ${tableHTML}
                 ${memoHTML}
@@ -292,28 +320,26 @@ async function showTrapDetailPage(id) {
             </div>
         `;
 
+        // ヘッダーを更新 (戻るボタンのみ)
         updateHeader(escapeHTML(trap.trap_number), true);
         backButton.onclick = () => showTrapPage();
+        headerActions.innerHTML = ''; // ヘッダーのアクションボタンはクリア
 
-        headerActions.innerHTML = ''; 
+        // --- イベントリスナー ---
         
-        const editButton = document.createElement('button');
-        editButton.className = 'btn btn-secondary';
-        editButton.textContent = '編集';
-        editButton.onclick = () => showTrapEditForm(id);
-        headerActions.appendChild(editButton);
-
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'btn btn-danger ml-2';
-        deleteButton.textContent = '削除';
-        deleteButton.onclick = () => deleteTrap(id);
-        headerActions.appendChild(deleteButton);
+        // ★ 修正(3): ページ内のボタンにリスナーをアタッチ
+        document.getElementById('edit-trap-btn').onclick = () => showTrapEditForm(id);
+        document.getElementById('delete-trap-btn').onclick = () => deleteTrap(id);
         
         const imgElement = document.getElementById('detail-image');
         if (imgElement) {
             imgElement.addEventListener('click', () => {
                 showImageModal(imgElement.src); 
             });
+            // 詳細ページを離れるときに revoke
+            backButton.addEventListener('click', () => {
+                URL.revokeObjectURL(imgElement.src);
+            }, { once: true });
         }
         
         document.getElementById('show-related-catches-btn').addEventListener('click', () => {
@@ -326,9 +352,16 @@ async function showTrapDetailPage(id) {
             showCatchEditForm(null, { trapId: id, gunLogId: null });
         });
 
+        // ★ 修正(5): 解除ボタンのリスナーを修正
         const closeBtn = document.getElementById('close-trap-btn');
         if (closeBtn) {
-            closeBtn.addEventListener('click', () => closeTrap(id));
+            closeBtn.addEventListener('click', () => {
+                let closeDate = document.getElementById('trap-close-date').value;
+                if (!closeDate) {
+                    closeDate = new Date().toISOString().split('T')[0];
+                }
+                closeTrap(id, closeDate); // 日付を渡す
+            });
         }
 
     } catch (err) {
@@ -338,7 +371,10 @@ async function showTrapDetailPage(id) {
 }
 
 // --- 罠 (編集/新規) -----------------------------
-// (このセクションは修正なし)
+
+/**
+ * 罠の「編集/新規作成フォーム」を表示する
+ */
 async function showTrapEditForm(id) {
     let trap = {
         trap_number: '',
@@ -398,8 +434,7 @@ async function showTrapEditForm(id) {
                     <datalist id="trap-type-datalist">
                         ${typeOptions}
                     </datalist>
-                    <button type="button" id="manage-trap-types-btn" class="text-blue-600 text-sm mt-1 hover:underline">種類を管理...</button>
-                </div>
+                    </div>
 
                 <div class="form-group">
                     <label for="trap-setup-date" class="form-label">設置日 <span class="text-red-500">*</span>:</label>
@@ -517,11 +552,8 @@ async function showTrapEditForm(id) {
         }, { once: true });
     }
 
-    document.getElementById('manage-trap-types-btn').addEventListener('click', () => {
-        showTrapTypeManagementPage(() => {
-            showTrapEditForm(id); 
-        });
-    });
+    // ★ 修正(1): 種類を管理ボタンのリスナーを削除
+    // document.getElementById('manage-trap-types-btn').addEventListener('click', ...);
 
     document.getElementById('trap-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -565,16 +597,22 @@ async function showTrapEditForm(id) {
 }
 
 // --- 罠 (削除・解除) -----------------------------
-// (このセクションは修正なし)
-async function closeTrap(id) {
-    if (!confirm('この罠を「解除」しますか？\n「設置中の罠」から「過去の罠」に移動します。')) {
+
+/**
+ * 罠を解除する (is_open: 0 にする)
+ * ★ 修正(5): 解除日(closeDate) を受け取るように変更
+ * @param {number} id - 解除する罠のID
+ * @param {string} closeDate - YYYY-MM-DD形式の解除日
+ */
+async function closeTrap(id, closeDate) {
+    if (!confirm(`罠を ${formatDate(closeDate)} 付で「解除」しますか？\n「設置中の罠」から「過去の罠」に移動します。`)) {
         return;
     }
     
     try {
-        const closeDate = new Date().toISOString().split('T')[0]; // 解除日
         await db.trap.update(id, { is_open: 0, close_date: closeDate });
         
+        // 詳細ページを再描画
         showTrapDetailPage(id);
         
     } catch (err) {
@@ -583,6 +621,9 @@ async function closeTrap(id) {
     }
 }
 
+/**
+ * 罠を削除する (関連する捕獲記録も削除)
+ */
 async function deleteTrap(id) {
     if (!confirm('この罠を本当に削除しますか？\nこの罠に関連する【捕獲記録もすべて削除】されます。\nこの操作は元に戻せません。')) {
         return;
@@ -603,7 +644,11 @@ async function deleteTrap(id) {
 }
 
 // --- 罠種類 (管理) -----------------------------
-// (このセクションは修正なし)
+
+/**
+ * 罠の種類を管理するページを表示
+ * @param {function} onCloseCallback - このページを閉じたときに実行するコールバック
+ */
 async function showTrapTypeManagementPage(onCloseCallback) {
     app.innerHTML = `
         <div class="space-y-4">
@@ -629,8 +674,9 @@ async function showTrapTypeManagementPage(onCloseCallback) {
     `;
 
     updateHeader('罠の種類の管理', true);
-    backButton.onclick = onCloseCallback; 
+    backButton.onclick = onCloseCallback; // 戻るボタンでコールバックを実行
 
+    // --- 既存リストの描画 ---
     async function renderTrapTypeList() {
         const listEl = document.getElementById('trap-type-list');
         try {
@@ -669,6 +715,7 @@ async function showTrapTypeManagementPage(onCloseCallback) {
         }
     }
     
+    // --- 新規追加フォーム ---
     document.getElementById('new-trap-type-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = document.getElementById('new-trap-type-name');
@@ -694,5 +741,6 @@ async function showTrapTypeManagementPage(onCloseCallback) {
         }
     });
     
+    // 初回描画
     renderTrapTypeList();
 }
