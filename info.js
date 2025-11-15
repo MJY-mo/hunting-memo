@@ -1,4 +1,7 @@
-// このファイルは info.js です (再々修正版)
+// このファイルは info.js です
+// ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
+// ★ 修正: 「狩猟者プロファイル」 -> 「捕獲者情報」
+// ★ 修正: 捕獲者情報ページに画像（複数）のアップロード・表示・削除機能を追加
 
 /**
  * 「情報」タブのメインページを表示する
@@ -6,16 +9,17 @@
 async function showInfoPage() {
     app.innerHTML = `
         <div class="space-y-4">
+            <h2 class="page-title">情報</h2>
+            
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">情報メニュー</h2>
                 <div class="space-y-3">
                     <button id="info-game-animal-btn" class="btn btn-secondary w-full justify-start text-left">
-                        <span class="w-6">🦌</span> 狩猟鳥獣 図鑑
+                        <span class="w-6">🐾</span> 狩猟鳥獣 図鑑
                     </button>
-                    <button id="info-hunter-profile-btn" class="btn btn-secondary w-full justify-start text-left">
-                        <span class="w-6">👤</span> 狩猟者プロファイル
+                    <button id="info-profile-btn" class="btn btn-secondary w-full justify-start text-left">
+                        <span class="w-6">👤</span> 捕獲者情報
                     </button>
-                </div>
+                    </div>
             </div>
         </div>
     `;
@@ -25,9 +29,9 @@ async function showInfoPage() {
         showGameAnimalListPage();
     });
     
-    // 狩猟者プロファイルボタンのイベントリスナー
-    document.getElementById('info-hunter-profile-btn').addEventListener('click', () => {
-        showHunterProfilePage();
+    // ★ 修正: 捕獲者情報ボタンのリスナー
+    document.getElementById('info-profile-btn').addEventListener('click', () => {
+        showProfilePage();
     });
 
     // ヘッダーを更新
@@ -47,7 +51,6 @@ async function showGameAnimalListPage() {
     let html = `
         <div class="space-y-4">
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">絞り込み</h2>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-group mb-0">
                         <label for="game-filter-category" class="form-label">分類:</label>
@@ -68,9 +71,9 @@ async function showGameAnimalListPage() {
                     </div>
                 </div>
             </div>
-            
-            <div id="game-animal-list-container" class="space-y-3">
-                <p class="text-center text-gray-500 py-4">読み込み中...</p>
+
+            <div id="game-animal-list" class="space-y-3">
+                <p class="text-gray-500 text-center py-4">読み込み中...</p>
             </div>
         </div>
     `;
@@ -99,21 +102,19 @@ async function showGameAnimalListPage() {
  * 図鑑リストを描画する (フィルタリング実行)
  */
 async function renderGameAnimalList() {
-    const listContainer = document.getElementById('game-animal-list-container');
-    if (!listContainer) return;
+    const listElement = document.getElementById('game-animal-list');
+    if (!listElement) return;
     
-    listContainer.innerHTML = `<p class="text-center text-gray-500 py-4">読み込み中...</p>`;
+    listElement.innerHTML = `<p class="text-gray-500 text-center py-4">読み込み中...</p>`;
 
     try {
         const filters = appState.gameAnimalFilters;
         
-        // 1. フィルタリングクエリを作成
         let query = db.game_animal_list;
         
         if (filters.category !== 'all') {
             query = query.where('category').equals(filters.category);
         }
-        
         if (filters.status !== 'all') {
             if (filters.category === 'all') {
                 query = query.where('is_game_animal').equals(filters.status);
@@ -122,19 +123,14 @@ async function renderGameAnimalList() {
             }
         }
         
-        // 2. データを取得 (名前順でソート)
-        // ★ 修正: .sortBy(...) -> .orderBy(...).toArray()
-        // (query が Table または WhereClause のため)
-        const animals = await query.orderBy('species_name').toArray();
+        const animals = await query.sortBy('species_name');
 
         if (animals.length === 0) {
-            listContainer.innerHTML = `<p class="text-center text-gray-500 py-4">該当する鳥獣はいません。</p>`;
+            listElement.innerHTML = `<p class="text-gray-500 text-center py-4">該当する鳥獣はいません。</p>`;
             return;
         }
 
-        // 3. HTMLを構築 (trap-card スタイルを流用)
         const listItems = animals.map(animal => {
-            // 狩猟対象かどうかのバッジ (Tailwind クラスに変更)
             const statusBadge = animal.is_game_animal === '〇' 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">対象</span>`
                 : `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-red-600 bg-red-200">対象外</span>`;
@@ -153,10 +149,10 @@ async function renderGameAnimalList() {
             `;
         }).join('');
         
-        listContainer.innerHTML = listItems;
+        listElement.innerHTML = listItems;
 
-        // 4. 各項目のクリックイベントを設定
-        listContainer.querySelectorAll('.trap-card').forEach(item => {
+        // 各項目のクリックイベントを設定
+        listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
                 showGameAnimalDetailPage(id);
@@ -165,15 +161,12 @@ async function renderGameAnimalList() {
 
     } catch (err) {
         console.error("Failed to render game animal list:", err);
-        listContainer.innerHTML = `<div class="error-box">図鑑の読み込みに失敗しました。</div>`;
+        listElement.innerHTML = `<div class="error-box">図鑑の読み込みに失敗しました。</div>`;
     }
 }
 
 // --- 狩猟鳥獣 図鑑 (詳細) ---------------------------------
 // (このセクションは修正なし)
-/**
- * 狩猟鳥獣図鑑の「詳細ページ」を表示する
- */
 async function showGameAnimalDetailPage(id) {
     try {
         const animal = await db.game_animal_list.get(id);
@@ -182,16 +175,12 @@ async function showGameAnimalDetailPage(id) {
             return;
         }
 
-        // --- ★ 画像表示のロジック (Tailwind クラスでギャラリーを構成) ---
+        // --- ★ 画像表示のロジック ★ ---
         let imagesHTML = '';
         const imageFiles = [animal.image_1, animal.image_2].filter(img => img); // null や "" を除外
 
         if (imageFiles.length > 0) {
-            imagesHTML = `
-                <div class="card">
-                    <h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2>
-                    <div class="grid grid-cols-2 gap-2">
-            `;
+            imagesHTML = '<div class="card"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="info-image-gallery">';
             imageFiles.forEach(filename => {
                 // GitHub Pages (またはデプロイ先) の /image/ フォルダを参照
                 const imagePath = `./image/${escapeHTML(filename)}`;
@@ -210,14 +199,12 @@ async function showGameAnimalDetailPage(id) {
             descriptionHTML = `
                 <div class="card">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">説明</h2>
-                    <p class="text-sm text-gray-700 leading-relaxed">
-                        ${escapeHTML(animal.description).replace(/\n/g, '<br>')}
-                    </p>
+                    <p class="text-sm text-gray-700 leading-relaxed">${escapeHTML(animal.description).replace(/\n/g, '<br>')}</p>
                 </div>
             `;
         }
         
-        // --- データテーブル (Tailwind クラスでテーブルを構成) ---
+        // --- データテーブル (既存データ) ---
         const tableData = [
             { label: '分類', value: animal.category },
             { label: '狩猟鳥獣', value: animal.is_game_animal },
@@ -249,7 +236,7 @@ async function showGameAnimalDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
 
-        // --- 最終的なHTML (space-y-4 でカード間のマージンを確保) ---
+        // --- 最終的なHTML ---
         app.innerHTML = `
             <div class="space-y-4">
                 ${imagesHTML}
@@ -276,14 +263,15 @@ async function showGameAnimalDetailPage(id) {
 }
 
 
-// --- 狩猟者プロファイル ---------------------------------
-// (このセクションは修正なし)
+// --- 捕獲者情報 ---------------------------------
+
 /**
- * 狩猟者プロファイルページ（編集フォーム）を表示する
+ * ★ 修正: 捕獲者情報ページ（編集フォーム）を表示する
+ * (旧 showHunterProfilePage)
+ * ★ 修正: 画像のアップロード・表示・削除機能を追加
  */
-async function showHunterProfilePage() {
+async function showProfilePage() {
     try {
-        // 'main' キーでプロファイルを取得
         let profile = await db.hunter_profile.get('main');
         
         if (!profile) {
@@ -291,93 +279,173 @@ async function showHunterProfilePage() {
             profile = await db.hunter_profile.get('main');
         }
 
+        // 各セクションのHTMLを生成
+        const createSection = (key, label) => `
+            <div class="form-group">
+                <label for="profile-${key}" class="form-label">${label} 期限:</label>
+                <input type="date" id="profile-${key}" class="form-input" value="${escapeHTML(profile[key])}">
+            </div>
+            <div class="form-group">
+                <label class="form-label">${label} (写真):</label>
+                <input type="file" id="image-uploader-${key}" class="form-input" multiple accept="image/*">
+                <div id="image-gallery-${key}" class="image-gallery-grid mt-2">
+                    <p class="text-gray-500 text-sm">読み込み中...</p>
+                </div>
+            </div>
+            <hr class="my-4">
+        `;
+
         app.innerHTML = `
-            <div class="space-y-4">
-                <form id="hunter-profile-form" class="card">
-                    <h2 class="text-lg font-semibold border-b pb-2 mb-4">狩猟者プロファイル</h2>
-                
+            <div class="card">
+                <form id="profile-form" class="space-y-4">
+                    
                     <div class="form-group">
                         <label for="profile-name" class="form-label">名前:</label>
                         <input type="text" id="profile-name" class="form-input" value="${escapeHTML(profile.name)}">
                     </div>
                     
-                    <h3 class="text-md font-semibold mt-6 mb-2">各種期限</h3>
+                    <hr class="my-4">
                     
-                    <div class="form-group">
-                        <label for="profile-gun-license" class="form-label">銃所持許可 更新期限:</label>
-                        <input type="date" id="profile-gun-license" class="form-input" value="${escapeHTML(profile.gun_license_renewal)}">
-                    </div>
+                    ${createSection('gun_license_renewal', '銃所持許可')}
+                    ${createSection('hunting_license_renewal', '狩猟免許')}
+                    ${createSection('registration_renewal', '狩猟者登録')}
+                    ${createSection('explosives_permit_renewal', '火薬類譲受許可')}
                     
-                    <div class="form-group">
-                        <label for="profile-hunting-license" class="form-label">狩猟免許 更新期限:</label>
-                        <input type="date" id="profile-hunting-license" class="form-input" value="${escapeHTML(profile.hunting_license_renewal)}">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="profile-registration" class="form-label">狩猟者登録 更新期限:</label>
-                        <input type="date" id="profile-registration" class="form-input" value="${escapeHTML(profile.registration_renewal)}">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="profile-explosives-permit" class="form-label">火薬類譲受許可 更新期限:</label>
-                        <input type="date" id="profile-explosives-permit" class="form-input" value="${escapeHTML(profile.explosives_permit_renewal)}">
-                    </div>
-                    
-                    <div class="mt-6">
-                        <button type="submit" class="btn btn-primary w-full">
-                            保存する
-                        </button>
-                    </div>
-                    
-                    <div id="profile-save-status" class="text-center text-sm text-green-600 mt-3 h-4"></div>
+                    <button type="submit" class="btn btn-primary w-full">
+                        期限と名前を保存
+                    </button>
                 </form>
+                
+                <div id="profile-save-status" class="text-center mt-2 h-4"></div>
             </div>
         `;
         
-        // ヘッダーを更新
-        updateHeader('狩猟者プロファイル', true);
+        // ★ 修正: ヘッダーを更新
+        updateHeader('捕獲者情報', true);
         backButton.onclick = () => navigateTo('info', showInfoPage, '情報');
         
-        // 保存ボタンの処理
-        document.getElementById('hunter-profile-form').addEventListener('submit', async (e) => {
+        // --- イベントリスナー ---
+        
+        // 1. テキスト情報（名前・期限）の保存
+        document.getElementById('profile-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const statusElement = document.getElementById('profile-save-status');
             statusElement.textContent = '保存中...';
-            statusElement.classList.remove('text-red-600');
-            statusElement.classList.add('text-gray-500');
+            statusElement.className = 'text-gray-500';
 
             try {
                 const updatedProfile = {
                     key: 'main',
                     name: document.getElementById('profile-name').value,
-                    gun_license_renewal: document.getElementById('profile-gun-license').value,
-                    hunting_license_renewal: document.getElementById('profile-hunting-license').value,
-                    registration_renewal: document.getElementById('profile-registration').value,
-                    explosives_permit_renewal: document.getElementById('profile-explosives-permit').value,
+                    gun_license_renewal: document.getElementById('profile-gun-license_renewal').value,
+                    hunting_license_renewal: document.getElementById('profile-hunting_license_renewal').value,
+                    registration_renewal: document.getElementById('profile-registration_renewal').value,
+                    explosives_permit_renewal: document.getElementById('profile-explosives_permit_renewal').value,
                 };
                 
                 await db.hunter_profile.put(updatedProfile);
 
                 statusElement.textContent = '保存しました！';
-                statusElement.classList.remove('text-gray-500');
-                statusElement.classList.add('text-green-600');
-                
-                // 2秒後にメッセージを消す
-                setTimeout(() => {
-                    statusElement.textContent = '';
-                }, 2000);
+                statusElement.className = 'text-green-600';
+                setTimeout(() => { statusElement.textContent = ''; }, 2000);
 
             } catch (err) {
                 console.error("Failed to save hunter profile:", err);
-                statusElement.textContent = `保存に失敗しました: ${err.message}`;
-                statusElement.classList.remove('text-gray-500', 'text-green-600');
-                statusElement.classList.add('text-red-600');
+                statusElement.textContent = `保存に失敗: ${err.message}`;
+                statusElement.className = 'text-red-600';
             }
         });
 
+        // 2. 画像のロードとイベントリスナー設定
+        const sections = ['gun_license_renewal', 'hunting_license_renewal', 'registration_renewal', 'explosives_permit_renewal'];
+        sections.forEach(key => {
+            // 画像をロード
+            loadProfileImages(key);
+            
+            // アップロードのリスナー
+            document.getElementById(`image-uploader-${key}`).addEventListener('change', async (e) => {
+                const files = e.target.files;
+                if (!files.length) return;
+
+                const statusElement = document.getElementById('profile-save-status');
+                statusElement.textContent = '画像処理中...';
+                
+                try {
+                    for (const file of files) {
+                        const resizedBlob = await resizeImage(file, 800);
+                        await db.profile_images.add({
+                            type: key,
+                            image_blob: resizedBlob
+                        });
+                    }
+                    statusElement.textContent = '画像を追加しました！';
+                    statusElement.className = 'text-green-600';
+                } catch (err) {
+                     console.error("Failed to add profile image:", err);
+                     statusElement.textContent = `画像追加に失敗: ${err.message}`;
+                     statusElement.className = 'text-red-600';
+                }
+                
+                loadProfileImages(key); // ギャラリーを再描画
+                e.target.value = null; // inputをクリア
+                setTimeout(() => { statusElement.textContent = ''; }, 2000);
+            });
+        });
+
     } catch (err) {
-        console.error("Failed to load hunter profile:", err);
-        app.innerHTML = `<div class="error-box">プロファイルの読み込みに失敗しました: ${err.message}</div>`;
+        console.error("Failed to load hunter profile page:", err);
+        app.innerHTML = `<div class="error-box">プロファイルページの読み込みに失敗しました: ${err.message}</div>`;
+    }
+}
+
+/**
+ * ★ 新規: 捕獲者情報の画像ギャラリーを描画する
+ * @param {string} type - 'gun_license_renewal' などのキー
+ */
+async function loadProfileImages(type) {
+    const gallery = document.getElementById(`image-gallery-${type}`);
+    if (!gallery) return;
+    
+    gallery.innerHTML = '';
+    
+    try {
+        const images = await db.profile_images.where('type').equals(type).toArray();
+        if (images.length === 0) {
+            gallery.innerHTML = '<p class="text-gray-500 text-sm">写真はありません</p>';
+            return;
+        }
+        
+        images.forEach(image => {
+            const blobUrl = URL.createObjectURL(image.image_blob);
+            
+            const div = document.createElement('div');
+            div.className = 'photo-preview';
+            div.innerHTML = `
+                <img src="${blobUrl}" alt="許可証の写真" class="clickable-image">
+                <button type="button" class="photo-preview-btn-delete" data-id="${image.id}">&times;</button>
+            `;
+            
+            // クリックで拡大
+            div.querySelector('img').addEventListener('click', () => showImageModal(blobUrl));
+            
+            // 削除ボタン
+            div.querySelector('.photo-preview-btn-delete').addEventListener('click', async (e) => {
+                const id = parseInt(e.currentTarget.dataset.id, 10);
+                if (confirm('この写真を削除しますか？')) {
+                    try {
+                        await db.profile_images.delete(id);
+                        loadProfileImages(type); // ギャラリーを再描画
+                    } catch (err) {
+                        alert('削除に失敗しました。');
+                    }
+                }
+            });
+            
+            gallery.appendChild(div);
+        });
+        
+    } catch (err) {
+        console.error(`Failed to load images for ${type}:`, err);
+        gallery.innerHTML = '<p class="text-red-500 text-sm">写真の読み込みに失敗</p>';
     }
 }
