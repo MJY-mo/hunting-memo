@@ -280,10 +280,11 @@ async function showProfilePage() { // (旧 showHunterProfilePage)
         }
         
         // 各セクションのHTMLを生成
+        // ★ 修正: <label> に for 属性を追加
         const createSection = (key, label) => `
             <div class="form-group">
                 <label for="profile-${key}" class="form-label">${label} 期限:</label>
-                <input type="date" id="profile-${key}" class="form-input" value="${escapeHTML(profile[key])}">
+                <input type="date" id="profile-${key}" class="form-input" value="${escapeHTML(profile[key] || '')}">
             </div>
             <div class="form-group">
                 <label for="image-uploader-${key}" class="form-label">${label} (写真):</label>
@@ -301,7 +302,7 @@ async function showProfilePage() { // (旧 showHunterProfilePage)
                     
                     <div class="form-group">
                         <label for="profile-name" class="form-label">名前:</label>
-                        <input type="text" id="profile-name" class="form-input" value="${escapeHTML(profile.name)}">
+                        <input type="text" id="profile-name" class="form-input" value="${escapeHTML(profile.name || '')}">
                     </div>
                     
                     <hr class="my-4">

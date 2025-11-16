@@ -301,7 +301,7 @@ async function renderSettingsMenu() {
     document.getElementById('export-gun-logs-csv-btn').addEventListener('click', exportGunLogsAsCSV);
     document.getElementById('export-catches-csv-btn').addEventListener('click', exportCatchesAsCSV);
 
-    // ★ 新規: 図鑑更新ボタンのリスナー
+    // 図鑑更新ボタンのリスナー
     document.getElementById('update-game-list-btn').addEventListener('click', async () => {
         if (!confirm('GitHubから最新のCSVをダウンロードし、鳥獣図鑑を上書きしますか？')) {
             return;
