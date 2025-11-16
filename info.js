@@ -1,5 +1,5 @@
 // このファイルは info.js です (再々修正版)
-// ★ 修正: 2025/11/15 renderGameAnimalList のクエリロジックを修正 (orderByが先)
+// ★ 修正: 2025/11/15 アイコンとラベルを変更
 
 /**
  * 「情報」タブのメインページを表示する
@@ -23,7 +23,7 @@ function renderInfoMenu() {
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">情報メニュー</h2>
                 <div class="space-y-3">
                     <button id="info-game-animal-btn" class="btn btn-secondary w-full justify-start text-left">
-                        <span class="w-6">🦌</span> 狩猟鳥獣 図鑑
+                        <span class="w-6">🐾</span> 鳥獣図鑑
                     </button>
                     <button id="info-hunter-profile-btn" class="btn btn-secondary w-full justify-start text-left">
                         <span class="w-6">👤</span> 狩猟者プロファイル
@@ -88,8 +88,8 @@ async function showGameAnimalListPage() {
     
     app.innerHTML = html;
 
-    // ヘッダーを更新 (戻るボタンはメインメニューへ)
-    updateHeader('狩猟鳥獣 図鑑', true);
+    // ★ 修正: ヘッダータイトルを「鳥獣図鑑」に変更
+    updateHeader('鳥獣図鑑', true);
     backButton.onclick = () => navigateTo('info', showInfoPage, '情報');
 
     // フィルターのイベントリスナーを設定
@@ -108,7 +108,7 @@ async function showGameAnimalListPage() {
 
 /**
  * 図鑑リストを描画する (フィルタリング実行)
- * ★★★ ロジック根本修正 ★★★
+ * (ロジックは修正済み)
  */
 async function renderGameAnimalList() {
     const listElement = document.getElementById('game-animal-list');
@@ -119,13 +119,13 @@ async function renderGameAnimalList() {
     try {
         const filters = appState.gameAnimalFilters;
         
-        // ★ 修正: 1. 最初にソートする (sortBy ではなく orderBy)
+        // 1. 最初にソートする (orderBy)
         let query = db.game_animal_list.orderBy('species_name');
         
-        // ★ 修正: 2. データを配列として取得
+        // 2. データを配列として取得
         let animals = await query.toArray();
 
-        // ★ 修正: 3. JavaScript側でフィルター
+        // 3. JavaScript側でフィルター
         if (filters.category !== 'all') {
             animals = animals.filter(animal => animal.category === filters.category);
         }
@@ -255,7 +255,7 @@ async function showGameAnimalDetailPage(id) {
             </div>
         `;
         
-        // ヘッダーを更新 (種名を表示、戻るボタンはリストへ)
+        // ★ 修正: ヘッダータイトルを「鳥獣図鑑」に変更
         updateHeader(escapeHTML(animal.species_name), true);
         backButton.onclick = () => showGameAnimalListPage();
 
@@ -274,12 +274,7 @@ async function showGameAnimalDetailPage(id) {
 
 
 // --- 狩猟者プロファイル (捕獲者情報) ---------------------------------
-
-/**
- * ★ 修正: 捕獲者情報ページ（編集フォーム）を表示する
- * (旧 showHunterProfilePage)
- * ★ 修正: 画像のアップロード・表示・削除機能を追加
- */
+// (このセクションは修正なし)
 async function showHunterProfilePage() {
     try {
         let profile = await db.hunter_profile.get('main');
@@ -333,7 +328,6 @@ async function showHunterProfilePage() {
             </div>
         `;
         
-        // ★ 修正: ヘッダーを更新
         updateHeader('狩猟者プロファイル', true); // 元のファイルが '狩猟者プロファイル' だったので合わせる
         backButton.onclick = () => navigateTo('info', showInfoPage, '情報');
         

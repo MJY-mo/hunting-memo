@@ -1,13 +1,13 @@
 // このファイルは gun.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v8 (gunテーブルのカラム削除, gun_log に ammo_count/companion 追加, ammo_purchases 新設) に対応
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
+// ★ 修正: 2025/11/15 アイコン変更 (🐾 -> 🦌)
 
 /**
  * 「銃」タブのメインページを表示する
  */
 async function showGunPage() {
-    // ★ 修正: UIレイアウトとボタン配置の変更
+    // UIレイアウトとボタン配置の変更
     app.innerHTML = `
         <div class="space-y-4">
             <h2 class="page-title">所持銃と口径</h2>
@@ -34,7 +34,7 @@ async function showGunPage() {
     updateHeader('銃', false);
     headerActions.innerHTML = '';
     
-    // ★ 修正: 移動したボタンのリスナー
+    // 移動したボタンのリスナー
     document.getElementById('new-gun-button').onclick = () => showGunEditForm(null);
     document.getElementById('new-gun-log-button').onclick = () => showGunLogEditForm(null);
 
@@ -102,7 +102,7 @@ async function showGunDetailPage(id) {
             return;
         }
         
-        // ★ 修正: 編集・削除ボタンをページ上部に配置
+        // 編集・削除ボタンをページ上部に配置
         const editButtonsHTML = `
             <div class="card">
                 <div class="flex space-x-2">
@@ -112,7 +112,7 @@ async function showGunDetailPage(id) {
             </div>
         `;
         
-        // ★ 修正: 許可日・期限を削除 (v8 スキーマ対応)
+        // 許可日・期限を削除 (v8 スキーマ対応)
         const tableData = [
             { label: '名前', value: gun.name },
             { label: '銃種', value: gun.type },
@@ -137,17 +137,18 @@ async function showGunDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
         
-        // 関連する使用履歴 (ボタン)
+        // ★ 修正: アイコンを 🐾 -> 🎯 に変更
+ 
         const logButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">使用履歴</h2>
                 <button id="show-related-logs-btn" class="btn btn-secondary w-full justify-start text-left">
-                    <span class="w-6">🐾</span> この銃の使用履歴を見る
+                    <span class="w-6">🎯</span> この銃の使用履歴を見る
                 </button>
             </div>
         `;
         
-        // ★ 修正: 弾の管理セクションを新設
+        // 弾の管理セクションを新設
         const today = new Date().toISOString().split('T')[0];
         const ammoManagementHTML = `
             <div class="card">
@@ -228,7 +229,7 @@ async function showGunDetailPage(id) {
             showGunPage(); // 銃ページに戻る (リストがフィルターされる)
         });
         
-        // ★ 修正: 弾の管理機能のロジックを実行
+        // 弾の管理機能のロジックを実行
         await renderAmmoManagement(id);
 
     } catch (err) {
@@ -462,7 +463,8 @@ async function showGunEditForm(id) {
  * ★ 修正: 関連する ammo_purchases も削除
  */
 async function deleteGun(id) {
-    if (!confirm('この銃を本当に削除しますか？\nこの銃に関連する【使用履歴】【弾の購入履歴】【捕獲記録】は削除されません。')) {
+    // ★ 修正: 警告文言を変更
+    if (!confirm('この銃を本当に削除しますか？\nこの銃に関連する「弾の購入履歴」もすべて削除されます。\n（使用履歴や捕獲記録は削除されません）')) {
         return;
     }
     
@@ -751,7 +753,7 @@ async function showGunLogDetailPage(id) {
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
                 <div class="space-y-3">
                     <button id="show-related-catches-btn" class="btn btn-secondary w-full justify-start text-left">
-                        <span class="w-6">🐾</span> この日の捕獲記録を見る
+                        <span class="w-6">🦌</span> この日の捕獲記録を見る
                     </button>
                     <button id="add-catch-to-log-btn" class="btn btn-primary w-full justify-start text-left">
                         <span class="w-6">＋</span> この使用履歴での捕獲記録を追加

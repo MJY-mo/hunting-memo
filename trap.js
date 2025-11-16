@@ -1,8 +1,7 @@
 // このファイルは trap.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v5 (close_date) に対応
-// ★ 修正: クエリロジックを修正 (orderByが先)
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
+// ★ 修正: 2025/11/15 アイコン変更 (🐾 -> 🦌)
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
@@ -20,7 +19,7 @@ async function showTrapPage() {
         </option>`
     ).join('');
 
-    // ★ 修正: 「過去の罠」閲覧中は新規設置ボタンを無効化
+    // 「過去の罠」閲覧中は新規設置ボタンを無効化
     const isNewDisabled = view === 'closed';
 
     let html = `
@@ -180,7 +179,7 @@ async function renderTrapList() {
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
 
-            // ★ 修正: view === 'closed' の場合、タイトル色を変更
+            // 「過去の罠」の場合、タイトル色を変更
             const titleColor = view === 'open' ? 'text-blue-600' : 'text-gray-500';
 
             listItems += `
@@ -287,13 +286,13 @@ async function showTrapDetailPage(id) {
             `;
         }
         
-        // --- ボタンの表記を変更 ---
+        // --- ★ 修正: アイコンを 🐾 -> 🦌 に変更 ---
         const catchButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
                 <div class="space-y-3">
                     <button id="show-related-catches-btn" class="btn btn-secondary w-full justify-start text-left">
-                        <span class="w-6">🐾</span> この罠の捕獲記録を見る
+                        <span class="w-6">🦌</span> この罠の捕獲記録を見る
                     </button>
                     <button id="add-catch-to-trap-btn" class="btn btn-primary w-full justify-start text-left">
                         <span class="w-6">＋</span> この罠での捕獲記録を追加
@@ -380,10 +379,7 @@ async function showTrapDetailPage(id) {
 }
 
 // --- 罠 (編集/新規) -----------------------------
-
-/**
- * 罠の「編集/新規作成フォーム」を表示する
- */
+// (このセクションは修正なし)
 async function showTrapEditForm(id) {
     let trap = {
         trap_number: '',
@@ -603,13 +599,7 @@ async function showTrapEditForm(id) {
 }
 
 // --- 罠 (削除・解除) -----------------------------
-
-/**
- * 罠を解除する (is_open: 0 にする)
- * ★ 修正: 解除日(closeDate) を受け取るように変更
- * @param {number} id - 解除する罠のID
- * @param {string} closeDate - YYYY-MM-DD形式の解除日
- */
+// (このセクションは修正なし)
 async function closeTrap(id, closeDate) {
     if (!confirm(`罠を ${formatDate(closeDate)} 付で「解除」しますか？\n「設置中の罠」から「過去の罠」に移動します。`)) {
         return;
