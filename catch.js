@@ -1,8 +1,8 @@
 // このファイルは catch.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用 (UI, 戻るボタン, 哺乳類フィルタ)
+// ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 // ★ 修正: 捕獲タブの「新規記録」ボタンを廃止
-// ★ 修正: loadSpeciesDataList のクエリロジックを修正 (where().equals().where() バグ)
+// ★ 修正: 捕獲記録一覧のUIを変更 (方法/目的 をバッジ表示)
 
 /**
  * 「捕獲記録」タブのメインページを表示する
@@ -19,8 +19,8 @@ function showCatchPage() {
 async function showCatchListPage() {
     const filters = appState.catchFilters;
     
-    // 罠や銃から来た場合はフィルターをリセット
-    if (appState.currentCatchMethod !== 'all') {
+    // 罠や銃から来た場合はフィルターをリセットしない (★ ロジック修正)
+    if (appState.currentCatchMethod === 'all') { 
         Object.assign(filters, {
             method: 'all', species: '', gender: 'all', age: 'all'
         });
@@ -107,8 +107,7 @@ async function showCatchListPage() {
     } else {
         // 通常のタブ表示
         updateHeader('捕獲記録', false);
-        
-        // ★ 修正: 新規登録ボタン（総合）を削除
+        // 新規登録ボタン（総合）は廃止
     }
     
     // --- イベントリスナー設定 ---
@@ -136,12 +135,14 @@ async function showCatchListPage() {
     });
 
     document.getElementById('catch-filter-reset').addEventListener('click', () => {
-        appState.catchFilters.method = 'all';
-        appState.catchFilters.species = '';
-        appState.catchFilters.gender = 'all';
-        appState.catchFilters.age = 'all';
-        appState.catchSort.key = 'catch_date';
-        appState.catchSort.order = 'desc';
+        appState.currentCatchMethod = 'all'; // ★ 状態もリセット
+        appState.currentCatchRelationId = null;
+        Object.assign(appState.catchFilters, {
+            method: 'all', species: '', gender: 'all', age: 'all'
+        });
+        Object.assign(appState.catchSort, {
+            key: 'catch_date', order: 'desc'
+        });
         showCatchListPage();
     });
 
@@ -150,6 +151,7 @@ async function showCatchListPage() {
 
 /**
  * 捕獲リストを描画する (フィルタリング実行)
+ * ★ 修正: UI変更 (バッジ追加)
  */
 async function renderCatchList() {
     const listElement = document.getElementById('catch-list');
@@ -182,7 +184,6 @@ async function renderCatchList() {
 
         // --- ソート ---
         const sortKey = appState.catchSort.key;
-        // (ここで filter() を挟まない限り、orderBy は最後に呼べる)
         query = query.orderBy(sortKey);
         
         const catches = await query.toArray();
@@ -206,24 +207,37 @@ async function renderCatchList() {
         // --- HTML構築 ---
         let listItems = '';
         for (const record of filteredCatches) {
-            let relationText = '';
+            
+            // ★ 修正: UI変更のためのデータ取得
+            let methodBadge = '';
+            let purposeBadge = '';
+            let relationText = ''; // (背景色なし)
+
             if (record.trap_id) {
+                methodBadge = `<span class="badge badge-trap">罠</span>`; // [罠]
                 const trap = await db.trap.get(record.trap_id);
-                relationText = trap 
-                    ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-blue-600 bg-blue-200">${escapeHTML(trap.trap_number)}</span>`
-                    : `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-gray-600 bg-gray-200">罠 (削除済)</span>`;
+                relationText = trap ? escapeHTML(trap.trap_number) : '(削除済)';
+                
+                // 罠には「目的」がないため、空白またはデフォルトバッジ
+                // (ここでは何も表示しない)
+
             } else if (record.gun_log_id) {
+                methodBadge = `<span class="badge badge-gun">銃</span>`; // [銃]
                 const log = await db.gun_log.get(record.gun_log_id);
                 if (log) {
                     const gun = await db.gun.get(log.gun_id);
-                    relationText = gun
-                        ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-red-600 bg-red-200">${escapeHTML(gun.name)}</span>`
-                        : `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-gray-600 bg-gray-200">銃 (削除済)</span>`;
+                    relationText = gun ? escapeHTML(gun.name) : '(削除済)'; // 銃の名前
+                    
+                    // 目的バッジ
+                    if (log.purpose) {
+                        purposeBadge = `<span class="badge badge-purple">${escapeHTML(log.purpose)}</span>`; // [狩猟] など
+                    }
                 } else {
-                    relationText = `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-gray-600 bg-gray-200">銃使用 (削除済)</span>`;
+                    relationText = '(削除済)';
                 }
             } else {
-                relationText = `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-gray-600 bg-gray-200">直接記録</span>`;
+                methodBadge = `<span class="badge badge-gray">直接</span>`; // [直接]
+                relationText = ''; // 関連なし
             }
 
             // trap-card と同じスタイルを適用
@@ -233,10 +247,14 @@ async function renderCatchList() {
                         <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(record.species_name)}</h3>
                         <p class="text-sm">${formatDate(record.catch_date)}</p>
                     </div>
-                    <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
-                        ${relationText}
-                        <span>&gt;</span>
+                    <div class="flex-shrink-0 ml-4 flex flex-col items-end space-y-1">
+                        <div class="flex space-x-1">
+                            ${methodBadge}
+                            ${purposeBadge}
+                        </div>
+                        <span class="text-sm text-gray-600">${relationText}</span>
                     </div>
+                    <span class="ml-2 text-gray-400">&gt;</span>
                 </div>
             `;
         }
@@ -259,7 +277,7 @@ async function renderCatchList() {
 
 
 // --- 捕獲記録 (詳細) ---------------------------------
-
+// (このセクションは修正なし)
 async function showCatchDetailPage(id) {
     try {
         const record = await db.catch_records.get(id);
@@ -411,7 +429,7 @@ async function showCatchDetailPage(id) {
 
 
 // --- 捕獲記録 (編集/新規) -----------------------------
-
+// (このセクションは修正なし、戻るボタンのロジックは修正済み)
 async function showCatchEditForm(id, relationIds = null) {
     let record = {
         trap_id: relationIds?.trapId || null,
@@ -521,7 +539,7 @@ async function showCatchEditForm(id, relationIds = null) {
     // ヘッダーを更新
     updateHeader(pageTitle, true);
     
-    // ★ 修正: 戻るボタンの遷移先を動的に変更
+    // ★ 修正: 戻るボタンの遷移先を動的に変更 (ロジックは前回修正済み)
     backButton.onclick = () => {
         if (id) {
             // 編集中の場合: 詳細ページに戻る
@@ -540,7 +558,7 @@ async function showCatchEditForm(id, relationIds = null) {
 
     // --- フォームの動的処理 ---
 
-    // ★ 修正: 罠からの呼び出しかどうかを判定
+    // 罠からの呼び出しかどうかを判定
     const isTrapCatch = (relationIds && relationIds.trapId != null);
     // 1. 図鑑から種名リストをdatalistに読み込む (哺乳類フィルターを渡す)
     loadSpeciesDataList(isTrapCatch);
@@ -665,8 +683,7 @@ async function showCatchEditForm(id, relationIds = null) {
 
 /**
  * datalist用に図鑑から種名リストを読み込む
- * ★ 修正(6): 哺乳類のみに絞り込む機能を追加
- * ★ 修正: where().equals().where() のバグを修正
+ * (ロジックは前回修正済み)
  * @param {boolean} filterForMammals - 哺乳類のみに絞り込むか
  */
 async function loadSpeciesDataList(filterForMammals = false) {
@@ -676,10 +693,8 @@ async function loadSpeciesDataList(filterForMammals = false) {
     try {
         let query = db.game_animal_list.where('is_game_animal').equals('〇');
 
-        // ★ 修正: クエリを .toArray() で一度実行してから .filter() する
         let animals = await query.toArray();
 
-        // ★ 修正(6): 哺乳類フィルター (JS側で実行)
         if (filterForMammals) {
             animals = animals.filter(animal => animal.category === '哺乳類');
         }
@@ -697,7 +712,7 @@ async function loadSpeciesDataList(filterForMammals = false) {
 
 
 // --- 捕獲記録 (削除) ---------------------------------
-
+// (このセクションは修正なし)
 async function deleteCatchRecord(id) {
     if (!confirm('この捕獲記録を本当に削除しますか？\nこの操作は元に戻せません。')) {
         return;

@@ -1,7 +1,9 @@
 // このファイルは trap.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
+// ★ 修正: DBスキーマ v5 (close_date) に対応
+// ★ 修正: クエリロジックを修正 (orderByが先)
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
-// ★ 修正: 2025/11/15 アイコン変更 (🐾 -> 🦌)
+// ★ 修正: 捕獲記録への遷移ロジックを修正 (showCatchPage -> showCatchListPage)
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
@@ -286,7 +288,7 @@ async function showTrapDetailPage(id) {
             `;
         }
         
-        // --- ★ 修正: アイコンを 🐾 -> 🦌 に変更 ---
+        // --- ボタンの表記を変更 ---
         const catchButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
@@ -350,10 +352,11 @@ async function showTrapDetailPage(id) {
             }, { once: true });
         }
         
+        // ★ 修正: showCatchPage -> showCatchListPage を呼び出す
         document.getElementById('show-related-catches-btn').addEventListener('click', () => {
             appState.currentCatchMethod = 'trap';
             appState.currentCatchRelationId = id; 
-            navigateTo('catch', showCatchPage, '捕獲記録');
+            navigateTo('catch', showCatchListPage, '罠の捕獲記録');
         });
 
         document.getElementById('add-catch-to-trap-btn').addEventListener('click', () => {
@@ -379,7 +382,10 @@ async function showTrapDetailPage(id) {
 }
 
 // --- 罠 (編集/新規) -----------------------------
-// (このセクションは修正なし)
+
+/**
+ * 罠の「編集/新規作成フォーム」を表示する
+ */
 async function showTrapEditForm(id) {
     let trap = {
         trap_number: '',
@@ -599,7 +605,13 @@ async function showTrapEditForm(id) {
 }
 
 // --- 罠 (削除・解除) -----------------------------
-// (このセクションは修正なし)
+
+/**
+ * 罠を解除する (is_open: 0 にする)
+ * ★ 修正: 解除日(closeDate) を受け取るように変更
+ * @param {number} id - 解除する罠のID
+ * @param {string} closeDate - YYYY-MM-DD形式の解除日
+ */
 async function closeTrap(id, closeDate) {
     if (!confirm(`罠を ${formatDate(closeDate)} 付で「解除」しますか？\n「設置中の罠」から「過去の罠」に移動します。`)) {
         return;
