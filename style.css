@@ -297,3 +297,14 @@ nav.bg-white {
 .photo-preview-btn-delete:hover {
     background-color: rgb(185 28 28); /* hover:bg-red-700 */
 }
+
+/*
+ * ----------------------------------------------------------------
+ * テーマ変更用の設定 (ファイルの最後に追加)
+ * ----------------------------------------------------------------
+ */
+
+/* main.js で設定された変数を、.page-title の文字色に適用する */
+.page-title {
+    color: var(--color-text-primary);
+}
