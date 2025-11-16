@@ -5,10 +5,11 @@ const db = new Dexie('HuntingAppDB');
 
 // --- データベースのスキーマ定義 ---
 //
-// ★ 修正: v12 にバージョンアップ
-// ★ 修正: パフォーマンス向上のため、複合インデックスを多数追加
+// ★ 修正: v13 にバージョンアップ
+// ★ 修正: checklist_sets の name にユニーク制約(&)を追加
+// ★ 修正: checklist_items に [list_id+name] の複合ユニーク制約(&)を追加
 //
-db.version(12).stores({
+db.version(13).stores({
     /* 罠テーブル */
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose, [is_open+trap_number], [is_open+setup_date], [is_open+close_date]',
     
@@ -31,10 +32,10 @@ db.version(12).stores({
     game_animal_list: '++id, species_name, category, is_game_animal, description, image_1, image_2, [category+species_name], [is_game_animal+species_name]',
     
     /* チェックリスト (セット) */
-    checklist_sets: '++id, name',
+    checklist_sets: '++id, &name', // ★ 修正: name をユニークに
     
     /* チェックリスト (項目) */
-    checklist_items: '++id, list_id, name, is_checked',
+    checklist_items: '++id, list_id, name, is_checked, &[list_id+name]', // ★ 修正: list_id と name の複合ユニークインデックスを追加
     
     /* 捕獲者情報 (画像) */
     profile_images: '++id, type',
@@ -47,9 +48,24 @@ db.version(12).stores({
 });
 
 
-// --- 過去のバージョン (v11) ---
-// v11 -> v12 へのアップグレード (インデックス追加) は
-// Dexieが自動で処理するため、 .upgrade() 処理は不要です。
+// --- 過去のバージョン (v12) ---
+// (v12 へのアップグレードは Dexie が自動で処理)
+db.version(12).stores({
+    trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose, [is_open+trap_number], [is_open+setup_date], [is_open+close_date]',
+    trap_type: '++id, &name',
+    catch_records: '++id, trap_id, gun_log_id, catch_date, species_name, gender, age, memo, image_blob, latitude, longitude, [gender+catch_date], [age+catch_date], [trap_id+catch_date], [gun_log_id+catch_date], [gender+species_name], [age+species_name], [trap_id+species_name], [gun_log_id+species_name]',
+    gun: '++id, &name, type, caliber',
+    gun_log: '++id, use_date, gun_id, purpose, location, memo, image_blob, latitude, longitude, ammo_count, companion, [gun_id+use_date], [purpose+use_date]',
+    ammo_purchases: '++id, gun_id, purchase_date',
+    game_animal_list: '++id, species_name, category, is_game_animal, description, image_1, image_2, [category+species_name], [is_game_animal+species_name]',
+    checklist_sets: '++id, name', // (v13で修正)
+    checklist_items: '++id, list_id, name, is_checked', // (v13で修正)
+    profile_images: '++id, type',
+    settings: '&key',
+    hunter_profile: '&key'
+});
+
+// v11 以前の定義も残しておきます (v3->...->v11->v12->v13 と順次アップグレードされるため)
 db.version(11).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose',
     trap_type: '++id, &name',
@@ -65,7 +81,7 @@ db.version(11).stores({
     hunter_profile: '&key'
 });
 
-// v10 以前の定義も残しておきます (v3->...->v10->v11->v12 と順次アップグレードされるため)
+// v10 以前の定義 (省略)
 db.version(10).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose',
     trap_type: '++id, &name',
@@ -161,4 +177,4 @@ db.version(3).stores({
     hunter_profile: '&key'
 });
 
-console.log("Database schema defined (db.js v12)");
+console.log("Database schema defined (db.js v13)");

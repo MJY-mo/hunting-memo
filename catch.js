@@ -512,7 +512,7 @@ async function showCatchEditForm(id, relationIds = null) {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">位置情報</label>
+                    <span class="form-label">位置情報</span>
                     <div class="grid grid-cols-2 gap-4">
                         <input type="number" step="any" id="catch-latitude" class="form-input" value="${escapeHTML(record.latitude)}" placeholder="緯度">
                         <input type="number" step="any" id="catch-longitude" class="form-input" value="${escapeHTML(record.longitude)}" placeholder="経度">

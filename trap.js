@@ -476,7 +476,7 @@ async function showTrapEditForm(id) {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">設置場所</label>
+                    <span class="form-label">設置場所</span>
                     <div class="grid grid-cols-2 gap-4">
                         <input type="number" step="any" id="trap-latitude" class="form-input" value="${escapeHTML(trap.latitude)}" placeholder="緯度">
                         <input type="number" step="any" id="trap-longitude" class="form-input" value="${escapeHTML(trap.longitude)}" placeholder="経度">

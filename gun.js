@@ -915,7 +915,7 @@ async function showGunLogEditForm(id) {
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">位置情報</label>
+                    <span class="form-label">位置情報</span>
                     <div class="grid grid-cols-2 gap-4">
                         <input type="number" step="any" id="gun-log-latitude" class="form-input" value="${escapeHTML(log.latitude)}">
                         <input type="number" step="any" id="gun-log-longitude" class="form-input" value="${escapeHTML(log.longitude)}">
