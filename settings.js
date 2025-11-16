@@ -1,6 +1,6 @@
 // このファイルは settings.js です
+// ★ 修正: 「使用方法」のアコーディオンセクションを、ご提供のテキスト  の内容に更新
 // ★ 修正: 「全データ削除」機能を廃止
-// ★ 修正: 「使用方法」のアコーディオンセクションを上部に追加
 // ★ 修正: CSVダウンロード機能を追加
 // ★ 修正: 2025/11/15 ユーザー指摘のUI修正 (h2タイトルの削除, "基本的な使用方法"の削除)
 // ★ 修正: 削除し忘れた 'delete-all-data-btn' のイベントリスナーを削除
@@ -30,6 +30,7 @@ async function renderSettingsMenu() {
         console.error("Failed to load settings:", err);
     }
     
+    // ★ 修正: ダークを削除し、ライトグリーン/ライトブルーを追加
     const themeOption = (value, label) => `
         <option value="${value}" ${currentTheme === value ? 'selected' : ''}>${label}</option>
     `;
@@ -48,17 +49,17 @@ async function renderSettingsMenu() {
                             <span class="w-6 inline-block">⛓️</span> 罠タブ
                         </summary>
                         <div class="mt-2 pt-2 border-t text-gray-700 space-y-2">
-                            <p>罠の設置・管理を行います。</p>
+                            <p>罠の設置・管理を行います。 </p>
                             <ul class="list-disc list-inside space-y-1">
-                                <li><strong>新規設置:</strong> フィルターの上にある「新規設置」ボタンから、新しい罠の場所、種類、番号を登録します。</li>
-                                <li><strong>種類を管理:</strong> 「新規設置」の隣にあるボタンから、罠の種類（くくり罠、箱罠など）のリストを編集できます。</li>
-                                <li><strong>設置中の罠:</strong> 現在設置している罠の一覧です。クリックすると詳細が見れます。</li>
-                                <li><strong>過去の罠:</strong> 「解除」した罠がここに移動します。「新規設置」ボタンはこのタブでは押せません。</li>
-                                <li><strong>罠の詳細:</strong>
+                                <li><strong>種類を管理:</strong> 「種類を管理」のボタンから、罠の種類（型式や構造）の候補を編集できます。 </li>
+                                <li><strong>新規設置:</strong> 「新規設置」ボタンから、新しく架設する罠を入力します。 </li>
+                                <li><strong>設置中の罠:</strong> 現在設置している罠の一覧です。クリックすると詳細が見られます。 </li>
+                                <li><strong>過去の罠:</strong> 設置中の罠を編集し「解除」した罠がここに移動します。 </li>
+                                <li><strong>罠の詳細:</strong> 
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>「編集」「削除」ボタンはページ上部にあります。</li>
-                                        <li>「この罠での捕獲記録を追加」: この罠に紐付いた捕獲記録を直接作成できます。</li>
-                                        <li>「この罠を解除する」: 日付を選択し、緑のボタンを押すと「過去の罠」に移動します。</li>
+                                        <li>ページ上部にあるボタンから、編集や削除ができます。 </li>
+                                        <li>「この罠での捕獲記録を追加」: この罠に紐付いた捕獲記録を作成します。 </li>
+                                        <li>「この罠を解除する」: 日付を選択し、緑のボタンを押すと「過去の罠」に移動します。 </li>
                                     </ul>
                                 </li>
                             </ul>
@@ -70,31 +71,31 @@ async function renderSettingsMenu() {
                             <span class="w-6 inline-block">🔫</span> 銃タブ
                         </summary>
                         <div class="mt-2 pt-2 border-t text-gray-700 space-y-2">
-                            <p>銃と、その使用履歴を管理します。</p>
+                            <p>銃と、その使用履歴を管理します。 </p>
                             <ul class="list-disc list-inside space-y-1">
-                                <li><strong>所持銃と口径:</strong>
+                                <li><strong>所持銃と口径:</strong> 
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>「所持銃の管理」ボタンから、所持している銃のニックネーム、銃種、口径を登録できます。</li>
-                                        <li>このリストをクリックすると、各銃の「詳細ページ」へ移動します。</li>
+                                        <li>「所持銃の管理」ボタンから、所持している銃の名前、銃種、口径を登録できます。 </li>
+                                        <li>銃の名前のリストをタップすると、各銃の「詳細ページ」へ移動します。 </li>
                                     </ul>
                                 </li>
-                                <li><strong>銃の詳細:</strong>
+                                <li><strong>銃の詳細:</strong> 
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>「編集」「削除」ボタンはページ上部にあります。</li>
-                                        <li>「弾の管理」セクションで、その銃の弾の「購入」を記録し、「消費」（使用履歴と連動）と「残弾」を自動計算します。購入履歴は個別に削除できます。</li>
+                                        <li>ページ上部にあるボタンから、編集や削除ができます。 </li>
+                                        <li>「弾の管理」セクションで、その銃の弾の「購入」を記録し、使用履歴と連動した「消費」から「残弾」を自動計算します。 </li>
                                     </ul>
                                 </li>
-                                <li><strong>銃使用履歴:</strong>
+                                <li><strong>銃使用履歴:</strong> 
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>「新規使用履歴」ボタンから、いつ、どの銃を、どの目的で使ったかを記録します。</li>
-                                        <li>「消費弾数」と「同行者」もここで記録できます。</li>
-                                        <li>リストをクリックすると「使用履歴詳細」ページへ移動します。</li>
+                                        <li>「新規使用履歴」ボタンから、いつ、どの銃を、どの目的で使ったかを記録します。 </li>
+                                        <li>「消費弾数」「目的」「同行者」もここで記録できます。 </li>
+                                        <li>使用履歴リストをタップすると「使用履歴詳細」ページへ移動します。 </li>
                                     </ul>
                                 </li>
-                                <li><strong>使用履歴詳細:</strong>
+                                <li><strong>使用履歴詳細:</strong> 
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>「編集」「削除」ボタンはページ上部にあります。</li>
-                                        <li>「この使用履歴での捕獲記録を追加」: この履歴に紐付いた捕獲記録を直接作成できます。</li>
+                                        <li>「編集」「削除」ボタンはページ上部にあります。 </li>
+                                        <li>「この使用履歴での捕獲記録を追加」: この履歴に紐付いた捕獲記録を作成します。 </li>
                                     </ul>
                                 </li>
                             </ul>
@@ -106,13 +107,10 @@ async function renderSettingsMenu() {
                             <span class="w-6 inline-block">🦌</span> 捕獲タブ
                         </summary>
                         <div class="mt-2 pt-2 border-t text-gray-700 space-y-2">
-                            <p>すべての捕獲記録を一覧・検索する場所です。</p>
+                            <p>すべての捕獲記録を一覧・検索する場所です。 </p>
                             <ul class="list-disc list-inside space-y-1">
-                                <li>新規の捕獲記録は、このタブからは追加できません。</li>
-                                <li>「罠」または「銃」タブの詳細ページから「捕獲記録を追加」ボタンを押して作成してください。</li>
-                                <li>フィルターで「方法: 罠」や「種名: イノシシ」などで絞り込めます。</li>
-                                <li>罠や銃から紐付いて作成された捕獲記録は、詳細ページから元の罠や銃の履歴にジャンプできます。</li>
-                                <li>捕獲記録の編集フォームで「戻る」ボタンを押すと、捕獲リストではなく、元いた罠や銃の詳細ページに戻ります。</li>
+                                <li>「罠」または「銃」タブの詳細ページから追加された捕獲記録のリストを閲覧できます。 </li>
+                                <li>罠や銃から紐付いて作成された捕獲記録は、詳細ページから元の罠や銃の履歴にジャンプできます。 </li>
                             </ul>
                         </div>
                     </details>
@@ -122,13 +120,13 @@ async function renderSettingsMenu() {
                             <span class="w-6 inline-block">✅</span> チェックタブ
                         </summary>
                         <div class="mt-2 pt-2 border-t text-gray-700 space-y-2">
-                            <p>出猟前の持ち物確認などに使います。</p>
+                            <p>出猟前の持ち物確認などに使います。 </p>
                             <ul class="list-disc list-inside space-y-1">
-                                <li>最初に「リスト作成」で「単独忍び猟」や「グループ巻狩り」などのリストセットを作成します。</li>
-                                <li>作成したリストセットをクリックすると、そのリストの項目編集画面に移ります。</li>
-                                <li>「項目管理」から「銃」「弾」「ナイフ」などの項目を追加・削除できます。</li>
-                                <li>項目一覧のチェックボックスは、タップするだけでON/OFFが保存されます。</li>
-                                <li>「チェックをリセット」で、そのリストのすべての項目をOFFに戻せます。</li>
+                                <li>まず「リスト作成」で「単独忍び猟」や「グループ巻狩り」などのリストセットを作成します。 </li>
+                                <li>作成したリストセットをクリックすると、そのリストの項目編集画面に移ります。 </li>
+                                <li>「項目管理」から「許可証」「銃」「弾」「ナイフ」などの項目を追加・削除できます。 </li>
+                                <li>項目一覧のチェックボックスは、タップするだけでON/OFFが保存されます。 </li>
+                                <li>「チェックをリセット」で、そのリストのすべての項目を一括でOFFに戻せます。 </li>
                             </ul>
                         </div>
                     </details>
@@ -139,11 +137,11 @@ async function renderSettingsMenu() {
                         </summary>
                         <div class="mt-2 pt-2 border-t text-gray-700 space-y-2">
                             <ul class="list-disc list-inside space-y-1">
-                                <li><strong>鳥獣図鑑:</strong> 狩猟対象の鳥獣を一覧できます。</li>
-                                <li><strong>捕獲者情報:</strong>
+                                <li><strong>鳥獣図鑑:</strong> 狩猟や有害鳥獣駆除の対象の鳥獣を一覧できます。 </li>
+                                <li><strong>捕獲者情報:</strong> 
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>猟銃や狩猟免許などの「期限」をテキストで保存できます。</li>
-                                        <li>各期限の欄に、許可証や免許証の「写真」を複数枚アップロードして保存・削除できます。</li>
+                                        <li>銃所持許可証や狩猟免許などの「期限」をテキストで保存できます。 </li>
+                                        <li>各期限の欄に、許可証や免許証の「写真」を複数枚アップロードして保存できます。 </li>
                                     </ul>
                                 </li>
                             </ul>
@@ -156,16 +154,16 @@ async function renderSettingsMenu() {
                         </summary>
                         <div class="mt-2 pt-2 border-t text-gray-700 space-y-2">
                             <ul class="list-disc list-inside space-y-1">
-                                <li><strong>外観:</strong> アプリの色（テーマ）や文字サイズを変更できます。</li>
-                                <li><strong>データ管理 (バックアップ):</strong>
+                                <li><strong>外観:</strong> アプリの色（テーマ）や文字サイズを変更できます。 </li>
+                                <li><strong>データ管理 (バックアップ):</strong> 
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>「全データのエクスポート (.json)」: 現在の全データ（画像含む）をバックアップファイルとしてダウンロードします。</li>
-                                        <li>「データのインポート (.json)」: バックアップファイルを選択し、データを復元します。<strong>（現在のデータは全て消去されます）</strong></li>
+                                        <li>「全データのエクスポート (.json)」: 現在の全データ（画像含む）をバックアップファイルとしてダウンロードします。 </li>
+                                        <li>「データのインポート (.json)」: バックアップファイルを選択し、データを復元します。（現在のデータは全て消去されます） </li>
                                     </ul>
                                 </li>
-                                <li><strong>データ管理 (CSV):</strong>
+                                <li><strong>データ管理 (CSV):</strong> 
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>「銃使用履歴」「捕獲記録」を個別にCSVファイルとしてダウンロードします。Excelでの集計などに使えます。</li>
+                                        <li>「銃使用履歴」「捕獲記録」を個別にCSVファイルとしてダウンロードします。Excelでの集計などに使えます。 </li>
                                     </ul>
                                 </li>
                             </ul>
@@ -287,16 +285,17 @@ async function renderSettingsMenu() {
     // JSONインポート (ボタンがファイル入力をクリックする)
     const importFileInput = document.getElementById('import-file-input');
     document.getElementById('import-data-btn').addEventListener('click', () => {
-        importFileInput.click();
-    });
-    importFileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            importAllData(e.target.files[0]);
+        if (importFileInput) { // null チェック
+            importFileInput.click();
         }
     });
-    
-    // ★ 修正: 全削除のリスナーを削除
-    // document.getElementById('delete-all-data-btn').addEventListener('click', deleteAllData);
+    if (importFileInput) { // null チェック
+        importFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                importAllData(e.target.files[0]);
+            }
+        });
+    }
     
     // CSVエクスポートのリスナー
     document.getElementById('export-gun-logs-csv-btn').addEventListener('click', exportGunLogsAsCSV);
@@ -438,8 +437,6 @@ async function importAllData(file) {
         statusEl.textContent = 'インポートに失敗しました。ファイルが破損しているか、形式が違います。';
     }
 }
-
-// ★ 修正: 全データ削除の関数を削除
 
 
 // --- CSVエクスポート機能 -----------------------------
