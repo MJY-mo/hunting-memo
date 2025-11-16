@@ -2,7 +2,7 @@
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 // ★ 修正: 捕獲記録への遷移ロジックを修正 (showCatchPage -> showCatchListPage)
-// ★ 修正: [パフォーマンス #1] renderTrapList のクエリを複合インデックス(v12)を使用するよう変更
+// ★ 修正: [パフォーマンス #1] renderTrapList のクエリを orderBy -> filter の順に修正
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
@@ -130,7 +130,7 @@ async function showTrapPage() {
 
 /**
  * 罠リストを描画する (フィルタリング実行)
- * ★ 修正: 複合インデックス [is_open + sort.key] を使用
+ * ★ 修正: クエリロジックを orderBy -> filter の順に変更
  */
 async function renderTrapList() {
     const listElement = document.getElementById('trap-list');
@@ -143,34 +143,26 @@ async function renderTrapList() {
         const filters = appState.trapFilters;
         const sort = (view === 'open') ? appState.trapSortOpen : appState.trapSortClosed;
         
-        const isOpenValue = (view === 'open' ? 1 : 0);
+        // ★ 修正: 1. ソートキーでまず並び替える
+        let query = db.trap.orderBy(sort.key);
 
-        // ★ 修正: 1. 複合インデックス [is_open + sort.key] を使って絞り込みとソート
-        let query = db.trap
-            .where(`[is_open+${sort.key}]`)
-            .equals([isOpenValue, sort.key]); // ...と思ったが、sort.keyが動的だとこの書き方はできない
-        
-        // ★ 修正: 
-        // 1. is_open で絞り込む (インデックス)
-        query = db.trap.where('is_open').equals(isOpenValue);
-
-        // 2. 種類フィルター (インデックスが使えないため、JS側で filter)
-        if (filters.type !== 'all') {
-             // toArray の前に filter を挟む (この方が速い)
-            query = query.filter(trap => trap.type === filters.type);
-        }
-
-        // 3. ソート
-        query = query.orderBy(sort.key);
-        
-        // 4. 昇順/降順
+        // ★ 修正: 2. 昇順/降順の適用
         if (sort.order === 'desc') {
             query = query.reverse();
         }
 
-        // 5. データを配列として取得
+        // ★ 修正: 3. データベースから配列として取得
         let traps = await query.toArray();
+
+        // ★ 修正: 4. JavaScript側でフィルターを実行
         
+        // 4a. 設置中/過去 フィルター
+        traps = traps.filter(trap => trap.is_open === (view === 'open' ? 1 : 0));
+
+        // 4b. 種類フィルター
+        if (filters.type !== 'all') {
+            traps = traps.filter(trap => trap.type === filters.type);
+        }
         
         if (traps.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">
@@ -179,11 +171,15 @@ async function renderTrapList() {
             return;
         }
 
-        // 6. HTML構築
-        let listItems = '';
-        for (const trap of traps) {
-            const catchCount = await db.catch_records.where('trap_id').equals(trap.id).count();
-            
+        // 5. HTML構築
+        // ★ 修正: [パフォーマンス #3] N+1クエリ対策 (Promise.all)
+        const countPromises = traps.map(trap => 
+            db.catch_records.where('trap_id').equals(trap.id).count()
+        );
+        const catchCounts = await Promise.all(countPromises);
+
+        const listItems = traps.map((trap, index) => {
+            const catchCount = catchCounts[index];
             const catchBadge = catchCount > 0 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
@@ -192,10 +188,9 @@ async function renderTrapList() {
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-purple-600 bg-purple-200">${escapeHTML(trap.purpose)}</span>`
                 : '';
 
-            // 「過去の罠」の場合、タイトル色を変更
             const titleColor = view === 'open' ? 'text-blue-600' : 'text-gray-500';
 
-            listItems += `
+            return `
                 <div class="trap-card" data-id="${trap.id}">
                     <div class="flex-grow">
                         <h3 class="text-lg font-semibold ${titleColor}">${escapeHTML(trap.trap_number)}</h3>
@@ -208,11 +203,11 @@ async function renderTrapList() {
                     </div>
                 </div>
             `;
-        }
+        }).join('');
         
         listElement.innerHTML = listItems;
         
-        // 7. クリックイベント設定
+        // 6. クリックイベント設定
         listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
@@ -252,7 +247,7 @@ async function showTrapDetailPage(id) {
         let imageHTML = '';
         if (trap.image_blob) {
             const blobUrl = URL.createObjectURL(trap.image_blob);
-            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            // ★ 修正: [パフォーマンス #2] URLをグローバルに保存
             appState.activeBlobUrls.push(blobUrl);
             
             imageHTML = `
@@ -265,7 +260,7 @@ async function showTrapDetailPage(id) {
             `;
         }
 
-        // --- 基本情報のテーブル (★ 修正: '目的' を追加) ---
+        // --- 基本情報のテーブル ( '目的' を追加) ---
         const tableData = [
             { label: '罠番号', value: trap.trap_number },
             { label: '種類', value: trap.type },
@@ -364,7 +359,7 @@ async function showTrapDetailPage(id) {
             imgElement.addEventListener('click', () => {
                 showImageModal(imgElement.src); 
             });
-            // ★ 修正: メモリリーク対策 #2 (backButton.onclick での revoke を削除)
+            // ★ 修正: [パフォーマンス #2] revoke 処理を削除
         }
         
         // 捕獲記録への遷移ロジックを修正
@@ -430,7 +425,7 @@ async function showTrapEditForm(id) {
             
             if (trap.image_blob) {
                 const blobUrl = URL.createObjectURL(trap.image_blob);
-                // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+                // ★ 修正: [パフォーマンス #2] URLをグローバルに保存
                 appState.activeBlobUrls.push(blobUrl);
 
                 currentImageHTML = `
@@ -556,7 +551,7 @@ async function showTrapEditForm(id) {
         try {
             resizedImageBlob = await resizeImage(file, 800);
             const previewUrl = URL.createObjectURL(resizedImageBlob);
-            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            // ★ 修正: [パフォーマンス #2] URLをグローバルに保存
             appState.activeBlobUrls.push(previewUrl);
             
             previewContainer.innerHTML = `
@@ -588,7 +583,7 @@ async function showTrapEditForm(id) {
         currentImg.addEventListener('click', () => {
             showImageModal(currentImg.src);
         });
-        // ★ 修正: メモリリーク対策 #2 (backButton.onclick での revoke を削除)
+        // ★ 修正: [パフォーマンス #2] revoke 処理を削除
     }
     
     document.getElementById('trap-form').addEventListener('submit', async (e) => {
@@ -640,7 +635,6 @@ async function showTrapEditForm(id) {
 
 /**
  * 罠を解除する (is_open: 0 にする)
- * ★ 修正: 解除日(closeDate) を受け取るように変更
  * @param {number} id - 解除する罠のID
  * @param {string} closeDate - YYYY-MM-DD形式の解除日
  */

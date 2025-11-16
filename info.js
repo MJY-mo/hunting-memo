@@ -1,16 +1,28 @@
 // このファイルは info.js です
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
-// ★ 修正: [パフォーマンス #1] renderGameAnimalList のクエリを複合インデックス(v12)を使用するよう変更
+// ★ 修正: [パフォーマンス #1] renderGameAnimalList のクエリを orderBy -> filter の順に修正
+// ★ 修正: [パフォーマンス #2] メモリリーク対策 (Blob URL) を適用
 
 /**
  * 「情報」タブのメインページを表示する
  */
 async function showInfoPage() {
+    // navigateTo は main.js で定義されたグローバル関数
+    navigateTo('info', renderInfoMenu, '情報');
+}
+
+/**
+ * 情報タブのメインメニューを描画する
+ */
+function renderInfoMenu() {
+    // 戻るボタンを非表示
+    updateHeader('情報', false);
+
+    // app は main.js で定義されたグローバル変数
     app.innerHTML = `
         <div class="space-y-4">
-            <h2 class="page-title">情報</h2>
-            
             <div class="card">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">情報メニュー</h2>
                 <div class="space-y-3">
                     <button id="info-game-animal-btn" class="btn btn-secondary w-full justify-start text-left">
                         <span class="w-6">🐾</span> 鳥獣図鑑
@@ -22,7 +34,9 @@ async function showInfoPage() {
             </div>
         </div>
     `;
-
+    
+    // --- イベントリスナー ---
+    
     // 図鑑ボタンのイベントリスナー
     document.getElementById('info-game-animal-btn').addEventListener('click', () => {
         showGameAnimalListPage();
@@ -32,9 +46,6 @@ async function showInfoPage() {
     document.getElementById('info-profile-btn').addEventListener('click', () => {
         showProfilePage();
     });
-
-    // ヘッダーを更新
-    updateHeader('情報', false);
 }
 
 
@@ -99,7 +110,7 @@ async function showGameAnimalListPage() {
 
 /**
  * 図鑑リストを描画する (フィルタリング実行)
- * ★ 修正: 複合インデックス [category+species_name] 等を使用
+ * ★ 修正: クエリロジックを orderBy -> filter の順に変更
  */
 async function renderGameAnimalList() {
     const listElement = document.getElementById('game-animal-list');
@@ -109,34 +120,22 @@ async function renderGameAnimalList() {
 
     try {
         const filters = appState.gameAnimalFilters;
-        let query;
-
-        // ★ 修正: フィルターの状態でクエリを分岐
-        if (filters.category !== 'all' && filters.status !== 'all') {
-            // カテゴリとステータスの両方で絞り込み
-            // (v12) 複合インデックス [category+is_game_animal] が必要
-            // (v12) db.js に [category+species_name] しか追加しなかった...
-            // → v13で [category+is_game_animal] を追加する必要があるが、
-            //   一旦、片方で絞り込んでJSでフィルターする
-            query = db.game_animal_list.where('category').equals(filters.category)
-                      .filter(animal => animal.is_game_animal === filters.status)
-                      .sortBy('species_name'); // JS側ソート
-            
-        } else if (filters.category !== 'all') {
-            // カテゴリのみ (複合インデックス [category+species_name] を使用)
-            query = db.game_animal_list.where('category').equals(filters.category)
-                      .orderBy('species_name');
-                      
-        } else if (filters.status !== 'all') {
-            // ステータスのみ (複合インデックス [is_game_animal+species_name] を使用)
-            query = db.game_animal_list.where('is_game_animal').equals(filters.status)
-                      .orderBy('species_name');
-        } else {
-            // 絞り込みなし
-            query = db.game_animal_list.orderBy('species_name');
-        }
         
-        const animals = await query.toArray(); // query.toArray() または query (sortBy)
+        // ★ 修正: 1. 最初にソートする
+        // (db.js v12 で [category+species_name] と [is_game_animal+species_name] が
+        // 追加されたが、ここでは 'species_name' 単体インデックスでソートする方がロジックが単純)
+        let query = db.game_animal_list.orderBy('species_name');
+        
+        // ★ 修正: 2. データを配列として取得
+        let animals = await query.toArray();
+
+        // ★ 修正: 3. JavaScript側でフィルター
+        if (filters.category !== 'all') {
+            animals = animals.filter(animal => animal.category === filters.category);
+        }
+        if (filters.status !== 'all') {
+            animals = animals.filter(animal => animal.is_game_animal === filters.status);
+        }
 
         if (animals.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">該当する鳥獣はいません。</p>`;
@@ -145,6 +144,7 @@ async function renderGameAnimalList() {
 
         // 4. HTMLを構築
         const listItems = animals.map(animal => {
+            // 狩猟対象かどうかのバッジ
             const statusBadge = animal.is_game_animal === '〇' 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">対象</span>`
                 : `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-red-600 bg-red-200">対象外</span>`;
@@ -272,7 +272,7 @@ async function showGameAnimalDetailPage(id) {
 
 // --- 捕獲者情報 ---------------------------------
 // (このセクションは修正なし)
-async function showProfilePage() {
+async function showProfilePage() { // (旧 showHunterProfilePage)
     try {
         let profile = await db.hunter_profile.get('main');
         
@@ -281,6 +281,7 @@ async function showProfilePage() {
             profile = await db.hunter_profile.get('main');
         }
         
+        // 各セクションのHTMLを生成
         const createSection = (key, label) => `
             <div class="form-group">
                 <label for="profile-${key}" class="form-label">${label} 期限:</label>
@@ -399,8 +400,9 @@ async function showProfilePage() {
 }
 
 /**
- * ★ 新規: 捕獲者情報の画像ギャラリーを描画する
+ * 捕獲者情報の画像ギャラリーを描画する
  * (v10 の profile_images テーブルを参照)
+ * ★ 修正: [パフォーマンス #2] メモリリーク対策
  * @param {string} type - 'gun_license_renewal' などのキー
  */
 async function loadProfileImages(type) {
@@ -418,7 +420,7 @@ async function loadProfileImages(type) {
         
         images.forEach(image => {
             const blobUrl = URL.createObjectURL(image.image_blob);
-            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            // ★ 修正: [パフォーマンス #2] URLをグローバルに保存
             appState.activeBlobUrls.push(blobUrl);
             
             const div = document.createElement('div');
