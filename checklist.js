@@ -19,7 +19,7 @@ async function renderChecklistSets() {
     
     app.innerHTML = `
         <div class="space-y-4">
-            <div class="card">
+            <div class="card bg-white">
                 <form id="add-list-set-form" class="flex space-x-2">
                     <div class="form-group flex-grow mb-0">
                         <label for="new-list-name" class="sr-only">新しいリスト名</label>
@@ -79,7 +79,7 @@ async function renderChecklistSetList() {
         }
 
         container.innerHTML = lists.map(list => `
-            <div class="trap-card" data-id="${list.id}" data-name="${escapeHTML(list.name)}">
+            <div class="trap-card bg-white" data-id="${list.id}" data-name="${escapeHTML(list.name)}">
                 <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(list.name)}</h3>
                 <span>&gt;</span>
             </div>
@@ -121,7 +121,7 @@ async function showChecklistItemsPage(listId, listName) {
 
     app.innerHTML = `
         <div class="space-y-4">
-            <div class="card">
+            <div class="card bg-white">
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
                     <h2 class="text-lg font-semibold">チェックリスト</h2>
                     <button id="checklist-reset-btn" class="btn btn-secondary btn-sm">全解除</button>
@@ -131,7 +131,7 @@ async function showChecklistItemsPage(listId, listName) {
                 </div>
             </div>
             
-            <div class="card">
+            <div class="card bg-white">
                 <details>
                     <summary class="text-lg font-semibold cursor-pointer select-none">
                         チェック項目の管理 (タップで開く)

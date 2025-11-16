@@ -45,7 +45,7 @@ async function showTrapPage() {
                 </button>
             </div>
 
-            <div class="card">
+            <div class="card bg-white">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-group mb-0">
                         <label for="trap-filter-type" class="form-label">種類:</label>
@@ -191,7 +191,7 @@ async function renderTrapList() {
             const titleColor = view === 'open' ? 'text-blue-600' : 'text-gray-500';
 
             return `
-                <div class="trap-card" data-id="${trap.id}">
+                <div class="trap-card bg-white" data-id="${trap.id}">
                     <div class="flex-grow">
                         <h3 class="text-lg font-semibold ${titleColor}">${escapeHTML(trap.trap_number)}</h3>
                         <p class="text-sm">${escapeHTML(trap.type)} / ${formatDate(trap.setup_date)}</p>
@@ -236,7 +236,7 @@ async function showTrapDetailPage(id) {
         
         // --- 編集・削除ボタンをページ上部に配置 ---
         const editButtonsHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <div class="flex space-x-2">
                     <button id="edit-trap-btn" class="btn btn-secondary flex-1">編集</button>
                     <button id="delete-trap-btn" class="btn btn-danger flex-1">削除</button>
@@ -251,7 +251,7 @@ async function showTrapDetailPage(id) {
             appState.activeBlobUrls.push(blobUrl);
             
             imageHTML = `
-                <div class="card">
+                <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">設置写真</h2>
                     <div class="photo-preview cursor-zoom-in">
                         <img src="${blobUrl}" alt="設置写真" id="detail-image" class="clickable-image">
@@ -271,7 +271,7 @@ async function showTrapDetailPage(id) {
         ];
 
         let tableHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2>
                 <table class="w-full text-sm">
                     <tbody>
@@ -291,7 +291,7 @@ async function showTrapDetailPage(id) {
         let memoHTML = '';
         if (trap.memo) {
             memoHTML = `
-                <div class="card">
+                <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">メモ</h2>
                     <p class="text-sm text-gray-700 leading-relaxed">
                         ${escapeHTML(trap.memo).replace(/\n/g, '<br>')}
@@ -302,7 +302,7 @@ async function showTrapDetailPage(id) {
         
         // --- ボタンの表記を変更 ---
         const catchButtonHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
                 <div class="space-y-3">
                     <button id="show-related-catches-btn" class="btn btn-secondary w-full justify-start text-left">
@@ -318,7 +318,7 @@ async function showTrapDetailPage(id) {
         // --- 解除ボタンを緑色にし、日付入力追加 ---
         const today = new Date().toISOString().split('T')[0];
         const closeButtonHTML = trap.is_open
-            ? `<div class="card">
+            ? `<div class="card bg-white">
                  <h2 class="text-lg font-semibold border-b pb-2 mb-4">罠の管理</h2>
                  <div class="form-group">
                     <label for="trap-close-date" class="form-label">解除日:</label>
@@ -445,7 +445,7 @@ async function showTrapEditForm(id) {
     }
 
     app.innerHTML = `
-        <div class="card">
+        <div class="card bg-white">
             <form id="trap-form" class="space-y-4">
                 
                 <div class="form-group">
@@ -678,7 +678,7 @@ async function deleteTrap(id) {
 async function showTrapTypeManagementPage(onCloseCallback) {
     app.innerHTML = `
         <div class="space-y-4">
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">新しい罠の種類を追加</h2>
                 <form id="new-trap-type-form" class="flex space-x-2">
                     <div class="form-group flex-grow mb-0">
@@ -690,7 +690,7 @@ async function showTrapTypeManagementPage(onCloseCallback) {
                 <div id="type-form-error" class="text-red-600 text-sm text-center mt-2 h-4"></div>
             </div>
             
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">既存の罠の種類</h2>
                 <div id="trap-type-list" class="space-y-2">
                     <p class="text-gray-500">読み込み中...</p>

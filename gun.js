@@ -69,7 +69,7 @@ async function renderGunList() {
 
         // trap-card と同じスタイルを使用
         listElement.innerHTML = guns.map(gun => `
-            <div class="trap-card" data-id="${gun.id}">
+            <div class="trap-card bg-white" data-id="${gun.id}">
                 <div class="flex-grow">
                     <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(gun.name)}</h3>
                     <p class="text-sm">${escapeHTML(gun.type)} / ${escapeHTML(gun.caliber)}</p>
@@ -108,7 +108,7 @@ async function showGunDetailPage(id) {
         
         // 編集・削除ボタンをページ上部に配置
         const editButtonsHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <div class="flex space-x-2">
                     <button id="edit-gun-btn" class="btn btn-secondary flex-1">編集</button>
                     <button id="delete-gun-btn" class="btn btn-danger flex-1">削除</button>
@@ -124,7 +124,7 @@ async function showGunDetailPage(id) {
         ];
 
         let tableHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">銃の情報</h2>
                 <table class="w-full text-sm">
                     <tbody>
@@ -143,7 +143,7 @@ async function showGunDetailPage(id) {
         
         // 関連する使用履歴 (ボタン)
         const logButtonHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">使用履歴</h2>
                 <button id="show-related-logs-btn" class="btn btn-secondary w-full justify-start text-left">
                     <span class="w-6">🦌</span> この銃の使用履歴を見る
@@ -154,7 +154,7 @@ async function showGunDetailPage(id) {
         // 弾の管理セクションを新設
         const today = new Date().toISOString().split('T')[0];
         const ammoManagementHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">弾の管理</h2>
                 
                 <form id="ammo-purchase-form" class="space-y-3 mb-4">
@@ -385,7 +385,7 @@ async function showGunEditForm(id) {
     }
 
     app.innerHTML = `
-        <div class="card">
+        <div class="card bg-white">
             <form id="gun-form" class="space-y-4">
                 
                 <div class="form-group">
@@ -511,7 +511,7 @@ async function renderGunLogList() {
 
     // ★ 修正: リセットボタンを廃止し、ソート機能を追加
     container.innerHTML = `
-        <div class="card">
+        <div class="card bg-white">
             <div class="grid grid-cols-2 gap-4">
                 <div class="form-group mb-0">
                     <label for="gun-log-filter-purpose" class="form-label">目的:</label>
@@ -639,7 +639,7 @@ async function renderGunLogListItems() {
             const ammoText = (log.ammo_count > 0) ? ` / ${log.ammo_count}発` : '';
 
             return `
-                <div class="trap-card" data-id="${log.id}">
+                <div class="trap-card bg-white" data-id="${log.id}">
                     <div class="flex-grow">
                         <h3 class="text-lg font-semibold text-blue-600">${formatDate(log.use_date)} (${escapeHTML(log.purpose)})</h3>
                         <span class="text-sm">${gunName}${ammoText}</span>
@@ -684,7 +684,7 @@ async function showGunLogDetailPage(id) {
         
         // 編集・削除ボタンをページ上部に配置
         const editButtonsHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <div class="flex space-x-2">
                     <button id="edit-gun-log-btn" class="btn btn-secondary flex-1">編集</button>
                     <button id="delete-gun-log-btn" class="btn btn-danger flex-1">削除</button>
@@ -700,7 +700,7 @@ async function showGunLogDetailPage(id) {
             appState.activeBlobUrls.push(blobUrl);
             
             imageHTML = `
-                <div class="card">
+                <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2>
                     <div class="photo-preview cursor-zoom-in">
                         <img src="${blobUrl}" alt="関連写真" id="detail-image" class="clickable-image">
@@ -722,7 +722,7 @@ async function showGunLogDetailPage(id) {
         ];
 
         let tableHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2>
                 <table class="w-full text-sm">
                     <tbody>
@@ -743,7 +743,7 @@ async function showGunLogDetailPage(id) {
         let memoHTML = '';
         if (log.memo) {
             memoHTML = `
-                <div class="card">
+                <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">メモ</h2>
                     <p class="text-sm text-gray-700 leading-relaxed">${escapeHTML(log.memo).replace(/\n/g, '<br>')}</p>
                 </div>
@@ -752,7 +752,7 @@ async function showGunLogDetailPage(id) {
         
         // --- ボタンの表記を変更 ---
         const catchButtonHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
                 <div class="space-y-3">
                     <button id="show-related-catches-btn" class="btn btn-secondary w-full justify-start text-left">
@@ -874,7 +874,7 @@ async function showGunLogEditForm(id) {
     }
 
     app.innerHTML = `
-        <div class="card">
+        <div class="card bg-white">
             <form id="gun-log-form" class="space-y-4">
                 
                 <div class="form-group">

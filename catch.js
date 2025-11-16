@@ -35,7 +35,7 @@ async function showCatchListPage() {
 
     let html = `
         <div class="space-y-4">
-            <div class="card">
+            <div class="card bg-white">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-group mb-0">
                         <label for="catch-filter-method" class="form-label">方法:</label>
@@ -249,7 +249,7 @@ async function renderCatchList() {
 
             // trap-card と同じスタイルを適用
             listItems += `
-                <div class="trap-card" data-id="${record.id}">
+                <div class="trap-card bg-white" data-id="${record.id}">
                     <div class="flex-grow">
                         <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(record.species_name)}</h3>
                         <p class="text-sm">${formatDate(record.catch_date)}</p>
@@ -295,7 +295,7 @@ async function showCatchDetailPage(id) {
 
         // --- 編集・削除ボタン ---
         const editButtonsHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <div class="flex space-x-2">
                     <button id="edit-catch-btn" class="btn btn-secondary flex-1">編集</button>
                     <button id="delete-catch-btn" class="btn btn-danger flex-1">削除</button>
@@ -326,7 +326,7 @@ async function showCatchDetailPage(id) {
             }
         } else {
              relationHTML = `
-                <div class="card">
+                <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">関連</h2>
                     <p class="text-sm text-gray-500">この捕獲は、罠や銃使用履歴に紐付いていません。</p>
                 </div>
@@ -339,7 +339,7 @@ async function showCatchDetailPage(id) {
             const blobUrl = URL.createObjectURL(record.image_blob);
             appState.activeBlobUrls.push(blobUrl);
             imageHTML = `
-                <div class="card">
+                <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2>
                     <div class="photo-preview cursor-zoom-in">
                         <img src="${blobUrl}" alt="捕獲写真" id="detail-image" class="clickable-image">
@@ -359,7 +359,7 @@ async function showCatchDetailPage(id) {
         ];
 
         let tableHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2>
                 <table class="w-full text-sm">
                     <tbody>
@@ -380,7 +380,7 @@ async function showCatchDetailPage(id) {
         let memoHTML = '';
         if (record.memo) {
             memoHTML = `
-                <div class="card">
+                <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">メモ</h2>
                     <p class="text-sm text-gray-700 leading-relaxed">${escapeHTML(record.memo).replace(/\n/g, '<br>')}</p>
                 </div>
@@ -478,7 +478,7 @@ async function showCatchEditForm(id, relationIds = null) {
     }
 
     app.innerHTML = `
-        <div class="card">
+        <div class="card bg-white">
             <form id="catch-form" class="space-y-4">
                 <div class="form-group">
                     <label for="catch-species" class="form-label">種名 <span class="text-red-500">*</span>:</label>

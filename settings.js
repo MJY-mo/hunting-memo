@@ -39,7 +39,7 @@ async function renderSettingsMenu() {
 
     app.innerHTML = `
         <div class="space-y-4">
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">使用方法</h2>
                 <div class="space-y-2">
                 
@@ -175,7 +175,7 @@ async function renderSettingsMenu() {
                 </div>
             </div>
 
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">表示設定</h2>
                 <div class="form-group">
                     <label for="setting-theme" class="form-label">背景色:</label>
@@ -197,7 +197,7 @@ async function renderSettingsMenu() {
                 </div>
             </div>
             
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">アプリについて</h2>
                 
                 <details open> <summary class="text-lg text-red-600 font-bold cursor-pointer select-none">
@@ -215,7 +215,7 @@ async function renderSettingsMenu() {
                 </details>
             </div>
 
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">データ管理</h2>
                 <p id="import-export-status" class="text-sm text-gray-500 text-center mb-2"></p>
                 <ul class="space-y-2">

@@ -248,7 +248,7 @@ async function loadAndApplySettings() {
 }
 
 /**
- * ★ 修正: テーマを適用する (一番背景の --color-bg-primary のみ変更)
+ * ★ 修正: テーマを適用する (背景色と「文字色」の両方を変更)
  * @param {string} themeValue - 'light', 'dark', 'sepia'
  */
 function applyTheme(themeValue) {
@@ -258,21 +258,24 @@ function applyTheme(themeValue) {
     root.classList.remove('theme-light', 'theme-dark', 'theme-sepia');
     
     let primaryBgColor;
+    let primaryTextColor; // ★ テキスト色の変数を追加
     
     if (themeValue === 'dark') {
         primaryBgColor = '#1f2937'; // bg-gray-800
+        primaryTextColor = '#f3f4f6'; // ★ ダークモード時のテキスト色 (明るいグレー)
     } else if (themeValue === 'sepia') {
         primaryBgColor = '#f7f3e8'; // セピア背景 (例)
+        primaryTextColor = '#1f2937'; // ★ セピア時のテキスト色 (濃いグレー)
     } else {
         // light (default)
         primaryBgColor = '#f3f4f6'; // bg-gray-100
+        primaryTextColor = '#111827'; // ★ ライト時のテキスト色 (黒に近いグレー)
     }
     
-    // Set *only* the primary background color variable
-    // これにより、 body { background-color: var(--color-bg-primary); } のみが変更される
+    // CSS変数をセット
     root.style.setProperty('--color-bg-primary', primaryBgColor);
+    root.style.setProperty('--color-text-primary', primaryTextColor); // ★ テキスト色をセット
 }
-
 /**
  * 文字サイズを適用する (settings.js からも呼ばれる)
  */

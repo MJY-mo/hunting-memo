@@ -22,7 +22,7 @@ function renderInfoMenu() {
     // app は main.js で定義されたグローバル変数
     app.innerHTML = `
         <div class="space-y-4">
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">情報メニュー</h2>
                 <div class="space-y-3">
                     <button id="info-game-animal-btn" class="btn btn-secondary w-full justify-start text-left">
@@ -61,7 +61,7 @@ async function showGameAnimalListPage() {
 
     let html = `
         <div class="space-y-4">
-            <div class="card">
+            <div class="card bg-white">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="form-group mb-0">
                         <label for="game-filter-category" class="form-label">分類:</label>
@@ -148,7 +148,7 @@ async function renderGameAnimalList() {
                 : `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-red-600 bg-red-200">対象外</span>`;
 
             return `
-                <div class="trap-card" data-id="${animal.id}">
+                <div class="trap-card bg-white" data-id="${animal.id}">
                     <div class="flex-grow">
                         <h3 class="text-lg font-semibold text-blue-600">${escapeHTML(animal.species_name)}</h3>
                         <p class="text-sm">${escapeHTML(animal.category)}</p>
@@ -191,7 +191,7 @@ async function showGameAnimalDetailPage(id) {
         const imageFiles = [animal.image_1, animal.image_2].filter(img => img); 
 
         if (imageFiles.length > 0) {
-            imagesHTML = '<div class="card"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="info-image-gallery">';
+            imagesHTML = '<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="info-image-gallery">';
             imageFiles.forEach(filename => {
                 const imagePath = `./image/${escapeHTML(filename)}`;
                 imagesHTML += `
@@ -206,7 +206,7 @@ async function showGameAnimalDetailPage(id) {
         let descriptionHTML = '';
         if (animal.description && animal.description !== '（説明文をここに）') {
             descriptionHTML = `
-                <div class="card">
+                <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">説明</h2>
                     <p class="text-sm text-gray-700 leading-relaxed">${escapeHTML(animal.description).replace(/\n/g, '<br>')}</p>
                 </div>
@@ -227,7 +227,7 @@ async function showGameAnimalDetailPage(id) {
         ];
 
         let tableHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2>
                 <table class="w-full text-sm">
                     <tbody>
@@ -297,7 +297,7 @@ async function showProfilePage() { // (旧 showHunterProfilePage)
         `;
 
         app.innerHTML = `
-            <div class="card">
+            <div class="card bg-white">
                 <form id="profile-form" class="space-y-4">
                     
                     <div class="form-group">
