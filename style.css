@@ -300,27 +300,67 @@ nav.bg-white {
 
 /*
  * ----------------------------------------------------------------
- * テーマ変更用の設定 (ファイルの最後に追加)
+ * テーマ変更用の設定 (最終決定版)
  * ----------------------------------------------------------------
  */
 
-/* main.js で設定された変数を、.page-title の文字色に適用する */
-.page-title {
-    color: var(--color-text-primary);
+/*
+ * --- ダークモード ---
+ * <html> タグに .theme-dark が付いた時のスタイル
+ */
+.theme-dark {
+    /* 1. <body> の背景色 (bg-gray-100) を上書き */
+    background-color: #1f2937; /* Tailwind 'bg-gray-800' */
+    
+    /* 2. カードの外の文字 (.page-title) の色を白くする */
+    color: #f3f4f6; /* Tailwind 'text-gray-100' */
 }
 
-/* * 2. カード内の文字色を、テーマに関わらず強制的に「黒」にする
- * (これが前回の修正で抜けていました)
+/*
+ * --- セピアモード ---
+ * <html> タグに .theme-sepia が付いた時のスタイル
  */
-.card {
+.theme-sepia {
+    /* 1. <body> の背景色 (bg-gray-100) を上書き */
+    background-color: #f7f3e8; /* セピア背景 */
+    
+    /* 2. カードの外の文字 (.page-title) の色を濃いグレーにする */
+    color: #1f2937; /* Tailwind 'text-gray-800' */
+}
+
+
+/*
+ * --- 継承の制御 (重要) ---
+ *
+ * .theme-dark や .theme-sepia で設定した文字色(color)が、
+ * 白背景の要素 (ヘッダー、カード、タブバー) に継承されないように、
+ * これらの要素の文字色を強制的に「黒」で上書きする。
+ */
+.theme-dark #header,
+.theme-dark #app .card,
+.theme-dark #app .trap-card,
+.theme-dark nav,
+.theme-sepia #header,
+.theme-sepia #app .card,
+.theme-sepia #app .trap-card,
+.theme-sepia nav {
     /* * Tailwindの 'gray-900' (濃い黒) を指定。
-     * これにより、body の文字色が白(dark)になっても、
-     * カードの中は「白地・黒文字」を維持します。
+     * これにより、テーマが何であれ、白背景のコンポーネント内は
+     * 常に「黒文字」で表示されます。
+     * フォーム部品 (ソート、絞り込み) もこれに準じます。
      */
     color: #111827;
 }
 
-.trap-card {
-    /* リスト項目も同様に、文字色の基本を黒に設定 */
-    color: #111827;
+/*
+ * .page-title だけは、テーマの色を継承させたいので、
+ * 上記の .card { color: #111827; } 指定よりも
+ * 優先度が高い指定で、色を 'inherit' (親から継承) に戻す。
+ * * これにより、以下の動作になる:
+ * .theme-dark -> body (白文字) -> .page-title (白文字)
+ * .theme-dark -> body (白文字) -> .card (黒文字)
+ */
+.theme-dark .page-title,
+.theme-sepia .page-title {
+    color: inherit;
 }
