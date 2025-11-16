@@ -180,9 +180,10 @@ async function renderSettingsMenu() {
                 <div class="form-group">
                     <label for="setting-theme" class="form-label">背景色:</label>
                     <select id="setting-theme" class="form-select">
-                        ${themeOption('light', 'ライト')}
-                        ${themeOption('dark', 'ダーク')}
+                        ${themeOption('light', 'ライト (デフォルト)')}
                         ${themeOption('sepia', 'セピア')}
+                        ${themeOption('lightgreen', 'ライトグリーン')}
+                        ${themeOption('lightblue', 'ライトブルー')}
                     </select>
                 </div>
                 <div class="form-group">

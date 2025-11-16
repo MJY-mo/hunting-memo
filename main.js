@@ -248,22 +248,22 @@ async function loadAndApplySettings() {
 }
 
 /**
- * ★ 修正: テーマを適用する (<html> タグにクラスを設定する方式に戻す)
- * @param {string} themeValue - 'light', 'dark', 'sepia'
+ * ★ 修正: テーマを適用する (<html> タグにクラスを設定)
+ * (ダークを削除し、ライトグリーン/ライトブルーを追加)
+ * @param {string} themeValue - 'light', 'sepia', 'lightgreen', 'lightblue'
  */
 function applyTheme(themeValue) {
     const root = document.documentElement; // <html> タグ
     
     // 既存のテーマクラスをすべて削除
-    root.classList.remove('theme-light', 'theme-dark', 'theme-sepia');
+    root.classList.remove('theme-light', 'theme-dark', 'theme-sepia', 'theme-light-green', 'theme-light-blue');
 
-    // CSS変数（--color-bg-primary や --color-text-primary）の設定ロジックを削除
-    // root.style.setProperty(...)
-
-    if (themeValue === 'dark') {
-        root.classList.add('theme-dark');
-    } else if (themeValue === 'sepia') {
+    if (themeValue === 'sepia') {
         root.classList.add('theme-sepia');
+    } else if (themeValue === 'lightgreen') {
+        root.classList.add('theme-light-green');
+    } else if (themeValue === 'lightblue') {
+        root.classList.add('theme-light-blue');
     } else {
         // 'light' (default)
         root.classList.add('theme-light');
