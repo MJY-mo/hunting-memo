@@ -1,4 +1,5 @@
 // このファイルは main.js です
+// ★ 修正: populateGameAnimalListIfNeeded を、GitHub CSV から fetch するロジックに変更
 
 // --- グローバル変数・DOM要素 ---
 const app = document.getElementById('app');
@@ -61,7 +62,6 @@ const appState = {
         order: 'desc'      
     },
     
-    // ★★★ 修正: 狩猟鳥獣図鑑の絞り込み状態 (statusのデフォルトを'all'に) ★★★
     gameAnimalFilters: {
         category: 'all', // 'all', '哺乳類', '鳥類'
         status: 'all'    // 'all', '〇', '×'
@@ -69,7 +69,6 @@ const appState = {
 };
 
 // --- アプリ初期化 ---
-// ページのすべてのリソース（他のJSファイルを含む）が読み込まれてから起動
 window.addEventListener('load', () => {
     console.log("Window loaded. Initializing app...");
     
@@ -87,7 +86,7 @@ window.addEventListener('load', () => {
         await populateDefaultHunterProfile();
         
         // 5. 狩猟鳥獣「一覧」データ(図鑑兼用)をDBに投入 (初回のみ)
-        await populateGameAnimalListIfNeeded();
+        await populateGameAnimalListIfNeeded(false); // forceUpdate = false
         
         // 6. タブ切り替えのリスナーを設定
         setupTabs();
@@ -102,11 +101,10 @@ window.addEventListener('load', () => {
 
 /**
  * アプリ起動時に、デフォルトの罠種類をDBに登録する
- * ★ 修正: db.trap_types -> db.trap_type (単数形)
  */
 async function populateDefaultTrapTypes() {
     try {
-        await db.trap_type.bulkAdd([ // ★ 修正
+        await db.trap_type.bulkAdd([
             { name: 'くくり罠' },
             { name: '箱罠' }
         ]);
@@ -148,88 +146,78 @@ async function populateDefaultHunterProfile() {
 
 /**
  * ★★★ 修正: 狩猟鳥獣データを「必要であれば」DBに登録する ★★★
- * (DBが空の場合のみ実行し、2回目以降はスキップする)
- * (★ 修正: ウズラを削除)
- * (★ 修正: DBスキーマ v2 に合わせ、description, image_1, image_2 を追加)
+ * (DBが空の場合、または forceUpdate = true の場合、GitHubからCSVをフェッチして更新する)
+ * @param {boolean} forceUpdate - true の場合、既存データをクリアして強制的に更新する
  */
-async function populateGameAnimalListIfNeeded() {
+async function populateGameAnimalListIfNeeded(forceUpdate = false) {
     try {
         // 1. データが既に存在するか(件数)をチェック
         const count = await db.game_animal_list.count();
         
-        // 2. 1件以上データがあれば、何もしないで処理を終了
-        if (count > 0) {
+        // 2. 1件以上データがあり、強制更新(forceUpdate)でないなら、何もしない
+        if (count > 0 && !forceUpdate) {
             console.log(`Game animal list is already populated (${count} items). Skipping.`);
             return;
         }
 
-        // 3. データが0件なら、投入処理を実行
-        console.log("Game animal list is empty. Populating now...");
+        // 3. データが0件か、強制更新の場合、GitHubからフェッチして投入
+        console.log(forceUpdate ? "Forcing update of game animal list from GitHub..." : "Game animal list is empty. Populating from GitHub...");
         
-        // ★★★
-        // ここにCSVのデータを反映させてください。
-        // description: "（説明文をここに）"
-        // image_1: "画像ファイル名1.jpg" (なければ "")
-        // image_2: "画像ファイル名2.jpg" (なければ "")
-        // ★★★
-        const animals = [
-            { category: "哺乳類", is_game_animal: "〇", species_name: "イノシシ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州、淡路島 (沖縄は亜種リュウキュウイノシシ)", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ニホンジカ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道(エゾシカ)、本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ツキノワグマ", method_gun: "○", method_trap: "✕", method_net: "△", gender: "オスメス", count: "", prohibited_area: "三重県、奈良県、和歌山県、島根県、広島県、山口県、徳島県、香川県、愛媛県、高知県", habitat: "本州、四国 ", notes: "IUCN VU", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ヒグマ", method_gun: "○", method_trap: "✕", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "タヌキ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国 (北海道はエゾタヌキ)", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "キツネ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国 (北海道はキタキツネ)", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ノウサギ", method_gun: "○", method_trap: "○", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ユキウサギ", method_gun: "○", method_trap: "○", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "テン", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "(※亜種ツシマテンを除く)", habitat: "本州、四国、九州 ", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "アナグマ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "イタチ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オス", count: "", prohibited_area: "", habitat: "本州、四国、九州 (北海道は人為移入)", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "チョウセンイタチ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オス", count: "", prohibited_area: "", habitat: "西日本中心", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ミンク", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道、長野など", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "アライグマ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ハクビシン", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州、四国、九州", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ヌートリア", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "本州西部（岡山、兵庫、京都など）", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "タイワンリス", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "神奈川、静岡、大阪など局所的", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "シマリス", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "北海道", habitat: "北海道 (本州等で見られるのは外来種)", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ノイヌ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したイヌ）", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "〇", species_name: "ノネコ", method_gun: "○", method_trap: "○", method_net: "△", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（野生化したネコ）", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "ニホンザル", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "ニホンカモシカ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州、四国、九州", notes: "天然記念物", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "キョン", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "哺乳類", is_game_animal: "×", species_name: "ハリネズミ", method_gun: "-", method_trap: "-", method_net: "-", gender: "-", count: "-", prohibited_area: "-", habitat: "本州", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヒドリガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "マガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥・一部留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "カルガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ハシビロガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "オナガガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "コガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヨシガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ホシハジロ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "キンクロハジロ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "スズガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "クロガモ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日,200羽/期", prohibited_area: "", habitat: "全国（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "エゾライチョウ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "", prohibited_area: "", habitat: "北海道", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "キジ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "コウライキジ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "北海道（放鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヤマドリ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オス", count: "2羽/日", prohibited_area: "", habitat: "本州、四国、九州", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "コジュケイ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "本州、四国、九州（放鳥）", notes: "（外来種）", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヤマシギ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国（冬鳥・一部留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "タシギ", method_gun: "○", method_trap: "✕", method_net: "○", gender: "オスメス", count: "5羽/日", prohibited_area: "", habitat: "全国（冬鳥・旅鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "キジバト", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "10羽/日", prohibited_area: "", habitat: "全国（留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ヒヨドリ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "スズメ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国（留鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ムクドリ", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ミヤマガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "西日本（冬鳥）", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ハシボソガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" },
-            { category: "鳥類", is_game_animal: "〇", species_name: "ハシブトガラス", method_gun: "○", method_trap: "〇", method_net: "〇", gender: "オスメス", count: "", prohibited_area: "", habitat: "全国", notes: "", description: "（説明文をここに）", image_1: "", image_2: "" }
+        // ★ ご指定いただいた Raw URL
+        const CSV_URL = 'https://raw.githubusercontent.com/MJY-mo/hunting-memo/refs/heads/main/%E7%8B%A9%E7%8C%9F%E9%B3%A5%E7%8D%A3.csv'; 
+        
+        const response = await fetch(CSV_URL);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch CSV: ${response.statusText}`);
+        }
+        const csvText = await response.text();
+        
+        // CSVをパース (「カンマを含まない」前提の簡易パーサー)
+        // (BOM '\uFEFF' が先頭にある場合を考慮して trim() する)
+        const lines = csvText.trim().split('\n');
+        const header = lines[0].trim().split(',');
+        
+        // CSVヘッダーとDBキーのマッピング
+        // CSV: 種類,狩猟鳥獣,種名,銃,わな,あみ,狩猟可能な性別,狩猟可能な数,狩猟禁止区域,主な生息地（日本国内）,備考,説明欄,画像1,画像2
+        const keys = [
+            'category', 'is_game_animal', 'species_name', 'method_gun', 'method_trap', 'method_net', 
+            'gender', 'count', 'prohibited_area', 
+            'habitat', 'notes', 'description', 'image_1', 'image_2'
         ];
 
-        // (DBは空なので clear() は不要)
-        await db.game_animal_list.bulkAdd(animals);
-        console.log("Game animal list (CSV) populated accurately.");
+        const animals = [];
+        for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim() === '') continue; // 空行はスキップ
+            
+            const values = lines[i].split(',');
+            const animal = {};
+            for (let j = 0; j < keys.length; j++) {
+                // 値が undefined (CSVの列が足りない) の場合、空文字にする
+                // .trim() で余分な空白や \r を削除
+                animal[keys[j]] = values[j] ? values[j].trim() : '';
+            }
+            animals.push(animal);
+        }
+        
+        if (animals.length === 0) {
+            throw new Error('CSVデータが空か、パースに失敗しました。');
+        }
+
+        // データを一旦クリアして、CSVのデータのみで再登録
+        await db.transaction('rw', db.game_animal_list, async () => {
+            await db.game_animal_list.clear();
+            await db.game_animal_list.bulkAdd(animals);
+        });
+        
+        console.log(`Game animal list populated successfully (${animals.length} items).`);
         
     } catch (err) {
-        console.error("Failed to populate game animal list (IfNeeded):", err);
+        console.error("Failed to populate game animal list (from CSV):", err);
+        // エラーをUIに通知
+        const statusEl = document.getElementById('csv-status'); // settings.js にある要素
+        if (statusEl) {
+            statusEl.textContent = '図鑑の更新に失敗しました。';
+        }
     }
 }
 
@@ -259,13 +247,11 @@ async function loadAndApplySettings() {
 
     } catch (err) {
         console.error("Failed to load settings:", err);
-        // エラーが発生しても、デフォルトのスタイルで続行
     }
 }
 
 /**
  * テーマを適用する (settings.js からも呼ばれる)
- * @param {string} themeValue - 'light', 'dark', 'sepia'
  */
 function applyTheme(themeValue) {
     const root = document.documentElement; // <html> タグ
@@ -281,14 +267,11 @@ function applyTheme(themeValue) {
 
 /**
  * 文字サイズを適用する (settings.js からも呼ばれる)
- * @param {string} sizeValue - 'xsmall', 'small', 'medium', 'large', 'xlarge'
  */
 function applyFontSize(sizeValue) {
     const root = document.documentElement; // <html> タグ
-    // すべてのクラスを一旦削除
     root.classList.remove('font-size-xsmall', 'font-size-small', 'font-size-medium', 'font-size-large', 'font-size-xlarge');
     
-    // 該当するクラスを追加
     if (sizeValue === 'xsmall') {
         root.classList.add('font-size-xsmall');
     } else if (sizeValue === 'small') {
@@ -298,7 +281,6 @@ function applyFontSize(sizeValue) {
     } else if (sizeValue === 'xlarge') {
         root.classList.add('font-size-xlarge');
     } else {
-        // 'medium' または不明な値は 'medium' にフォールバック
         root.classList.add('font-size-medium');
     }
 }
@@ -306,7 +288,6 @@ function applyFontSize(sizeValue) {
 
 // --- タブ切り替えロジック ---
 function setupTabs() {
-    // 各タブが押されたら、navigateTo 関数を正しい引数で呼び出す
     tabs.trap.addEventListener('click', () => {
         appState.trapView = 'open'; 
         navigateTo('trap', showTrapPage, '罠');
@@ -314,32 +295,25 @@ function setupTabs() {
     tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
     tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
-    tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲記録'));
-    tabs.checklist.addEventListener('click', () => navigateTo('checklist', showChecklistPage, 'チェックリスト'));
+    tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲'));
+    tabs.checklist.addEventListener('click', () => navigateTo('checklist', showChecklistPage, 'チェック'));
 }
 
 /**
  * 画面を切り替える（タブが押されたときに呼ばれる）
- * @param {string} pageId - 'trap', 'gun', 'info', 'settings', 'catch', 'checklist'
- * @param {function} pageFunction - 実行する描画関数 (例: showTrapPage)
- * @param {string} title - ヘッダーに表示するタイトル
  */
 function navigateTo(pageId, pageFunction, title) {
     appState.currentPage = pageId;
     
-    // すべてのタブを非アクティブ化
     Object.values(tabs).forEach(tab => {
         if (tab) tab.classList.replace('tab-active', 'tab-inactive');
     });
-    // 押されたタブをアクティブ化
     if (tabs[pageId]) {
         tabs[pageId].classList.replace('tab-inactive', 'tab-active');
     }
 
-    // ヘッダーを更新 (戻るボタンはデフォルトで非表示)
     updateHeader(title, false);
     
-    // 該当するページの描画関数を実行
     try {
         pageFunction();
     } catch (err) {
@@ -350,15 +324,11 @@ function navigateTo(pageId, pageFunction, title) {
 
 /**
  * ヘッダーを更新する
- * @param {string} title - 表示するタイトル
- * @param {boolean} showBack - 戻るボタンを表示するか
  */
 function updateHeader(title, showBack = false) {
     headerTitle.textContent = title;
     backButton.classList.toggle('hidden', !showBack);
     
-    // 戻るボタンのデフォルト動作（タブ一覧に戻る）
-    // (各画面で、必要に応じてこの onclick は上書きされます)
     if (showBack) {
         backButton.onclick = () => {
             if (appState.currentPage === 'trap') {
@@ -368,10 +338,10 @@ function updateHeader(title, showBack = false) {
                 navigateTo('gun', showGunPage, '銃');
             }
             else if (appState.currentPage === 'catch') {
-                navigateTo('catch', showCatchPage, '捕獲記録');
+                navigateTo('catch', showCatchPage, '捕獲');
             }
             else if (appState.currentPage === 'checklist') {
-                navigateTo('checklist', showChecklistPage, 'チェックリスト');
+                navigateTo('checklist', showChecklistPage, 'チェック');
             }
             else if (appState.currentPage === 'info') {
                  navigateTo('info', showInfoPage, '情報');
@@ -383,16 +353,13 @@ function updateHeader(title, showBack = false) {
         };
     }
 
-    // ヘッダーアクションボタンを一旦クリア
     headerActions.innerHTML = '';
 }
 
 // --- 共通ヘルパー関数 ---
-// (GPS, escapeHTML, formatDate, resizeImage は変更なし)
+
 /**
- * GPS位置情報を取得する (ユーザーの要望)
- * (trap.js などから呼び出して使う)
- * @returns {Promise<{latitude: number, longitude: number}>}
+ * GPS位置情報を取得する
  */
 function getCurrentLocation() {
     return new Promise((resolve, reject) => {
@@ -401,7 +368,6 @@ function getCurrentLocation() {
             return;
         }
         
-        // 高精度モードで、タイムアウトを10秒に設定
         const options = {
             enableHighAccuracy: true,
             timeout: 10000, // 10秒
@@ -432,9 +398,7 @@ function getCurrentLocation() {
 }
 
 /**
- * HTMLエスケープ (安全のため)
- * @param {string | number | null | undefined} str
- * @returns {string}
+ * HTMLエスケープ
  */
 function escapeHTML(str) {
     if (str === null || str === undefined) return '';
@@ -448,13 +412,10 @@ function escapeHTML(str) {
 
 /**
  * 日付フォーマット (YYYY/MM/DD)
- * @param {string | null | undefined} dateString
- * @returns {string}
  */
 function formatDate(dateString) {
     if (!dateString) return '未設定';
     try {
-        // YYYT-MM-DD 形式を正しくパースする
         const parts = dateString.split('-');
         if (parts.length === 3) {
             const year = parts[0];
@@ -462,9 +423,8 @@ function formatDate(dateString) {
             const day = parts[2];
             return `${year}/${month}/${day}`;
         }
-        // パースできない場合は元の文字列か、簡易的な変換を試みる
         const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString; // 無効な日付
+        if (isNaN(date.getTime())) return dateString; 
         
         const year = date.getFullYear();
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -472,14 +432,13 @@ function formatDate(dateString) {
         return `${year}/${month}/${day}`;
 
     } catch (e) {
-        return dateString; // パース失敗時は元の文字列を返す
+        return dateString;
     }
 }
 
 
 /**
  * 画像リサイズ関数
- * (変更なし)
  */
 function resizeImage(file, maxSize = 800) {
     return new Promise((resolve, reject) => {
