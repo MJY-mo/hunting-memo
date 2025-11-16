@@ -297,29 +297,27 @@ nav.bg-white {
 .photo-preview-btn-delete:hover {
     background-color: rgb(185 28 28); /* hover:bg-red-700 */
 }
-
 /*
  * ----------------------------------------------------------------
- * テーマ変更用の設定 (ライトテーマ版)
+ * テーマ変更用の設定 (セレクタ修正版)
  * ----------------------------------------------------------------
  */
 
 /*
  * --- ライト (デフォルト) ---
  * <html>.theme-light
- * (index.html の <body class="bg-gray-100"> が適用される)
- *
- * .page-title の文字色は、
- * index.html の <body> が .bg-gray-100 であっても
- * 文字色を指定していないため、デフォルトの黒(#111827)になる。
+ * index.html の <body class="bg-gray-100"> がそのまま適用される。
  */
-
+html.theme-light body {
+    background-color: #f3f4f6; /* Tailwind 'gray-100' */
+    color: #111827; /* デフォルトの黒文字 */
+}
 
 /*
  * --- セピア ---
  * <html>.theme-sepia
  */
-.theme-sepia {
+html.theme-sepia body {
     /* 1. <body> の背景色 (bg-gray-100) を上書き */
     background-color: #f7f3e8; /* セピア背景 */
     
@@ -331,7 +329,7 @@ nav.bg-white {
  * --- ライトグリーン ---
  * <html>.theme-light-green
  */
-.theme-light-green {
+html.theme-light-green body {
     background-color: #f0fdf4; /* Tailwind 'green-50' */
     color: #15803d; /* Tailwind 'green-700' */
 }
@@ -340,7 +338,7 @@ nav.bg-white {
  * --- ライトブルー ---
  * <html>.theme-light-blue
  */
-.theme-light-blue {
+html.theme-light-blue body {
     background-color: #f0f9ff; /* Tailwind 'sky-50' */
     color: #0c4a6e; /* Tailwind 'sky-900' */
 }
@@ -349,22 +347,22 @@ nav.bg-white {
 /*
  * --- 継承の制御 (重要) ---
  *
- * .theme-xxx で設定した文字色(color)が、
+ * <html>.theme-xxx body で設定した文字色(color)が、
  * 白背景の要素 (ヘッダー、カード、タブバー) に継承されないように、
  * これらの要素の文字色を強制的に「黒」で上書きする。
  */
-.theme-sepia #header,
-.theme-sepia #app .card,
-.theme-sepia #app .trap-card,
-.theme-sepia nav,
-.theme-light-green #header,
-.theme-light-green #app .card,
-.theme-light-green #app .trap-card,
-.theme-light-green nav,
-.theme-light-blue #header,
-.theme-light-blue #app .card,
-.theme-light-blue #app .trap-card,
-.theme-light-blue nav {
+html.theme-sepia #header,
+html.theme-sepia #app .card,
+html.theme-sepia #app .trap-card,
+html.theme-sepia nav,
+html.theme-light-green #header,
+html.theme-light-green #app .card,
+html.theme-light-green #app .trap-card,
+html.theme-light-green nav,
+html.theme-light-blue #header,
+html.theme-light-blue #app .card,
+html.theme-light-blue #app .trap-card,
+html.theme-light-blue nav {
     /*
      * どのテーマであっても、白背景のコンポーネント内は
      * 常に「黒文字」(#111827)で表示されます。
@@ -377,8 +375,8 @@ nav.bg-white {
  * 上記の .card { color: #111827; } 指定よりも
  * 優先度が高い指定で、色を 'inherit' (親から継承) に戻す。
  */
-.theme-sepia .page-title,
-.theme-light-green .page-title,
-.theme-light-blue .page-title {
+html.theme-sepia .page-title,
+html.theme-light-green .page-title,
+html.theme-light-blue .page-title {
     color: inherit;
 }
