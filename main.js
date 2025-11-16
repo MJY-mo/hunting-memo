@@ -1,6 +1,7 @@
 // このファイルは main.js です
 // ★ 修正: populateGameAnimalListIfNeeded を、GitHub CSV から fetch するロジックに変更
 // ★ 修正: [パフォーマンス #2] メモリリーク対策のため、URL解放ロジックを navigateTo に集約
+// ★ 修正: 2025/11/15 ユーザー指摘 (テーマ変更ロジック) を適用
 
 // --- グローバル変数・DOM要素 ---
 const app = document.getElementById('app');
@@ -68,7 +69,7 @@ const appState = {
         status: 'all'    // 'all', '〇', '×'
     },
     
-    // ★ 新規: [パフォーマンス #2] メモリリーク対策
+    // [パフォーマンス #2] メモリリーク対策
     activeBlobUrls: [] // ページ表示に使ったBlob URLを一時的に保持
 };
 
@@ -149,8 +150,8 @@ async function populateDefaultHunterProfile() {
 
 
 /**
- * ★★★ 修正: 狩猟鳥獣データを「必要であれば」DBに登録する ★★★
- * (DBが空の場合、または forceUpdate = true の場合、GitHubからCSVをフェッチして更新する)
+ * 狩猟鳥獣データを「必要であれば」DBに登録する
+ * (GitHubからCSVをフェッチして更新する)
  * @param {boolean} forceUpdate - true の場合、既存データをクリアして強制的に更新する
  */
 async function populateGameAnimalListIfNeeded(forceUpdate = false) {
@@ -247,18 +248,29 @@ async function loadAndApplySettings() {
 }
 
 /**
- * テーマを適用する (settings.js からも呼ばれる)
+ * ★ 修正: テーマを適用する (一番背景の --color-bg-primary のみ変更)
+ * @param {string} themeValue - 'light', 'dark', 'sepia'
  */
 function applyTheme(themeValue) {
     const root = document.documentElement; // <html> タグ
+    
+    // 以前のクラスを削除 (v17互換のため)
     root.classList.remove('theme-light', 'theme-dark', 'theme-sepia');
+    
+    let primaryBgColor;
+    
     if (themeValue === 'dark') {
-        root.classList.add('theme-dark');
+        primaryBgColor = '#1f2937'; // bg-gray-800
     } else if (themeValue === 'sepia') {
-        root.classList.add('theme-sepia');
+        primaryBgColor = '#f7f3e8'; // セピア背景 (例)
     } else {
-        root.classList.add('theme-light');
+        // light (default)
+        primaryBgColor = '#f3f4f6'; // bg-gray-100
     }
+    
+    // Set *only* the primary background color variable
+    // これにより、 body { background-color: var(--color-bg-primary); } のみが変更される
+    root.style.setProperty('--color-bg-primary', primaryBgColor);
 }
 
 /**
@@ -565,12 +577,10 @@ function closeImageModal() {
     const modalOverlay = document.getElementById('image-modal-overlay');
     if (modalOverlay) {
         // メモリリーク防止のため、imgのsrcを解放
-        // ★ 修正: blob: で始まるURLのみ revokeObjectUrl を呼ぶ
+        // ★ 修正: [パフォーマンス #2] (ここでは解放しない)
         const img = modalOverlay.querySelector('img');
         if (img && img.src.startsWith('blob:')) {
-            // ★ 修正: メモリリーク対策 #2 (ここでは解放しない)
             // URL.revokeObjectURL(img.src);
-            // (navigateTo で解放される)
         }
         modalOverlay.remove();
     }
