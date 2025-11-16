@@ -1,7 +1,9 @@
 // このファイルは trap.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
+// ★ 修正: DBスキーマ v11 (trap に purpose 追加) に対応
+// ★ 修正: クエリロジックを修正 (orderByが先)
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
-// ★ 修正: 2025/11/15 アイコン変更 (🐾 -> 🦌)
+// ★ 修正: 捕獲記録への遷移ロジックを修正 (showCatchPage -> showCatchListPage)
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
@@ -178,6 +180,11 @@ async function renderTrapList() {
             const catchBadge = catchCount > 0 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
+            
+            // ★ 新規: 目的バッジを追加
+            const purposeBadge = trap.purpose 
+                ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-purple-600 bg-purple-200">${escapeHTML(trap.purpose)}</span>`
+                : '';
 
             // 「過去の罠」の場合、タイトル色を変更
             const titleColor = view === 'open' ? 'text-blue-600' : 'text-gray-500';
@@ -189,7 +196,7 @@ async function renderTrapList() {
                         <p class="text-sm">${escapeHTML(trap.type)} / ${formatDate(trap.setup_date)}</p>
                     </div>
                     <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
-                        ${catchBadge}
+                        ${purposeBadge} ${catchBadge}
                         <span>&gt;</span>
                     </div>
                 </div>
@@ -248,9 +255,11 @@ async function showTrapDetailPage(id) {
             `;
         }
 
+        // --- 基本情報のテーブル (★ 修正: '目的' を追加) ---
         const tableData = [
             { label: '罠番号', value: trap.trap_number },
             { label: '種類', value: trap.type },
+            { label: '目的', value: trap.purpose }, // ★ 追加
             { label: '設置日', value: formatDate(trap.setup_date) },
             { label: '緯度', value: trap.latitude },
             { label: '経度', value: trap.longitude },
@@ -286,7 +295,7 @@ async function showTrapDetailPage(id) {
             `;
         }
         
-        // --- ★ 修正: アイコンを 🐾 -> 🦌 に変更 ---
+        // --- ボタンの表記を変更 ---
         const catchButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
@@ -350,10 +359,11 @@ async function showTrapDetailPage(id) {
             }, { once: true });
         }
         
+        // 捕獲記録への遷移ロジックを修正
         document.getElementById('show-related-catches-btn').addEventListener('click', () => {
             appState.currentCatchMethod = 'trap';
             appState.currentCatchRelationId = id; 
-            navigateTo('catch', showCatchPage, '捕獲記録');
+            navigateTo('catch', showCatchListPage, '罠の捕獲記録');
         });
 
         document.getElementById('add-catch-to-trap-btn').addEventListener('click', () => {
@@ -379,12 +389,16 @@ async function showTrapDetailPage(id) {
 }
 
 // --- 罠 (編集/新規) -----------------------------
-// (このセクションは修正なし)
+
+/**
+ * 罠の「編集/新規作成フォーム」を表示する
+ */
 async function showTrapEditForm(id) {
     let trap = {
         trap_number: '',
         type: '',
         setup_date: new Date().toISOString().split('T')[0], 
+        purpose: '狩猟', // ★ 新規: デフォルト値を設定
         latitude: '',
         longitude: '',
         memo: '',
@@ -439,7 +453,16 @@ async function showTrapEditForm(id) {
                     <datalist id="trap-type-datalist">
                         ${typeOptions}
                     </datalist>
-                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="trap-purpose" class="form-label">目的:</label>
+                    <select id="trap-purpose" class="form-select">
+                        <option value="狩猟" ${trap.purpose === '狩猟' ? 'selected' : ''}>狩猟</option>
+                        <option value="有害駆除" ${trap.purpose === '有害駆除' ? 'selected' : ''}>有害駆除</option>
+                        <option value="その他" ${trap.purpose === 'その他' ? 'selected' : ''}>その他</option>
+                    </select>
+                </div>
 
                 <div class="form-group">
                     <label for="trap-setup-date" class="form-label">設置日 <span class="text-red-500">*</span>:</label>
@@ -569,10 +592,12 @@ async function showTrapEditForm(id) {
             return;
         }
         
+        // ★ 修正: formData に 'purpose' を追加
         const formData = {
             trap_number: trapNumber,
             type: trapType,
             setup_date: setupDate,
+            purpose: document.getElementById('trap-purpose').value, // ★ 追加
             latitude: document.getElementById('trap-latitude').value,
             longitude: document.getElementById('trap-longitude').value,
             memo: document.getElementById('trap-memo').value,
@@ -585,9 +610,11 @@ async function showTrapEditForm(id) {
         
         try {
             if (id) {
+                // 更新 (is_open 状態は変更しない)
                 await db.trap.put({ ...formData, is_open: trap.is_open, id: id });
                 showTrapDetailPage(id); 
             } else {
+                // 新規作成
                 const newId = await db.trap.add({ ...formData, is_open: 1 });
                 showTrapDetailPage(newId); 
             }
@@ -599,7 +626,12 @@ async function showTrapEditForm(id) {
 }
 
 // --- 罠 (削除・解除) -----------------------------
-// (このセクションは修正なし)
+
+/**
+ * 罠を解除する (is_open: 0 にする)
+ * @param {number} id - 解除する罠のID
+ * @param {string} closeDate - YYYY-MM-DD形式の解除日
+ */
 async function closeTrap(id, closeDate) {
     if (!confirm(`罠を ${formatDate(closeDate)} 付で「解除」しますか？\n「設置中の罠」から「過去の罠」に移動します。`)) {
         return;
