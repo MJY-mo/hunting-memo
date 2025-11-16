@@ -3,7 +3,9 @@
 // ★ 修正: DBスキーマ v12 (gun_log に複合インデックス追加) に対応
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 // ★ 修正: 捕獲記録への遷移ロジックを修正 (showCatchPage -> showCatchListPage)
-// ★ 修正: [パフォーマンス #1] renderGunLogListItems のクエリを複合インデックス(v12)を使用するよう変更
+// ★ 修正: [パフォーマンス #1] renderGunLogListItems のクエリを orderBy -> filter の順に修正
+// ★ 修正: [パフォーマンス #2] メモリリーク対策 (Blob URL) を適用
+// ★ 修正: [パフォーマンス #3] N+1クエリ対策 (Promise.all) を適用
 
 /**
  * 「銃」タブのメインページを表示する
@@ -578,7 +580,7 @@ async function renderGunLogList() {
 
 /**
  * 銃使用履歴リストの「中身（ul）」を描画する
- * ★ 修正: 複合インデックス [gun_id+use_date] / [purpose+use_date] を使用
+ * ★★★ ロジック根本修正 (orderBy -> filter) ★★★
  */
 async function renderGunLogListItems() {
     const listElement = document.getElementById('gun-log-list');
@@ -590,47 +592,26 @@ async function renderGunLogListItems() {
         const filters = appState.gunLogFilters;
         const sort = appState.gunLogSort;
         
-        let query;
+        // ★ 修正: 1. ソートキーでまず並び替える
+        let query = db.gun_log.orderBy(sort.key);
 
-        // ★ 修正: フィルターとソートの組み合わせでクエリを分岐
+        // ★ 修正: 2. 昇順/降順の適用
+        if (sort.order === 'desc') {
+            query = query.reverse();
+        }
+
+        // ★ 修正: 3. データベースから配列として取得
+        let logs = await query.toArray();
+
+        // ★ 修正: 4. JavaScript側でフィルターを実行
         const gunId = filters.gun_id === 'all' ? null : parseInt(filters.gun_id, 10);
         const purpose = filters.purpose === 'all' ? null : filters.purpose;
-
-        if (gunId && purpose) {
-            // 銃と目的の両方で絞り込み (v12インデックス非対応 -> v13で [gun_id+purpose+use_date] が必要)
-            // 現状(v12)は、片方で絞り込んでからJSでフィルターする
-             query = db.gun_log.where('gun_id').equals(gunId)
-                         .filter(log => log.purpose === purpose)
-                         .sortBy('use_date'); // sortByはJS側ソート
-        } else if (gunId) {
-            // 銃のみで絞り込み (複合インデックス [gun_id+use_date] を使用)
-            query = db.gun_log.where('[gun_id+use_date]').equals(gunId); // .equals()はソートキー(use_date)の範囲指定ができない
-            // → やはり where().orderBy() が正しい
-            query = db.gun_log.where('gun_id').equals(gunId).orderBy(sort.key);
-
-        } else if (purpose) {
-            // 目的のみで絞り込み (複合インデックス [purpose+use_date] を使用)
-             query = db.gun_log.where('purpose').equals(purpose).orderBy(sort.key);
-        } else {
-            // 絞り込みなし (use_date インデックスを使用)
-            query = db.gun_log.orderBy(sort.key);
+        
+        if (purpose) {
+            logs = logs.filter(log => log.purpose === purpose);
         }
-
-        // 昇順/降順の適用
-        if (sort.order === 'desc') {
-            if (query.reverse) { // Dexie Collection (orderBy)
-                 query = query.reverse();
-            }
-        }
-
-        let logs;
-        if (query.toArray) { // Dexie Collection
-            logs = await query.toArray();
-        } else { // Promise (sortBy)
-            logs = await query;
-            if (sort.order === 'desc') {
-                logs.reverse(); // JS側でソート
-            }
+        if (gunId) {
+            logs = logs.filter(log => log.gun_id === gunId);
         }
         
         if (logs.length === 0) {
@@ -638,22 +619,26 @@ async function renderGunLogListItems() {
             return;
         }
 
-        let listItems = '';
-        for (const log of logs) {
-            // 銃の名前を非同期で取得
-            const gun = log.gun_id ? await db.gun.get(log.gun_id) : null;
+        // 5. HTML構築
+        // ★ 修正: [パフォーマンス #3] N+1クエリ対策 (Promise.all)
+        const gunPromises = logs.map(log => log.gun_id ? db.gun.get(log.gun_id) : Promise.resolve(null));
+        const countPromises = logs.map(log => db.catch_records.where('gun_log_id').equals(log.id).count());
+        
+        const guns = await Promise.all(gunPromises);
+        const catchCounts = await Promise.all(countPromises);
+
+        const listItems = logs.map((log, index) => {
+            const gun = guns[index];
             const gunName = gun ? escapeHTML(gun.name) : '不明な銃';
             
-            // 関連する捕獲数を非同期で取得
-            const catchCount = await db.catch_records.where('gun_log_id').equals(log.id).count();
+            const catchCount = catchCounts[index];
             const catchBadge = catchCount > 0 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
             
-            // ammo_count (消費弾数) を表示
             const ammoText = (log.ammo_count > 0) ? ` / ${log.ammo_count}発` : '';
 
-            listItems += `
+            return `
                 <div class="trap-card" data-id="${log.id}">
                     <div class="flex-grow">
                         <h3 class="text-lg font-semibold text-blue-600">${formatDate(log.use_date)} (${escapeHTML(log.purpose)})</h3>
@@ -665,11 +650,11 @@ async function renderGunLogListItems() {
                     </div>
                 </div>
             `;
-        }
+        }).join('');
         
         listElement.innerHTML = listItems;
         
-        // クリックイベント設定
+        // 6. クリックイベント設定
         listElement.querySelectorAll('.trap-card').forEach(item => {
             item.addEventListener('click', () => {
                 const id = parseInt(item.dataset.id, 10);
@@ -711,7 +696,7 @@ async function showGunLogDetailPage(id) {
         let imageHTML = '';
         if (log.image_blob) {
             const blobUrl = URL.createObjectURL(log.image_blob);
-            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            // ★ 修正: [パフォーマンス #2] URLをグローバルに保存
             appState.activeBlobUrls.push(blobUrl);
             
             imageHTML = `
@@ -724,7 +709,7 @@ async function showGunLogDetailPage(id) {
             `;
         }
         
-        // --- 基本情報のテーブル (★ 修正: ammo_count, companion を追加) ---
+        // --- 基本情報のテーブル (ammo_count, companion を追加) ---
         const tableData = [
             { label: '使用日', value: formatDate(log.use_date) },
             { label: '目的', value: log.purpose },
@@ -743,7 +728,6 @@ async function showGunLogDetailPage(id) {
                     <tbody>
         `;
         tableData.forEach(row => {
-            // ★ 修正: 0 も表示するように (value が null や undefined でないこと)
             if (row.value !== null && row.value !== undefined && row.value !== '') {
                 tableHTML += `
                     <tr class="border-b">
@@ -766,7 +750,7 @@ async function showGunLogDetailPage(id) {
             `;
         }
         
-        // --- ★ 修正: ボタンの表記を変更 ---
+        // --- ボタンの表記を変更 ---
         const catchButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録</h2>
@@ -807,7 +791,7 @@ async function showGunLogDetailPage(id) {
             imgElement.addEventListener('click', () => {
                 showImageModal(imgElement.src);
             });
-            // ★ 修正: メモリリーク対策 #2 (backButton.onclick での revoke を削除)
+            // ★ 修正: [パフォーマンス #2] revoke 処理を削除
         }
         
         // 捕獲記録への遷移ロジックを修正
@@ -840,8 +824,8 @@ async function showGunLogEditForm(id) {
         image_blob: null,
         latitude: '',
         longitude: '',
-        ammo_count: 0, // ★ 修正: ammo_count を追加
-        companion: ''  // ★ 修正: companion を追加
+        ammo_count: 0,
+        companion: ''
     };
     
     let pageTitle = '新規 銃使用履歴';
@@ -870,7 +854,7 @@ async function showGunLogEditForm(id) {
             
             if (log.image_blob) {
                 const blobUrl = URL.createObjectURL(log.image_blob);
-                // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+                // ★ 修正: [パフォーマンス #2] URLをグローバルに保存
                 appState.activeBlobUrls.push(blobUrl);
 
                 currentImageHTML = `
@@ -1007,7 +991,7 @@ async function showGunLogEditForm(id) {
         try {
             resizedImageBlob = await resizeImage(file, 800);
             const previewUrl = URL.createObjectURL(resizedImageBlob);
-            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            // ★ 修正: [パフォーマンス #2] URLをグローバルに保存
             appState.activeBlobUrls.push(previewUrl);
 
             previewContainer.innerHTML = `<div class="photo-preview"><img src="${previewUrl}" alt="プレビュー"></div>`;
@@ -1035,7 +1019,7 @@ async function showGunLogEditForm(id) {
         currentImg.addEventListener('click', () => {
             showImageModal(currentImg.src);
         });
-        // ★ 修正: メモリリーク対策 #2 (backButton.onclick での revoke を削除)
+        // ★ 修正: [パフォーマンス #2] revoke 処理を削除
     }
 
     // 5. フォーム保存処理
