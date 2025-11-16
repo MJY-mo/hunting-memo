@@ -2,6 +2,7 @@
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 // ★ 修正: [パフォーマンス #1] renderGameAnimalList のクエリを orderBy -> filter の順に修正
 // ★ 修正: [パフォーマンス #2] メモリリーク対策 (Blob URL) を適用
+// ★ 修正: <label> 警告の修正 (for属性の追加)
 
 /**
  * 「情報」タブのメインページを表示する
@@ -110,7 +111,7 @@ async function showGameAnimalListPage() {
 
 /**
  * 図鑑リストを描画する (フィルタリング実行)
- * ★ 修正: クエリロジックを orderBy -> filter の順に変更
+ * (ロジックは修正済み)
  */
 async function renderGameAnimalList() {
     const listElement = document.getElementById('game-animal-list');
@@ -121,15 +122,13 @@ async function renderGameAnimalList() {
     try {
         const filters = appState.gameAnimalFilters;
         
-        // ★ 修正: 1. 最初にソートする
-        // (db.js v12 で [category+species_name] と [is_game_animal+species_name] が
-        // 追加されたが、ここでは 'species_name' 単体インデックスでソートする方がロジックが単純)
+        // 1. 最初にソートする
         let query = db.game_animal_list.orderBy('species_name');
         
-        // ★ 修正: 2. データを配列として取得
+        // 2. データを配列として取得
         let animals = await query.toArray();
 
-        // ★ 修正: 3. JavaScript側でフィルター
+        // 3. JavaScript側でフィルター
         if (filters.category !== 'all') {
             animals = animals.filter(animal => animal.category === filters.category);
         }
@@ -144,7 +143,6 @@ async function renderGameAnimalList() {
 
         // 4. HTMLを構築
         const listItems = animals.map(animal => {
-            // 狩猟対象かどうかのバッジ
             const statusBadge = animal.is_game_animal === '〇' 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">対象</span>`
                 : `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-red-600 bg-red-200">対象外</span>`;
@@ -288,7 +286,7 @@ async function showProfilePage() { // (旧 showHunterProfilePage)
                 <input type="date" id="profile-${key}" class="form-input" value="${escapeHTML(profile[key])}">
             </div>
             <div class="form-group">
-                <label class="form-label">${label} (写真):</label>
+                <label for="image-uploader-${key}" class="form-label">${label} (写真):</label>
                 <input type="file" id="image-uploader-${key}" class="form-input" multiple accept="image/*">
                 <div id="image-gallery-${key}" class="image-gallery-grid mt-2">
                     <p class="text-gray-500 text-sm">読み込み中...</p>
@@ -402,7 +400,7 @@ async function showProfilePage() { // (旧 showHunterProfilePage)
 /**
  * 捕獲者情報の画像ギャラリーを描画する
  * (v10 の profile_images テーブルを参照)
- * ★ 修正: [パフォーマンス #2] メモリリーク対策
+ * (メモリリーク対策 適用済み)
  * @param {string} type - 'gun_license_renewal' などのキー
  */
 async function loadProfileImages(type) {
@@ -420,7 +418,7 @@ async function loadProfileImages(type) {
         
         images.forEach(image => {
             const blobUrl = URL.createObjectURL(image.image_blob);
-            // ★ 修正: [パフォーマンス #2] URLをグローバルに保存
+            // [パフォーマンス #2] URLをグローバルに保存
             appState.activeBlobUrls.push(blobUrl);
             
             const div = document.createElement('div');

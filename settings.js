@@ -3,6 +3,7 @@
 // ★ 修正: 「使用方法」のアコーディオンセクションを上部に追加
 // ★ 修正: CSVダウンロード機能を追加
 // ★ 修正: 2025/11/15 ユーザー指摘のUI修正 (h2タイトルの削除, "基本的な使用方法"の削除)
+// ★ 修正: 削除し忘れた 'delete-all-data-btn' のイベントリスナーを削除
 
 /**
  * 「設定」タブのメインページを表示する
@@ -294,6 +295,7 @@ async function renderSettingsMenu() {
     });
     
     // ★ 修正: 全削除のリスナーを削除
+    // document.getElementById('delete-all-data-btn').addEventListener('click', deleteAllData);
     
     // CSVエクスポートのリスナー
     document.getElementById('export-gun-logs-csv-btn').addEventListener('click', exportGunLogsAsCSV);
@@ -321,17 +323,13 @@ async function renderSettingsMenu() {
 
 
 // --- JSON (バックアップ) 機能 ---------------------------------
-
-/**
- * データベースの全データをエクスポートする
- */
+// (このセクションは修正なし)
 async function exportAllData() {
-    const statusEl = document.getElementById('import-export-status'); // ★ 修正: data-status -> import-export-status
+    const statusEl = document.getElementById('import-export-status');
     statusEl.textContent = 'エクスポート準備中...';
     try {
         const exportData = {};
         
-        // 全テーブルのデータを収集 (v11 スキーマ)
         const tablesToExport = [
             'hunter_profile', 'settings', 'trap', 'trap_type', 'gun', 'gun_log',
             'catch_records', 'checklist_sets', 'checklist_items', 'game_animal_list',
@@ -344,8 +342,6 @@ async function exportAllData() {
             }
         }
         
-        // (画像データはBlobのままエクスポート)
-        // ★ 修正: v17/v10
         const blobTables = ['trap', 'catch_records', 'gun_log', 'profile_images'];
         for (const tableName of blobTables) {
              if (exportData[tableName]) {
@@ -358,11 +354,9 @@ async function exportAllData() {
              }
         }
 
-        // Blobを作成
         const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         
-        // ダウンロードリンクを作成してクリック
         const a = document.createElement('a');
         a.href = url;
         const timestamp = new Date().toISOString().split('T')[0];
@@ -370,7 +364,6 @@ async function exportAllData() {
         document.body.appendChild(a);
         a.click();
         
-        // 後片付け
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
@@ -383,26 +376,20 @@ async function exportAllData() {
     }
 }
 
-/**
- * データをインポートする
- * @param {File} file - インポートする JSON ファイル
- */
 async function importAllData(file) {
     if (!confirm('本当にデータをインポートしますか？\n【現在のデータはすべて上書きされます！】\nこの操作は元に戻せません。')) {
         return;
     }
 
-    const statusEl = document.getElementById('import-export-status'); // ★ 修正: data-status -> import-export-status
+    const statusEl = document.getElementById('import-export-status');
     statusEl.textContent = 'インポート中...';
 
     try {
         const text = await file.text();
         const data = JSON.parse(text);
         
-        // v10 以前の 'tables' オブジェクト形式に対応
         const tables = data.tables || data;
 
-        // Base64をBlobに非同期変換
         const convertTableImages = async (tableName) => {
             if (!tables[tableName]) return [];
             return Promise.all(
@@ -417,37 +404,31 @@ async function importAllData(file) {
         const convertedCatchRecords = await convertTableImages('catch_records');
         const convertedGunLog = await convertTableImages('gun_log');
         const convertedProfileImages = await convertTableImages('profile_images');
-        // 古い 'catch' テーブル (v1-v4) に対応
         const convertedCatch = await convertTableImages('catch'); 
 
-        // トランザクションですべてのデータを書き込む
         await db.transaction('rw', db.tables, async () => {
-            // 全テーブルをクリア
-            for (const table of db.tables) {
-                await table.clear();
-            }
+            await Promise.all(db.tables.map(table => table.clear()));
             
-            // 各テーブルにデータを投入
-            if (tables.trap_type) await db.trap_type.bulkAdd(tables.trap_type);
-            if (tables.gun) await db.gun.bulkAdd(tables.gun);
-            if (tables.ammo_purchases) await db.ammo_purchases.bulkAdd(tables.ammo_purchases);
-            if (tables.game_animal_list) await db.game_animal_list.bulkAdd(tables.game_animal_list);
-            if (tables.checklist_sets) await db.checklist_sets.bulkAdd(tables.checklist_sets);
-            if (tables.checklist_items) await db.checklist_items.bulkAdd(tables.checklist_items);
-            if (tables.settings) await db.settings.bulkAdd(tables.settings);
-            if (tables.hunter_profile) await db.hunter_profile.bulkAdd(tables.hunter_profile);
-            
-            // 変換後データを追加
-            await db.trap.bulkAdd(convertedTrap);
-            await db.catch_records.bulkAdd(convertedCatchRecords);
-            await db.gun_log.bulkAdd(convertedGunLog);
-            await db.profile_images.bulkAdd(convertedProfileImages);
-            await db.catch_records.bulkAdd(convertedCatch); // 古い 'catch'
+            await Promise.all([
+                db.hunter_profile.bulkAdd(tables.hunter_profile || []),
+                db.settings.bulkAdd(tables.settings || []),
+                db.trap_type.bulkAdd(tables.trap_type || []),
+                db.gun.bulkAdd(tables.gun || []),
+                db.ammo_purchases.bulkAdd(tables.ammo_purchases || []),
+                db.game_animal_list.bulkAdd(tables.game_animal_list || []),
+                db.checklist_sets.bulkAdd(tables.checklist_sets || []),
+                db.checklist_items.bulkAdd(tables.checklist_items || []),
+                
+                db.trap.bulkAdd(convertedTrap), 
+                db.catch_records.bulkAdd(convertedCatchRecords),
+                db.gun_log.bulkAdd(convertedGunLog),
+                db.profile_images.bulkAdd(convertedProfileImages),
+                db.catch_records.bulkAdd(convertedCatch), // 古い 'catch'
+            ]);
         });
 
         statusEl.textContent = 'インポートが完了しました。リロードします...';
         
-        // 設定を再適用してリロード
         await loadAndApplySettings();
         location.reload();
 
@@ -461,25 +442,18 @@ async function importAllData(file) {
 
 
 // --- CSVエクスポート機能 -----------------------------
+// (このセクションは修正なし)
 
-/**
- * CSV文字列を生成するヘルパー関数
- */
 function convertToCSV(data, headers) {
-    // BOM を追加してExcelでの文字化けを防ぐ
     let csv = '\uFEFF';
-    
-    // ヘッダー行
     csv += headers.join(',') + '\r\n';
     
-    // データ行
     data.forEach(row => {
         const values = headers.map(header => {
             let value = row[header];
             if (value === null || value === undefined) {
                 value = '';
             }
-            // 値にカンマや改行、ダブルクォートが含まれる場合はエスケープ
             let escaped = value.toString().replace(/"/g, '""');
             if (escaped.search(/([,\r\n"])/g) >= 0) {
                 escaped = `"${escaped}"`;
@@ -492,9 +466,6 @@ function convertToCSV(data, headers) {
     return csv;
 }
 
-/**
- * CSVをダウンロードさせるヘルパー関数
- */
 function downloadCSV(csvString, filename) {
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -509,9 +480,6 @@ function downloadCSV(csvString, filename) {
     URL.revokeObjectURL(url);
 }
 
-/**
- * 銃使用履歴をCSVでエクスポートする
- */
 async function exportGunLogsAsCSV() {
     const statusEl = document.getElementById('csv-status');
     statusEl.textContent = '銃使用履歴を作成中...';
@@ -524,11 +492,9 @@ async function exportGunLogsAsCSV() {
             return;
         }
 
-        // 銃のIDと名前のマップを作成
         const guns = await db.gun.toArray();
         const gunMap = new Map(guns.map(g => [g.id, g.name]));
 
-        // CSV用データに整形 (v10 スキーマ)
         const dataForCSV = logs.map(log => ({
             ID: log.id,
             使用日: log.use_date,
@@ -558,9 +524,6 @@ async function exportGunLogsAsCSV() {
     }
 }
 
-/**
- * 捕獲記録をCSVでエクスポートする
- */
 async function exportCatchesAsCSV() {
     const statusEl = document.getElementById('csv-status');
     statusEl.textContent = '捕獲記録を作成中...';
@@ -573,14 +536,12 @@ async function exportCatchesAsCSV() {
             return;
         }
 
-        // 関連データのマップを作成
         const traps = await db.trap.toArray();
         const trapMap = new Map(traps.map(t => [t.id, t.trap_number]));
         
         const gunLogs = await db.gun_log.toArray();
         const gunLogMap = new Map(gunLogs.map(gl => [gl.id, gl.use_date])); 
 
-        // CSV用データに整形
         const dataForCSV = catches.map(record => {
             let method = '不明';
             let relation = '';
@@ -624,9 +585,6 @@ async function exportCatchesAsCSV() {
 
 // --- Base64 / Blob ヘルパー ---
 
-/**
- * Blob を Base64 データURL に変換する
- */
 function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
         if (!blob || !(blob instanceof Blob)) {
@@ -640,9 +598,6 @@ function blobToBase64(blob) {
     });
 }
 
-/**
- * Base64 データURL を Blob に変換する
- */
 async function base64ToBlob(base64Data) {
     if (!base64Data) {
         return null;
