@@ -2,6 +2,7 @@
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用 (UI, 戻るボタン, 哺乳類フィルタ)
 // ★ 修正: 捕獲タブの「新規記録」ボタンを廃止
+// ★ 修正: loadSpeciesDataList のクエリロジックを修正 (where().equals().where() バグ)
 
 /**
  * 「捕獲記録」タブのメインページを表示する
@@ -89,7 +90,7 @@ async function showCatchListPage() {
 
             <div id="catch-list" class="space-y-3">
                 <p class="text-gray-500 text-center py-4">読み込み中...</p>
-            </ul>
+            </div>
         </div>
     `;
     
@@ -108,8 +109,6 @@ async function showCatchListPage() {
         updateHeader('捕獲記録', false);
         
         // ★ 修正: 新規登録ボタン（総合）を削除
-        // const newButton = ...
-        // headerActions.appendChild(newButton);
     }
     
     // --- イベントリスナー設定 ---
@@ -163,6 +162,7 @@ async function renderCatchList() {
         const filters = appState.catchFilters;
         
         // --- フィルタリング (Dexie) ---
+        // (注: Dexie の where は、この書き方なら連結可能)
         if (filters.method === 'trap') {
             query = query.where('trap_id').notEqual(0);
         } else if (filters.method === 'gun') {
@@ -182,6 +182,7 @@ async function renderCatchList() {
 
         // --- ソート ---
         const sortKey = appState.catchSort.key;
+        // (ここで filter() を挟まない限り、orderBy は最後に呼べる)
         query = query.orderBy(sortKey);
         
         const catches = await query.toArray();
@@ -520,7 +521,7 @@ async function showCatchEditForm(id, relationIds = null) {
     // ヘッダーを更新
     updateHeader(pageTitle, true);
     
-    // ★ 修正(8): 戻るボタンの遷移先を動的に変更
+    // ★ 修正: 戻るボタンの遷移先を動的に変更
     backButton.onclick = () => {
         if (id) {
             // 編集中の場合: 詳細ページに戻る
@@ -539,7 +540,7 @@ async function showCatchEditForm(id, relationIds = null) {
 
     // --- フォームの動的処理 ---
 
-    // ★ 修正(6): 罠からの呼び出しかどうかを判定
+    // ★ 修正: 罠からの呼び出しかどうかを判定
     const isTrapCatch = (relationIds && relationIds.trapId != null);
     // 1. 図鑑から種名リストをdatalistに読み込む (哺乳類フィルターを渡す)
     loadSpeciesDataList(isTrapCatch);
@@ -665,6 +666,7 @@ async function showCatchEditForm(id, relationIds = null) {
 /**
  * datalist用に図鑑から種名リストを読み込む
  * ★ 修正(6): 哺乳類のみに絞り込む機能を追加
+ * ★ 修正: where().equals().where() のバグを修正
  * @param {boolean} filterForMammals - 哺乳類のみに絞り込むか
  */
 async function loadSpeciesDataList(filterForMammals = false) {
@@ -674,12 +676,14 @@ async function loadSpeciesDataList(filterForMammals = false) {
     try {
         let query = db.game_animal_list.where('is_game_animal').equals('〇');
 
-        // ★ 修正(6): 哺乳類フィルター
+        // ★ 修正: クエリを .toArray() で一度実行してから .filter() する
+        let animals = await query.toArray();
+
+        // ★ 修正(6): 哺乳類フィルター (JS側で実行)
         if (filterForMammals) {
-            query = query.where('category').equals('哺乳類');
+            animals = animals.filter(animal => animal.category === '哺乳類');
         }
 
-        const animals = await query.toArray();
         const speciesNames = [...new Set(animals.map(a => a.species_name))];
         
         datalist.innerHTML = speciesNames.map(name => 
