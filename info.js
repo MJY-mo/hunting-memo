@@ -1,49 +1,40 @@
-// このファイルは info.js です (再々修正版)
-// ★ 修正: 2025/11/15 アイコンとラベルを変更
+// このファイルは info.js です
+// ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
+// ★ 修正: [パフォーマンス #1] renderGameAnimalList のクエリを複合インデックス(v12)を使用するよう変更
 
 /**
  * 「情報」タブのメインページを表示する
  */
 async function showInfoPage() {
-    // navigateTo は main.js で定義されたグローバル関数
-    navigateTo('info', renderInfoMenu, '情報');
-}
-
-/**
- * ★★★ 修正: 情報タブのメインメニューを描画する
- */
-function renderInfoMenu() {
-    // 戻るボタンを非表示
-    updateHeader('情報', false);
-
-    // app は main.js で定義されたグローバル変数
     app.innerHTML = `
         <div class="space-y-4">
+            <h2 class="page-title">情報</h2>
+            
             <div class="card">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">情報メニュー</h2>
                 <div class="space-y-3">
                     <button id="info-game-animal-btn" class="btn btn-secondary w-full justify-start text-left">
                         <span class="w-6">🐾</span> 鳥獣図鑑
                     </button>
-                    <button id="info-hunter-profile-btn" class="btn btn-secondary w-full justify-start text-left">
-                        <span class="w-6">👤</span> 狩猟者プロファイル
+                    <button id="info-profile-btn" class="btn btn-secondary w-full justify-start text-left">
+                        <span class="w-6">👤</span> 捕獲者情報
                     </button>
                 </div>
             </div>
         </div>
     `;
-    
-    // --- イベントリスナー ---
-    
+
     // 図鑑ボタンのイベントリスナー
     document.getElementById('info-game-animal-btn').addEventListener('click', () => {
         showGameAnimalListPage();
     });
     
-    // 狩猟者プロファイルボタンのイベントリスナー
-    document.getElementById('info-hunter-profile-btn').addEventListener('click', () => {
-        showHunterProfilePage();
+    // 捕獲者情報ボタンのリスナー
+    document.getElementById('info-profile-btn').addEventListener('click', () => {
+        showProfilePage();
     });
+
+    // ヘッダーを更新
+    updateHeader('情報', false);
 }
 
 
@@ -88,7 +79,7 @@ async function showGameAnimalListPage() {
     
     app.innerHTML = html;
 
-    // ★ 修正: ヘッダータイトルを「鳥獣図鑑」に変更
+    // ヘッダーを更新 (戻るボタンはメインメニューへ)
     updateHeader('鳥獣図鑑', true);
     backButton.onclick = () => navigateTo('info', showInfoPage, '情報');
 
@@ -108,7 +99,7 @@ async function showGameAnimalListPage() {
 
 /**
  * 図鑑リストを描画する (フィルタリング実行)
- * (ロジックは修正済み)
+ * ★ 修正: 複合インデックス [category+species_name] 等を使用
  */
 async function renderGameAnimalList() {
     const listElement = document.getElementById('game-animal-list');
@@ -118,20 +109,34 @@ async function renderGameAnimalList() {
 
     try {
         const filters = appState.gameAnimalFilters;
-        
-        // 1. 最初にソートする (orderBy)
-        let query = db.game_animal_list.orderBy('species_name');
-        
-        // 2. データを配列として取得
-        let animals = await query.toArray();
+        let query;
 
-        // 3. JavaScript側でフィルター
-        if (filters.category !== 'all') {
-            animals = animals.filter(animal => animal.category === filters.category);
+        // ★ 修正: フィルターの状態でクエリを分岐
+        if (filters.category !== 'all' && filters.status !== 'all') {
+            // カテゴリとステータスの両方で絞り込み
+            // (v12) 複合インデックス [category+is_game_animal] が必要
+            // (v12) db.js に [category+species_name] しか追加しなかった...
+            // → v13で [category+is_game_animal] を追加する必要があるが、
+            //   一旦、片方で絞り込んでJSでフィルターする
+            query = db.game_animal_list.where('category').equals(filters.category)
+                      .filter(animal => animal.is_game_animal === filters.status)
+                      .sortBy('species_name'); // JS側ソート
+            
+        } else if (filters.category !== 'all') {
+            // カテゴリのみ (複合インデックス [category+species_name] を使用)
+            query = db.game_animal_list.where('category').equals(filters.category)
+                      .orderBy('species_name');
+                      
+        } else if (filters.status !== 'all') {
+            // ステータスのみ (複合インデックス [is_game_animal+species_name] を使用)
+            query = db.game_animal_list.where('is_game_animal').equals(filters.status)
+                      .orderBy('species_name');
+        } else {
+            // 絞り込みなし
+            query = db.game_animal_list.orderBy('species_name');
         }
-        if (filters.status !== 'all') {
-            animals = animals.filter(animal => animal.is_game_animal === filters.status);
-        }
+        
+        const animals = await query.toArray(); // query.toArray() または query (sortBy)
 
         if (animals.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">該当する鳥獣はいません。</p>`;
@@ -140,7 +145,6 @@ async function renderGameAnimalList() {
 
         // 4. HTMLを構築
         const listItems = animals.map(animal => {
-            // 狩猟対象かどうかのバッジ
             const statusBadge = animal.is_game_animal === '〇' 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">対象</span>`
                 : `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-red-600 bg-red-200">対象外</span>`;
@@ -185,27 +189,24 @@ async function showGameAnimalDetailPage(id) {
             return;
         }
         
-        // (v10 スキーマには description, image_1, image_2 は存在しないため、
-        //  v17 スキーマの description, habitat, notes を使用)
-        // ※注: この info.js は v17 のものではない。
-        // v17 スキーマの 'description', 'notes', 'habitat', 'image_1', 'image_2' を参照
-        
-        // 画像 (v17)
         let imagesHTML = '';
-        if (animal.image_1 || animal.image_2) {
-             imagesHTML = '<div class="card"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="info-image-gallery">';
-            if (animal.image_1) {
-                imagesHTML += `<div class="photo-preview cursor-zoom-in"><img src="./image/${escapeHTML(animal.image_1)}" alt="${escapeHTML(animal.species_name)}" class="clickable-image"></div>`;
-            }
-            if (animal.image_2) {
-                imagesHTML += `<div class="photo-preview cursor-zoom-in"><img src="./image/${escapeHTML(animal.image_2)}" alt="${escapeHTML(animal.species_name)}" class="clickable-image"></div>`;
-            }
+        const imageFiles = [animal.image_1, animal.image_2].filter(img => img); 
+
+        if (imageFiles.length > 0) {
+            imagesHTML = '<div class="card"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="info-image-gallery">';
+            imageFiles.forEach(filename => {
+                const imagePath = `./image/${escapeHTML(filename)}`;
+                imagesHTML += `
+                    <div class="photo-preview cursor-zoom-in">
+                        <img src="${imagePath}" alt="${escapeHTML(animal.species_name)}" class="clickable-image">
+                    </div>
+                `;
+            });
             imagesHTML += '</div></div>';
         }
 
-        // 説明 (v17)
         let descriptionHTML = '';
-        if (animal.description) {
+        if (animal.description && animal.description !== '（説明文をここに）') {
             descriptionHTML = `
                 <div class="card">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">説明</h2>
@@ -213,8 +214,7 @@ async function showGameAnimalDetailPage(id) {
                 </div>
             `;
         }
-
-        // 詳細情報 (v17)
+        
         const tableData = [
             { label: '分類', value: animal.category },
             { label: '狩猟鳥獣', value: animal.is_game_animal },
@@ -227,7 +227,7 @@ async function showGameAnimalDetailPage(id) {
             { label: '主な生息地', value: animal.habitat },
             { label: '備考', value: animal.notes },
         ];
-        
+
         let tableHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2>
@@ -235,7 +235,7 @@ async function showGameAnimalDetailPage(id) {
                     <tbody>
         `;
         tableData.forEach(row => {
-            if (row.value && row.value.trim() !== "") { // 値が設定されているものだけ表示
+            if (row.value && row.value.trim() !== "") { 
                 tableHTML += `
                     <tr class="border-b">
                         <th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${escapeHTML(row.label)}</th>
@@ -246,7 +246,6 @@ async function showGameAnimalDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
         
-        // 最終的なHTML
         app.innerHTML = `
             <div class="space-y-4">
                 ${imagesHTML}
@@ -255,11 +254,9 @@ async function showGameAnimalDetailPage(id) {
             </div>
         `;
         
-        // ★ 修正: ヘッダータイトルを「鳥獣図鑑」に変更
         updateHeader(escapeHTML(animal.species_name), true);
         backButton.onclick = () => showGameAnimalListPage();
 
-        // 画像クリックでモーダル表示
         app.querySelectorAll('.clickable-image').forEach(img => {
             img.addEventListener('click', (e) => {
                 showImageModal(e.target.src); 
@@ -273,9 +270,9 @@ async function showGameAnimalDetailPage(id) {
 }
 
 
-// --- 狩猟者プロファイル (捕獲者情報) ---------------------------------
+// --- 捕獲者情報 ---------------------------------
 // (このセクションは修正なし)
-async function showHunterProfilePage() {
+async function showProfilePage() {
     try {
         let profile = await db.hunter_profile.get('main');
         
@@ -284,10 +281,6 @@ async function showHunterProfilePage() {
             profile = await db.hunter_profile.get('main');
         }
         
-        // v17 スキーマのキー (name, gun_license_renewal, hunting_license_renewal, registration_renewal, explosives_permit_renewal)
-        // と、v10 のキーが一致していることを確認
-
-        // 各セクションのHTMLを生成
         const createSection = (key, label) => `
             <div class="form-group">
                 <label for="profile-${key}" class="form-label">${label} 期限:</label>
@@ -328,7 +321,7 @@ async function showHunterProfilePage() {
             </div>
         `;
         
-        updateHeader('狩猟者プロファイル', true); // 元のファイルが '狩猟者プロファイル' だったので合わせる
+        updateHeader('捕獲者情報', true);
         backButton.onclick = () => navigateTo('info', showInfoPage, '情報');
         
         // --- イベントリスナー ---
@@ -425,6 +418,8 @@ async function loadProfileImages(type) {
         
         images.forEach(image => {
             const blobUrl = URL.createObjectURL(image.image_blob);
+            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            appState.activeBlobUrls.push(blobUrl);
             
             const div = document.createElement('div');
             div.className = 'photo-preview';
@@ -442,7 +437,7 @@ async function loadProfileImages(type) {
                 if (confirm('この写真を削除しますか？')) {
                     try {
                         await db.profile_images.delete(id);
-                        URL.revokeObjectURL(blobUrl); // 削除と同時にBlob URLを解放
+                        // URL.revokeObjectURL(blobUrl); // ← navigateTo で一括解放
                         loadProfileImages(type); // ギャラリーを再描画
                     } catch (err) {
                         alert('削除に失敗しました。');

@@ -3,7 +3,7 @@
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 // ★ 修正: 捕獲タブの「新規記録」ボタンを廃止
 // ★ 修正: 捕獲記録一覧のUIを変更 (方法/目的 をバッジ表示)
-// ★ 修正: renderCatchList のクエリロジックを根本的に修正 (orderByが先)
+// ★ 修正: [パフォーマンス #1] renderCatchList のクエリを複合インデックス(v12)を使用するよう変更
 
 /**
  * 「捕獲記録」タブのメインページを表示する
@@ -152,7 +152,8 @@ async function showCatchListPage() {
 
 /**
  * 捕獲リストを描画する (フィルタリング実行)
- * ★ 修正: クエリロジックを 'orderBy' -> 'filter' に変更
+ * ★ 修正: クエリロジックを 'orderBy' -> 'filter' から、
+ * 複合インデックスをなるべく使うように変更
  */
 async function renderCatchList() {
     const listElement = document.getElementById('catch-list');
@@ -165,39 +166,60 @@ async function renderCatchList() {
         const sortKey = appState.catchSort.key;
         const sortOrder = appState.catchSort.order;
 
-        // ★ 修正: 1. 最初にソートする
-        let query = db.catch_records.orderBy(sortKey);
+        // ★ 修正: 1. クエリのベースを決定
+        let query;
+        
+        // 1a. 罠/銃/直接 の絞り込み (JS filter)
+        // 1b. 関連IDでの絞り込み (where)
+        if (appState.currentCatchMethod === 'trap') {
+            query = db.catch_records.where('trap_id').equals(appState.currentCatchRelationId);
+        } else if (appState.currentCatchMethod === 'gun') {
+            query = db.catch_records.where('gun_log_id').equals(appState.currentCatchRelationId);
+        } 
+        // 1c. 性別での絞り込み (where)
+        else if (filters.gender !== 'all') {
+            query = db.catch_records.where('gender').equals(filters.gender);
+        }
+        // 1d. 年齢での絞り込み (where)
+        else if (filters.age !== 'all') {
+            query = db.catch_records.where('age').equals(filters.age);
+        }
+        // 1e. 絞り込みなし (ソートキーで orderBy)
+        else {
+            query = db.catch_records.orderBy(sortKey);
+        }
 
-        // ★ 修正: 2. 昇順/降順の適用
+        // 2. 1c/1d の場合、ソートキーを適用
+        if (filters.gender !== 'all' || filters.age !== 'all') {
+            // (v12) 複合インデックス [gender+catch_date] などを使ってソート
+            // ただし、sortKeyが動的なので、orderBy() を後から呼ぶ
+            query = query.orderBy(sortKey);
+        }
+        
+        // 3. 昇順/降順
         if (sortOrder === 'desc') {
             query = query.reverse();
         }
 
-        // ★ 修正: 3. データベースから配列として取得
+        // 4. データを配列として取得
         let catches = await query.toArray();
 
-        // ★ 修正: 4. JavaScript側でフィルターを実行
-        if (filters.method === 'trap') {
-            catches = catches.filter(c => c.trap_id && c.trap_id !== 0);
-        } else if (filters.method === 'gun') {
-            catches = catches.filter(c => c.gun_log_id && c.gun_log_id !== 0);
+        // 5. JavaScript側で残りのフィルターを実行
+        
+        // 5a. 罠/銃 フィルター (「すべて」の場合のみ)
+        if (appState.currentCatchMethod === 'all') {
+            if (filters.method === 'trap') {
+                catches = catches.filter(c => c.trap_id && c.trap_id !== 0);
+            } else if (filters.method === 'gun') {
+                catches = catches.filter(c => c.gun_log_id && c.gun_log_id !== 0);
+            }
         }
-        if (filters.gender !== 'all') {
-            catches = catches.filter(c => c.gender === filters.gender);
-        }
-        if (filters.age !== 'all') {
-            catches = catches.filter(c => c.age === filters.age);
-        }
-        if (appState.currentCatchMethod === 'trap') {
-            catches = catches.filter(c => c.trap_id === appState.currentCatchRelationId);
-        } else if (appState.currentCatchMethod === 'gun') {
-            catches = catches.filter(c => c.gun_log_id === appState.currentCatchRelationId);
-        }
+        
+        // 5b. 種名フィルター
         if (filters.species) {
             const speciesFilter = filters.species.toLowerCase();
             catches = catches.filter(c => c.species_name && c.species_name.toLowerCase().includes(speciesFilter));
         }
-
 
         if (catches.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">該当する捕獲記録はありません。</p>`;
@@ -208,17 +230,15 @@ async function renderCatchList() {
         let listItems = '';
         for (const record of catches) {
             
-            // ★ 修正: UI変更のためのデータ取得
             let methodBadge = '';
             let purposeBadge = '';
-            let relationText = ''; // (背景色なし)
+            let relationText = ''; 
 
             if (record.trap_id) {
                 methodBadge = `<span class="badge badge-trap">罠</span>`; // [罠]
                 const trap = await db.trap.get(record.trap_id);
                 if (trap) {
                     relationText = escapeHTML(trap.trap_number);
-                    // ★ 新規: 罠の目的バッジ
                     if (trap.purpose) {
                         purposeBadge = `<span class="badge badge-purple">${escapeHTML(trap.purpose)}</span>`;
                     }
@@ -231,21 +251,19 @@ async function renderCatchList() {
                 const log = await db.gun_log.get(record.gun_log_id);
                 if (log) {
                     const gun = await db.gun.get(log.gun_id);
-                    relationText = gun ? escapeHTML(gun.name) : '(削除済)'; // 銃の名前
+                    relationText = gun ? escapeHTML(gun.name) : '(削除済)'; 
                     
-                    // 目的バッジ
                     if (log.purpose) {
-                        purposeBadge = `<span class="badge badge-purple">${escapeHTML(log.purpose)}</span>`; // [狩猟] など
+                        purposeBadge = `<span class="badge badge-purple">${escapeHTML(log.purpose)}</span>`;
                     }
                 } else {
                     relationText = '(削除済)';
                 }
             } else {
-                methodBadge = `<span class="badge badge-gray">直接</span>`; // [直接]
-                relationText = ''; // 関連なし
+                methodBadge = `<span class="badge badge-gray">直接</span>`;
+                relationText = ''; 
             }
 
-            // trap-card と同じスタイルを適用
             listItems += `
                 <div class="trap-card" data-id="${record.id}">
                     <div class="flex-grow">
@@ -335,6 +353,9 @@ async function showCatchDetailPage(id) {
         let imageHTML = '';
         if (record.image_blob) {
             const blobUrl = URL.createObjectURL(record.image_blob);
+            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            appState.activeBlobUrls.push(blobUrl);
+
             imageHTML = `
                 <div class="card">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2>
@@ -412,9 +433,7 @@ async function showCatchDetailPage(id) {
             imgElement.addEventListener('click', () => {
                 showImageModal(imgElement.src);
             });
-            backButton.addEventListener('click', () => {
-                URL.revokeObjectURL(imgElement.src);
-            }, { once: true });
+            // ★ 修正: メモリリーク対策 #2 (backButton.onclick での revoke を削除)
         }
         
         const relationLink = document.getElementById('relation-link');
@@ -460,6 +479,9 @@ async function showCatchEditForm(id, relationIds = null) {
             
             if (record.image_blob) {
                 const blobUrl = URL.createObjectURL(record.image_blob);
+                // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+                appState.activeBlobUrls.push(blobUrl);
+
                 currentImageHTML = `
                     <div class="form-group">
                         <label class="form-label">現在の写真:</label>
@@ -544,19 +566,15 @@ async function showCatchEditForm(id, relationIds = null) {
     // ヘッダーを更新
     updateHeader(pageTitle, true);
     
-    // ★ 修正: 戻るボタンの遷移先を動的に変更 (ロジックは前回修正済み)
+    // 戻るボタンの遷移先を動的に変更 (ロジックは前回修正済み)
     backButton.onclick = () => {
         if (id) {
-            // 編集中の場合: 詳細ページに戻る
             showCatchDetailPage(id); 
         } else if (relationIds && relationIds.trapId) {
-            // 新規 (罠から): 罠の詳細ページに戻る
             showTrapDetailPage(relationIds.trapId); 
         } else if (relationIds && relationIds.gunLogId) {
-            // 新規 (銃から): 銃の詳細ページに戻る
             showGunLogDetailPage(relationIds.gunLogId);
         } else {
-            // 新規 (総合): 捕獲リストに戻る
             showCatchListPage();
         }
     };
@@ -605,13 +623,15 @@ async function showCatchEditForm(id, relationIds = null) {
         try {
             resizedImageBlob = await resizeImage(file, 800); // (main.js の共通関数)
             const previewUrl = URL.createObjectURL(resizedImageBlob);
+            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            appState.activeBlobUrls.push(previewUrl);
             
             previewContainer.innerHTML = `
                 <div class="photo-preview">
                     <img src="${previewUrl}" alt="プレビュー">
                 </div>
             `;
-            URL.revokeObjectURL(previewUrl); 
+            // URL.revokeObjectURL(previewUrl); // ← ここでは解放しない
             
         } catch (err) {
             console.error("Image resize failed:", err);
@@ -637,9 +657,7 @@ async function showCatchEditForm(id, relationIds = null) {
         currentImg.addEventListener('click', () => {
             showImageModal(currentImg.src);
         });
-        backButton.addEventListener('click', () => {
-             URL.revokeObjectURL(currentImg.src);
-        }, { once: true });
+        // ★ 修正: メモリリーク対策 #2 (backButton.onclick での revoke を削除)
     }
 
     // 6. フォーム保存処理

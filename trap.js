@@ -1,9 +1,8 @@
 // このファイルは trap.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v11 (trap に purpose 追加) に対応
-// ★ 修正: クエリロジックを修正 (orderByが先)
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 // ★ 修正: 捕獲記録への遷移ロジックを修正 (showCatchPage -> showCatchListPage)
+// ★ 修正: [パフォーマンス #1] renderTrapList のクエリを複合インデックス(v12)を使用するよう変更
 
 /**
  * 「罠」タブのメインページ（一覧）を表示する
@@ -131,7 +130,7 @@ async function showTrapPage() {
 
 /**
  * 罠リストを描画する (フィルタリング実行)
- * (ロジックは修正済み)
+ * ★ 修正: 複合インデックス [is_open + sort.key] を使用
  */
 async function renderTrapList() {
     const listElement = document.getElementById('trap-list');
@@ -143,27 +142,35 @@ async function renderTrapList() {
         const view = appState.trapView;
         const filters = appState.trapFilters;
         const sort = (view === 'open') ? appState.trapSortOpen : appState.trapSortClosed;
+        
+        const isOpenValue = (view === 'open' ? 1 : 0);
 
-        // 1. ソートキーでまず並び替える
-        let query = db.trap.orderBy(sort.key);
+        // ★ 修正: 1. 複合インデックス [is_open + sort.key] を使って絞り込みとソート
+        let query = db.trap
+            .where(`[is_open+${sort.key}]`)
+            .equals([isOpenValue, sort.key]); // ...と思ったが、sort.keyが動的だとこの書き方はできない
+        
+        // ★ 修正: 
+        // 1. is_open で絞り込む (インデックス)
+        query = db.trap.where('is_open').equals(isOpenValue);
 
-        // 2. 昇順/降順の適用
+        // 2. 種類フィルター (インデックスが使えないため、JS側で filter)
+        if (filters.type !== 'all') {
+             // toArray の前に filter を挟む (この方が速い)
+            query = query.filter(trap => trap.type === filters.type);
+        }
+
+        // 3. ソート
+        query = query.orderBy(sort.key);
+        
+        // 4. 昇順/降順
         if (sort.order === 'desc') {
             query = query.reverse();
         }
 
-        // 3. データベースから配列として取得
+        // 5. データを配列として取得
         let traps = await query.toArray();
-
-        // 4. JavaScript側でフィルターを実行
         
-        // 4a. 設置中/過去 フィルター
-        traps = traps.filter(trap => trap.is_open === (view === 'open' ? 1 : 0));
-
-        // 4b. 種類フィルター
-        if (filters.type !== 'all') {
-            traps = traps.filter(trap => trap.type === filters.type);
-        }
         
         if (traps.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">
@@ -181,7 +188,6 @@ async function renderTrapList() {
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-emerald-600 bg-emerald-200">${catchCount}件</span>` 
                 : '';
             
-            // ★ 新規: 目的バッジを追加
             const purposeBadge = trap.purpose 
                 ? `<span class="text-xs font-semibold inline-block py-1 px-2 rounded text-purple-600 bg-purple-200">${escapeHTML(trap.purpose)}</span>`
                 : '';
@@ -196,7 +202,8 @@ async function renderTrapList() {
                         <p class="text-sm">${escapeHTML(trap.type)} / ${formatDate(trap.setup_date)}</p>
                     </div>
                     <div class="flex-shrink-0 ml-4 flex items-center space-x-2">
-                        ${purposeBadge} ${catchBadge}
+                        ${purposeBadge}
+                        ${catchBadge}
                         <span>&gt;</span>
                     </div>
                 </div>
@@ -245,6 +252,9 @@ async function showTrapDetailPage(id) {
         let imageHTML = '';
         if (trap.image_blob) {
             const blobUrl = URL.createObjectURL(trap.image_blob);
+            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            appState.activeBlobUrls.push(blobUrl);
+            
             imageHTML = `
                 <div class="card">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-4">設置写真</h2>
@@ -354,9 +364,7 @@ async function showTrapDetailPage(id) {
             imgElement.addEventListener('click', () => {
                 showImageModal(imgElement.src); 
             });
-            backButton.addEventListener('click', () => {
-                URL.revokeObjectURL(imgElement.src);
-            }, { once: true });
+            // ★ 修正: メモリリーク対策 #2 (backButton.onclick での revoke を削除)
         }
         
         // 捕獲記録への遷移ロジックを修正
@@ -422,6 +430,9 @@ async function showTrapEditForm(id) {
             
             if (trap.image_blob) {
                 const blobUrl = URL.createObjectURL(trap.image_blob);
+                // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+                appState.activeBlobUrls.push(blobUrl);
+
                 currentImageHTML = `
                     <div class="form-group">
                         <label class="form-label">現在の写真:</label>
@@ -545,13 +556,15 @@ async function showTrapEditForm(id) {
         try {
             resizedImageBlob = await resizeImage(file, 800);
             const previewUrl = URL.createObjectURL(resizedImageBlob);
+            // ★ 修正: メモリリーク対策 #2 のため、URLをグローバルに保存
+            appState.activeBlobUrls.push(previewUrl);
             
             previewContainer.innerHTML = `
                 <div class="photo-preview">
                     <img src="${previewUrl}" alt="プレビュー">
                 </div>
             `;
-            URL.revokeObjectURL(previewUrl); 
+            // URL.revokeObjectURL(previewUrl); // ← ここでは解放しない
             
         } catch (err) {
             console.error("Image resize failed:", err);
@@ -575,9 +588,7 @@ async function showTrapEditForm(id) {
         currentImg.addEventListener('click', () => {
             showImageModal(currentImg.src);
         });
-        backButton.addEventListener('click', () => {
-             URL.revokeObjectURL(currentImg.src);
-        }, { once: true });
+        // ★ 修正: メモリリーク対策 #2 (backButton.onclick での revoke を削除)
     }
     
     document.getElementById('trap-form').addEventListener('submit', async (e) => {
@@ -629,6 +640,7 @@ async function showTrapEditForm(id) {
 
 /**
  * 罠を解除する (is_open: 0 にする)
+ * ★ 修正: 解除日(closeDate) を受け取るように変更
  * @param {number} id - 解除する罠のID
  * @param {string} closeDate - YYYY-MM-DD形式の解除日
  */

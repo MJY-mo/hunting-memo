@@ -1,5 +1,6 @@
 // このファイルは main.js です
 // ★ 修正: populateGameAnimalListIfNeeded を、GitHub CSV から fetch するロジックに変更
+// ★ 修正: [パフォーマンス #2] メモリリーク対策のため、URL解放ロジックを navigateTo に集約
 
 // --- グローバル変数・DOM要素 ---
 const app = document.getElementById('app');
@@ -65,7 +66,10 @@ const appState = {
     gameAnimalFilters: {
         category: 'all', // 'all', '哺乳類', '鳥類'
         status: 'all'    // 'all', '〇', '×'
-    }
+    },
+    
+    // ★ 新規: [パフォーマンス #2] メモリリーク対策
+    activeBlobUrls: [] // ページ表示に使ったBlob URLを一時的に保持
 };
 
 // --- アプリ初期化 ---
@@ -163,7 +167,6 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         // 3. データが0件か、強制更新の場合、GitHubからフェッチして投入
         console.log(forceUpdate ? "Forcing update of game animal list from GitHub..." : "Game animal list is empty. Populating from GitHub...");
         
-        // ★ ご指定いただいた Raw URL
         const CSV_URL = 'https://raw.githubusercontent.com/MJY-mo/hunting-memo/refs/heads/main/%E7%8B%A9%E7%8C%9F%E9%B3%A5%E7%8D%A3.csv'; 
         
         const response = await fetch(CSV_URL);
@@ -173,12 +176,10 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         const csvText = await response.text();
         
         // CSVをパース (「カンマを含まない」前提の簡易パーサー)
-        // (BOM '\uFEFF' が先頭にある場合を考慮して trim() する)
         const lines = csvText.trim().split('\n');
         const header = lines[0].trim().split(',');
         
         // CSVヘッダーとDBキーのマッピング
-        // CSV: 種類,狩猟鳥獣,種名,銃,わな,あみ,狩猟可能な性別,狩猟可能な数,狩猟禁止区域,主な生息地（日本国内）,備考,説明欄,画像1,画像2
         const keys = [
             'category', 'is_game_animal', 'species_name', 'method_gun', 'method_trap', 'method_net', 
             'gender', 'count', 'prohibited_area', 
@@ -192,8 +193,6 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
             const values = lines[i].split(',');
             const animal = {};
             for (let j = 0; j < keys.length; j++) {
-                // 値が undefined (CSVの列が足りない) の場合、空文字にする
-                // .trim() で余分な空白や \r を削除
                 animal[keys[j]] = values[j] ? values[j].trim() : '';
             }
             animals.push(animal);
@@ -213,7 +212,6 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         
     } catch (err) {
         console.error("Failed to populate game animal list (from CSV):", err);
-        // エラーをUIに通知
         const statusEl = document.getElementById('csv-status'); // settings.js にある要素
         if (statusEl) {
             statusEl.textContent = '図鑑の更新に失敗しました。';
@@ -230,7 +228,6 @@ async function loadAndApplySettings() {
         // 1. テーマ設定の読み込みと適用
         let themeSetting = await db.settings.get('theme');
         if (!themeSetting) {
-            // デフォルト値をDBに保存
             themeSetting = { key: 'theme', value: 'light' };
             await db.settings.put(themeSetting);
         }
@@ -239,7 +236,6 @@ async function loadAndApplySettings() {
         // 2. 文字サイズ設定の読み込みと適用
         let fontSizeSetting = await db.settings.get('fontSize');
         if (!fontSizeSetting) {
-            // デフォルト値をDBに保存
             fontSizeSetting = { key: 'fontSize', value: 'medium' };
             await db.settings.put(fontSizeSetting);
         }
@@ -301,8 +297,19 @@ function setupTabs() {
 
 /**
  * 画面を切り替える（タブが押されたときに呼ばれる）
+ * ★ 修正: [パフォーマンス #2] メモリリーク対策
  */
 function navigateTo(pageId, pageFunction, title) {
+    
+    // ★★★ クリーンアップ処理 (ここから) ★★★
+    // ページ遷移の直前に、古いページで使ったBlob URLをすべて解放する
+    if (appState.activeBlobUrls && appState.activeBlobUrls.length > 0) {
+        // console.log("Revoking URLs:", appState.activeBlobUrls);
+        appState.activeBlobUrls.forEach(url => URL.revokeObjectURL(url));
+        appState.activeBlobUrls = []; // 配列を空にする
+    }
+    // ★★★ (ここまで) ★★★
+
     appState.currentPage = pageId;
     
     Object.values(tabs).forEach(tab => {
@@ -561,7 +568,9 @@ function closeImageModal() {
         // ★ 修正: blob: で始まるURLのみ revokeObjectUrl を呼ぶ
         const img = modalOverlay.querySelector('img');
         if (img && img.src.startsWith('blob:')) {
-            URL.revokeObjectURL(img.src);
+            // ★ 修正: メモリリーク対策 #2 (ここでは解放しない)
+            // URL.revokeObjectURL(img.src);
+            // (navigateTo で解放される)
         }
         modalOverlay.remove();
     }
