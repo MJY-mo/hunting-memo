@@ -1,9 +1,7 @@
 // このファイルは gun.js です
 // ★ 修正: 'db.catch' を 'db.catch_records' に変更
-// ★ 修正: DBスキーマ v8 (gunテーブルのカラム削除, gun_log に ammo_count/companion 追加, ammo_purchases 新設) に対応
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
-// ★ 修正: 捕獲記録への遷移ロジックを修正 (showCatchPage -> showCatchListPage)
-// ★ 修正: 「名前（ニックネーム）」 -> 「銃の名前」に変更
+// ★ 修正: 2025/11/15 アイコン変更 (🐾 -> 🦌)
 
 /**
  * 「銃」タブのメインページを表示する
@@ -94,7 +92,7 @@ async function renderGunList() {
 
 /**
  * 銃の「詳細ページ」を表示する
- * (弾の管理機能あり)
+ * ★ 修正: 弾の管理機能を追加
  */
 async function showGunDetailPage(id) {
     try {
@@ -139,12 +137,13 @@ async function showGunDetailPage(id) {
         });
         tableHTML += '</tbody></table></div>';
         
-        // 関連する使用履歴 (ボタン)
+        // ★ 修正: アイコンを 🐾 -> 🎯 に変更
+ 
         const logButtonHTML = `
             <div class="card">
                 <h2 class="text-lg font-semibold border-b pb-2 mb-4">使用履歴</h2>
                 <button id="show-related-logs-btn" class="btn btn-secondary w-full justify-start text-left">
-                    <span class="w-6">🦌</span> この銃の使用履歴を見る
+                    <span class="w-6">🎯</span> この銃の使用履歴を見る
                 </button>
             </div>
         `;
@@ -240,7 +239,8 @@ async function showGunDetailPage(id) {
 }
 
 /**
- * (新規) 銃詳細ページの「弾の管理」セクションを描画する
+ * ★ 新規: 銃詳細ページの「弾の管理」セクションを描画する
+ * @param {number} gunId - 銃のID
  */
 async function renderAmmoManagement(gunId) {
     try {
@@ -387,7 +387,7 @@ async function showGunEditForm(id) {
             <form id="gun-form" class="space-y-4">
                 
                 <div class="form-group">
-                    <label for="gun-name" class="form-label">銃の名前 <span class="text-red-500">*</span>:</label>
+                    <label for="gun-name" class="form-label">名前 (ニックネーム) <span class="text-red-500">*</span>:</label>
                     <input type="text" id="gun-name" class="form-input" value="${escapeHTML(gun.name)}" required placeholder="例: Aボルト">
                 </div>
                 
@@ -460,12 +460,15 @@ async function showGunEditForm(id) {
 
 /**
  * 銃を削除する
+ * ★ 修正: 関連する ammo_purchases も削除
  */
 async function deleteGun(id) {
+    // ★ 修正: 警告文言を変更
     if (!confirm('この銃を本当に削除しますか？\nこの銃に関連する「弾の購入履歴」もすべて削除されます。\n（使用履歴や捕獲記録は削除されません）')) {
         return;
     }
     
+    // ★ 修正: トランザクションで ammo_purchases も削除
     try {
         await db.transaction('rw', db.gun, db.ammo_purchases, async () => {
             // 1. 関連する弾の購入履歴を削除
@@ -790,11 +793,10 @@ async function showGunLogDetailPage(id) {
             }, { once: true });
         }
         
-        // ★ 修正: showCatchPage -> showCatchListPage を呼び出す
         document.getElementById('show-related-catches-btn').addEventListener('click', () => {
             appState.currentCatchMethod = 'gun';
             appState.currentCatchRelationId = id; // 銃ログID
-            navigateTo('catch', showCatchListPage, '銃の捕獲記録');
+            navigateTo('catch', showCatchPage, '捕獲記録');
         });
 
         document.getElementById('add-catch-to-log-btn').addEventListener('click', () => {
