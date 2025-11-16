@@ -3,6 +3,7 @@
 // ★ 修正: 2025/11/15 ユーザー指摘のUI・ロジック修正を適用
 // ★ 修正: 捕獲タブの「新規記録」ボタンを廃止
 // ★ 修正: 捕獲記録一覧のUIを変更 (方法/目的 をバッジ表示)
+// ★ 修正: renderCatchList のクエリロジックを根本的に修正 (orderByが先)
 
 /**
  * 「捕獲記録」タブのメインページを表示する
@@ -19,7 +20,7 @@ function showCatchPage() {
 async function showCatchListPage() {
     const filters = appState.catchFilters;
     
-    // 罠や銃から来た場合はフィルターをリセットしない (★ ロジック修正)
+    // 罠や銃から来た場合はフィルターをリセットしない
     if (appState.currentCatchMethod === 'all') { 
         Object.assign(filters, {
             method: 'all', species: '', gender: 'all', age: 'all'
@@ -151,7 +152,7 @@ async function showCatchListPage() {
 
 /**
  * 捕獲リストを描画する (フィルタリング実行)
- * ★ 修正: UI変更 (バッジ追加)
+ * ★ 修正: クエリロジックを 'orderBy' -> 'filter' に変更
  */
 async function renderCatchList() {
     const listElement = document.getElementById('catch-list');
@@ -160,53 +161,52 @@ async function renderCatchList() {
     listElement.innerHTML = `<p class="text-gray-500 text-center py-4">読み込み中...</p>`;
 
     try {
-        let query = db.catch_records;
         const filters = appState.catchFilters;
-        
-        // --- フィルタリング (Dexie) ---
-        // (注: Dexie の where は、この書き方なら連結可能)
+        const sortKey = appState.catchSort.key;
+        const sortOrder = appState.catchSort.order;
+
+        // ★ 修正: 1. 最初にソートする
+        let query = db.catch_records.orderBy(sortKey);
+
+        // ★ 修正: 2. 昇順/降順の適用
+        if (sortOrder === 'desc') {
+            query = query.reverse();
+        }
+
+        // ★ 修正: 3. データベースから配列として取得
+        let catches = await query.toArray();
+
+        // ★ 修正: 4. JavaScript側でフィルターを実行
         if (filters.method === 'trap') {
-            query = query.where('trap_id').notEqual(0);
+            catches = catches.filter(c => c.trap_id && c.trap_id !== 0);
         } else if (filters.method === 'gun') {
-            query = query.where('gun_log_id').notEqual(0);
+            catches = catches.filter(c => c.gun_log_id && c.gun_log_id !== 0);
         }
         if (filters.gender !== 'all') {
-            query = query.where('gender').equals(filters.gender);
+            catches = catches.filter(c => c.gender === filters.gender);
         }
         if (filters.age !== 'all') {
-            query = query.where('age').equals(filters.age);
+            catches = catches.filter(c => c.age === filters.age);
         }
         if (appState.currentCatchMethod === 'trap') {
-            query = query.where('trap_id').equals(appState.currentCatchRelationId);
+            catches = catches.filter(c => c.trap_id === appState.currentCatchRelationId);
         } else if (appState.currentCatchMethod === 'gun') {
-            query = query.where('gun_log_id').equals(appState.currentCatchRelationId);
+            catches = catches.filter(c => c.gun_log_id === appState.currentCatchRelationId);
         }
-
-        // --- ソート ---
-        const sortKey = appState.catchSort.key;
-        query = query.orderBy(sortKey);
-        
-        const catches = await query.toArray();
-        
-        if (appState.catchSort.order === 'desc') {
-            catches.reverse();
-        }
-
-        // --- フィルタリング (JS) ---
-        let filteredCatches = catches;
         if (filters.species) {
             const speciesFilter = filters.species.toLowerCase();
-            filteredCatches = catches.filter(c => c.species_name && c.species_name.toLowerCase().includes(speciesFilter));
+            catches = catches.filter(c => c.species_name && c.species_name.toLowerCase().includes(speciesFilter));
         }
 
-        if (filteredCatches.length === 0) {
+
+        if (catches.length === 0) {
             listElement.innerHTML = `<p class="text-gray-500 text-center py-4">該当する捕獲記録はありません。</p>`;
             return;
         }
 
         // --- HTML構築 ---
         let listItems = '';
-        for (const record of filteredCatches) {
+        for (const record of catches) {
             
             // ★ 修正: UI変更のためのデータ取得
             let methodBadge = '';
@@ -218,9 +218,6 @@ async function renderCatchList() {
                 const trap = await db.trap.get(record.trap_id);
                 relationText = trap ? escapeHTML(trap.trap_number) : '(削除済)';
                 
-                // 罠には「目的」がないため、空白またはデフォルトバッジ
-                // (ここでは何も表示しない)
-
             } else if (record.gun_log_id) {
                 methodBadge = `<span class="badge badge-gun">銃</span>`; // [銃]
                 const log = await db.gun_log.get(record.gun_log_id);
@@ -683,7 +680,7 @@ async function showCatchEditForm(id, relationIds = null) {
 
 /**
  * datalist用に図鑑から種名リストを読み込む
- * (ロジックは前回修正済み)
+ * ★ 修正: where().equals().where() のバグを修正
  * @param {boolean} filterForMammals - 哺乳類のみに絞り込むか
  */
 async function loadSpeciesDataList(filterForMammals = false) {
@@ -691,10 +688,13 @@ async function loadSpeciesDataList(filterForMammals = false) {
     if (!datalist) return;
     
     try {
+        // ★ 修正: 1. 最初に is_game_animal で絞り込む
         let query = db.game_animal_list.where('is_game_animal').equals('〇');
 
+        // ★ 修正: 2. データを一度配列にし、JSでフィルタリング
         let animals = await query.toArray();
 
+        // ★ 修正(6): 哺乳類フィルター (JS側で実行)
         if (filterForMammals) {
             animals = animals.filter(animal => animal.category === '哺乳類');
         }
