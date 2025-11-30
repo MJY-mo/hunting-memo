@@ -1,8 +1,7 @@
 // このファイルは main.js です
-// ★ 修正: CSV読み込み時に「Shift-JIS」と「UTF-8」を自動判別して文字化けを防ぐ
-// ★ 修正: GitHubのキャッシュ（反映遅れ）を防ぐため、URLにタイムスタンプを付与
-// ★ 修正: CSVパーサーを強化し、カンマや改行を含むセルに対応
-// ★ 修正: 1行目がヘッダーかどうかを自動判定するロジックを追加
+// ★ 修正: CSVを「UTF-8」として確実に読み込む（文字化け対策）
+// ★ 修正: 更新ボタンを押すたびに最新データを取得する（キャッシュ対策）
+// ★ 修正: 説明文の「、」や改行に対応したCSV読み込みロジック
 
 // --- グローバル変数・DOM要素 ---
 const app = document.getElementById('app');
@@ -70,8 +69,8 @@ const appState = {
         status: 'all'    // 'all', '〇', '×'
     },
     
-    // [パフォーマンス #2] メモリリーク対策
-    activeBlobUrls: [] // ページ表示に使ったBlob URLを一時的に保持
+    // メモリリーク対策: 画像URL管理
+    activeBlobUrls: [] 
 };
 
 // --- アプリ初期化 ---
@@ -150,12 +149,10 @@ async function populateDefaultHunterProfile() {
 }
 
 
-// ★★★ ここから修正・強化した関数 ★★★
+// ★★★ ここからCSV読み込み関連の修正・強化 ★★★
 
 /**
  * 狩猟鳥獣データをGitHubから取得してDBに登録する
- * (Shift-JIS / UTF-8 自動判別機能付き)
- * @param {boolean} forceUpdate - true の場合、既存データをクリアして強制的に更新する
  */
 async function populateGameAnimalListIfNeeded(forceUpdate = false) {
     try {
@@ -170,7 +167,7 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
 
         console.log(forceUpdate ? "Forcing update of game animal list from GitHub..." : "Game animal list is empty. Populating from GitHub...");
         
-        // ★ 修正: キャッシュ対策としてタイムスタンプ(?t=...)を付与
+        // ★ キャッシュ対策: URL末尾にタイムスタンプ(?t=...)を付与して最新を強制取得
         const CSV_URL = 'https://raw.githubusercontent.com/MJY-mo/hunting-memo/refs/heads/main/%E7%8B%A9%E7%8C%9F%E9%B3%A5%E7%8D%A3.csv'; 
         const fetchUrl = `${CSV_URL}?t=${Date.now()}`;
 
@@ -179,37 +176,27 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
             throw new Error(`Failed to fetch CSV: ${response.statusText}`);
         }
 
-        // ★ 修正: 生のバイナリデータとして取得
-        const buffer = await response.arrayBuffer();
-        
-        // ★ 修正: 文字コードの自動判別とデコード
-        let csvText = new TextDecoder('utf-8').decode(buffer);
-        
-        // UTF-8でデコードした結果、「 (REPLACEMENT CHARACTER)」が含まれていれば
-        // Shift-JIS である可能性が高いので、再デコードを試みる
-        if (csvText.includes('')) {
-            console.warn("UTF-8 decoding failed (Mojibake detected). Trying Shift-JIS...");
-            csvText = new TextDecoder('sjis').decode(buffer);
-        }
+        // ★ 文字化け対策: .text() を使用してブラウザ標準のUTF-8デコードに任せる
+        const csvText = await response.text();
 
-        // ★ 修正: 強化版CSVパーサーを使用
+        // ★ CSV解析: 強力なパーサーを使用
         const records = parseCSV(csvText);
 
         if (records.length < 1) { 
             throw new Error('CSVデータが空か、正しい形式ではありません。');
         }
 
-        const animals = [];
-        
-        // ★ 修正: 1行目がヘッダーかどうかを自動判定する
+        // ★ ヘッダー行の自動判定
+        // 1行目の1列目に「分類」が含まれていれば、それはヘッダー行とみなしてスキップ
         let startIndex = 0;
-        // 1行目の1列目に「分類」という文字が含まれていれば、それはヘッダー行とみなす
         if (records[0][0] && records[0][0].includes('分類')) {
             startIndex = 1; 
             console.log("Header row detected. Starting from row 2.");
         } else {
-            console.log("No header row detected (or encoding issue resolved differently). Starting from row 1.");
+            console.log("No header detected. Starting from row 1.");
         }
+        
+        const animals = [];
         
         for (let i = startIndex; i < records.length; i++) {
             const row = records[i];
@@ -289,7 +276,6 @@ async function loadAndApplySettings() {
 
 /**
  * テーマを適用する (<html> タグにクラスを設定)
- * @param {string} themeValue - 'light', 'sepia', 'lightgreen', 'lightblue'
  */
 function applyTheme(themeValue) {
     const root = document.documentElement; // <html> タグ
@@ -310,7 +296,7 @@ function applyTheme(themeValue) {
 }
 
 /**
- * 文字サイズを適用する (settings.js からも呼ばれる)
+ * 文字サイズを適用する
  */
 function applyFontSize(sizeValue) {
     const root = document.documentElement; // <html> タグ
@@ -488,7 +474,7 @@ function formatDate(dateString) {
 }
 
 /**
- * CSVパーサー (引用符付きセルや改行に対応)
+ * CSVパーサー (引用符付きセルや改行に対応した強化版)
  * @param {string} text - CSVテキストデータ
  * @returns {Array<Array<string>>} 2次元配列
  */
@@ -587,6 +573,7 @@ function resizeImage(file, maxSize = 800) {
                         case 6: ctx.transform(0, 1, -1, 0, height, 0); break;
                         case 7: ctx.transform(0, -1, -1, 0, height, width); break;
                         case 8: ctx.transform(0, -1, 1, 0, 0, width); break;
+                        default: break;
                     }
 
                     // 画像描画の方向修正ロジック (canvasサイズ変更後)
