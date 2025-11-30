@@ -2,6 +2,7 @@
 // ★ 修正: CSV読み込み時に「Shift-JIS」と「UTF-8」を自動判別して文字化けを防ぐ
 // ★ 修正: GitHubのキャッシュ（反映遅れ）を防ぐため、URLにタイムスタンプを付与
 // ★ 修正: CSVパーサーを強化し、カンマや改行を含むセルに対応
+// ★ 修正: 1行目がヘッダーかどうかを自動判定するロジックを追加
 
 // --- グローバル変数・DOM要素 ---
 const app = document.getElementById('app');
@@ -194,21 +195,30 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         // ★ 修正: 強化版CSVパーサーを使用
         const records = parseCSV(csvText);
 
-        if (records.length < 2) { // ヘッダーのみ、または空の場合
+        if (records.length < 1) { 
             throw new Error('CSVデータが空か、正しい形式ではありません。');
         }
 
-        // --- CSVの列定義 (CSVファイルの列順序と一致させる) ---
-        // 0: 分類, 1: 狩猟鳥獣か, 2: 種名, 3: 銃猟, 4: 罠猟, 5: 網猟
-        // 6: 性別, 7: 数, 8: 禁止区域, 9: 生息地, 10: 備考
-        // 11: 説明, 12: 画像1, 13: 画像2
-        
         const animals = [];
         
-        // 1行目はヘッダーなのでスキップ (i = 1 から開始)
-        for (let i = 1; i < records.length; i++) {
+        // ★ 修正: 1行目がヘッダーかどうかを自動判定する
+        let startIndex = 0;
+        // 1行目の1列目に「分類」という文字が含まれていれば、それはヘッダー行とみなす
+        if (records[0][0] && records[0][0].includes('分類')) {
+            startIndex = 1; 
+            console.log("Header row detected. Starting from row 2.");
+        } else {
+            console.log("No header row detected (or encoding issue resolved differently). Starting from row 1.");
+        }
+        
+        for (let i = startIndex; i < records.length; i++) {
             const row = records[i];
             if (row.length < 3) continue; // 明らかに列が足りない行はスキップ
+            
+            // --- CSVの列定義 (CSVファイルの列順序と一致させる) ---
+            // 0: 分類, 1: 狩猟鳥獣か, 2: 種名, 3: 銃猟, 4: 罠猟, 5: 網猟
+            // 6: 性別, 7: 数, 8: 禁止区域, 9: 生息地, 10: 備考
+            // 11: 説明, 12: 画像1, 13: 画像2
             
             const animal = {
                 category:        row[0] || '',
@@ -574,9 +584,9 @@ function resizeImage(file, maxSize = 800) {
                         case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
                         case 4: ctx.transform(1, 0, 0, -1, 0, height); break;
                         case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
-                        case 6: ctx.transform(0, 1, -1, 0, h, 0); break;
-                        case 7: ctx.transform(0, -1, -1, 0, h, w); break;
-                        case 8: ctx.transform(0, -1, 1, 0, 0, w); break;
+                        case 6: ctx.transform(0, 1, -1, 0, height, 0); break;
+                        case 7: ctx.transform(0, -1, -1, 0, height, width); break;
+                        case 8: ctx.transform(0, -1, 1, 0, 0, width); break;
                     }
 
                     // 画像描画の方向修正ロジック (canvasサイズ変更後)
