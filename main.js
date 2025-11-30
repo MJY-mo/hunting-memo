@@ -1,6 +1,7 @@
 // このファイルは main.js です
-// ★ 修正: CSV読み込みロジックを強化 (カンマや改行を含むセルに対応)
-// ★ 修正: CSVのカラムマッピングを明確化
+// ★ 修正: CSV読み込み時に「Shift-JIS」と「UTF-8」を自動判別して文字化けを防ぐ
+// ★ 修正: GitHubのキャッシュ（反映遅れ）を防ぐため、URLにタイムスタンプを付与
+// ★ 修正: CSVパーサーを強化し、カンマや改行を含むセルに対応
 
 // --- グローバル変数・DOM要素 ---
 const app = document.getElementById('app');
@@ -148,9 +149,11 @@ async function populateDefaultHunterProfile() {
 }
 
 
+// ★★★ ここから修正・強化した関数 ★★★
+
 /**
- * 狩猟鳥獣データを「必要であれば」DBに登録する
- * (GitHubからCSVをフェッチして更新する)
+ * 狩猟鳥獣データをGitHubから取得してDBに登録する
+ * (Shift-JIS / UTF-8 自動判別機能付き)
  * @param {boolean} forceUpdate - true の場合、既存データをクリアして強制的に更新する
  */
 async function populateGameAnimalListIfNeeded(forceUpdate = false) {
@@ -164,40 +167,41 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
             return;
         }
 
-        // 3. データが0件か、強制更新の場合、GitHubからフェッチして投入
         console.log(forceUpdate ? "Forcing update of game animal list from GitHub..." : "Game animal list is empty. Populating from GitHub...");
         
-        // ★ 注意: GitHubのCSVのURL (Rawデータ)
+        // ★ 修正: キャッシュ対策としてタイムスタンプ(?t=...)を付与
         const CSV_URL = 'https://raw.githubusercontent.com/MJY-mo/hunting-memo/refs/heads/main/%E7%8B%A9%E7%8C%9F%E9%B3%A5%E7%8D%A3.csv'; 
-        
-        const response = await fetch(CSV_URL);
+        const fetchUrl = `${CSV_URL}?t=${Date.now()}`;
+
+        const response = await fetch(fetchUrl);
         if (!response.ok) {
             throw new Error(`Failed to fetch CSV: ${response.statusText}`);
         }
-        const csvText = await response.text();
+
+        // ★ 修正: 生のバイナリデータとして取得
+        const buffer = await response.arrayBuffer();
         
-        // ★ 修正: CSVパース処理の強化 (helper関数を使用)
+        // ★ 修正: 文字コードの自動判別とデコード
+        let csvText = new TextDecoder('utf-8').decode(buffer);
+        
+        // UTF-8でデコードした結果、「 (REPLACEMENT CHARACTER)」が含まれていれば
+        // Shift-JIS である可能性が高いので、再デコードを試みる
+        if (csvText.includes('')) {
+            console.warn("UTF-8 decoding failed (Mojibake detected). Trying Shift-JIS...");
+            csvText = new TextDecoder('sjis').decode(buffer);
+        }
+
+        // ★ 修正: 強化版CSVパーサーを使用
         const records = parseCSV(csvText);
 
         if (records.length < 2) { // ヘッダーのみ、または空の場合
             throw new Error('CSVデータが空か、正しい形式ではありません。');
         }
 
-        // --- CSVの列定義 (CSVファイルの列順序と一致させる必要があります) ---
-        // 0: 分類 (category)
-        // 1: 狩猟鳥獣か (is_game_animal)
-        // 2: 種名 (species_name)
-        // 3: 銃猟 (method_gun)
-        // 4: 罠猟 (method_trap)
-        // 5: 網猟 (method_net)
-        // 6: 狩猟可能な性別 (gender)
-        // 7: 狩猟可能な数 (count)
-        // 8: 狩猟禁止区域 (prohibited_area)
-        // 9: 主な生息地 (habitat)
-        // 10: 備考 (notes)
-        // 11: 説明 (description)
-        // 12: 画像1 (image_1)
-        // 13: 画像2 (image_2)
+        // --- CSVの列定義 (CSVファイルの列順序と一致させる) ---
+        // 0: 分類, 1: 狩猟鳥獣か, 2: 種名, 3: 銃猟, 4: 罠猟, 5: 網猟
+        // 6: 性別, 7: 数, 8: 禁止区域, 9: 生息地, 10: 備考
+        // 11: 説明, 12: 画像1, 13: 画像2
         
         const animals = [];
         
@@ -241,7 +245,7 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         console.error("Failed to populate game animal list (from CSV):", err);
         const statusEl = document.getElementById('csv-status'); // settings.js にある要素
         if (statusEl) {
-            statusEl.textContent = '図鑑の更新に失敗しました。';
+            statusEl.textContent = '更新失敗: ' + err.message;
         }
     }
 }
@@ -570,12 +574,12 @@ function resizeImage(file, maxSize = 800) {
                         case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
                         case 4: ctx.transform(1, 0, 0, -1, 0, height); break;
                         case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
-                        case 6: ctx.transform(0, 1, -1, 0, height, 0); break;
-                        case 7: ctx.transform(0, -1, -1, 0, height, width); break;
-                        case 8: ctx.transform(0, -1, 1, 0, 0, width); break;
-                        default: break;
+                        case 6: ctx.transform(0, 1, -1, 0, h, 0); break;
+                        case 7: ctx.transform(0, -1, -1, 0, h, w); break;
+                        case 8: ctx.transform(0, -1, 1, 0, 0, w); break;
                     }
 
+                    // 画像描画の方向修正ロジック (canvasサイズ変更後)
                     if (orientation >= 5 && orientation <= 8) {
                         ctx.drawImage(img, 0, 0, height, width);
                     } else {
@@ -598,20 +602,23 @@ function resizeImage(file, maxSize = 800) {
             img.onerror = (e) => reject(new Error('Image loading failed'));
             img.src = e.target.result;
         };
-        reader.onerror = (e) => reject(new Error('File reading failed'));
         reader.readAsDataURL(file);
     });
 }
 
+// ★★★ 画像拡大モーダル ★★★
 /**
- * 画像拡大モーダルを表示
+ * 画像を拡大表示するモーダルを表示する
+ * @param {string} blobUrl - URL.createObjectURL() で生成したURL (または通常の画像パス)
  */
 function showImageModal(blobUrl) {
+    // 既存のモーダルがあれば削除
     closeImageModal();
     
+    // モーダルを作成
     const modalOverlay = document.createElement('div');
     modalOverlay.id = 'image-modal-overlay';
-    modalOverlay.className = 'image-modal-overlay';
+    modalOverlay.className = 'image-modal-overlay'; // style.css で定義
     
     const modalContent = document.createElement('div');
     modalContent.className = 'image-modal-content';
@@ -623,11 +630,15 @@ function showImageModal(blobUrl) {
     modalOverlay.appendChild(modalContent);
     document.body.appendChild(modalOverlay);
     
+    // オーバーレイクリックで閉じる
     modalOverlay.onclick = () => {
         closeImageModal();
     };
 }
 
+/**
+ * 画像拡大モーダルを閉じる
+ */
 function closeImageModal() {
     const modalOverlay = document.getElementById('image-modal-overlay');
     if (modalOverlay) {
