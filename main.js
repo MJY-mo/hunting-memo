@@ -1,7 +1,6 @@
 // このファイルは main.js です
-// ★ 修正: populateGameAnimalListIfNeeded を、GitHub CSV から fetch するロジックに変更
-// ★ 修正: [パフォーマンス #2] メモリリーク対策のため、URL解放ロジックを navigateTo に集約
-// ★ 修正: 2025/11/15 ユーザー指摘 (テーマ変更ロジック) を適用
+// ★ 修正: CSV読み込みロジックを強化 (カンマや改行を含むセルに対応)
+// ★ 修正: CSVのカラムマッピングを明確化
 
 // --- グローバル変数・DOM要素 ---
 const app = document.getElementById('app');
@@ -168,6 +167,7 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         // 3. データが0件か、強制更新の場合、GitHubからフェッチして投入
         console.log(forceUpdate ? "Forcing update of game animal list from GitHub..." : "Game animal list is empty. Populating from GitHub...");
         
+        // ★ 注意: GitHubのCSVのURL (Rawデータ)
         const CSV_URL = 'https://raw.githubusercontent.com/MJY-mo/hunting-memo/refs/heads/main/%E7%8B%A9%E7%8C%9F%E9%B3%A5%E7%8D%A3.csv'; 
         
         const response = await fetch(CSV_URL);
@@ -176,31 +176,57 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         }
         const csvText = await response.text();
         
-        // CSVをパース (「カンマを含まない」前提の簡易パーサー)
-        const lines = csvText.trim().split('\n');
-        const header = lines[0].trim().split(',');
-        
-        // CSVヘッダーとDBキーのマッピング
-        const keys = [
-            'category', 'is_game_animal', 'species_name', 'method_gun', 'method_trap', 'method_net', 
-            'gender', 'count', 'prohibited_area', 
-            'habitat', 'notes', 'description', 'image_1', 'image_2'
-        ];
+        // ★ 修正: CSVパース処理の強化 (helper関数を使用)
+        const records = parseCSV(csvText);
 
+        if (records.length < 2) { // ヘッダーのみ、または空の場合
+            throw new Error('CSVデータが空か、正しい形式ではありません。');
+        }
+
+        // --- CSVの列定義 (CSVファイルの列順序と一致させる必要があります) ---
+        // 0: 分類 (category)
+        // 1: 狩猟鳥獣か (is_game_animal)
+        // 2: 種名 (species_name)
+        // 3: 銃猟 (method_gun)
+        // 4: 罠猟 (method_trap)
+        // 5: 網猟 (method_net)
+        // 6: 狩猟可能な性別 (gender)
+        // 7: 狩猟可能な数 (count)
+        // 8: 狩猟禁止区域 (prohibited_area)
+        // 9: 主な生息地 (habitat)
+        // 10: 備考 (notes)
+        // 11: 説明 (description)
+        // 12: 画像1 (image_1)
+        // 13: 画像2 (image_2)
+        
         const animals = [];
-        for (let i = 1; i < lines.length; i++) {
-            if (lines[i].trim() === '') continue; // 空行はスキップ
+        
+        // 1行目はヘッダーなのでスキップ (i = 1 から開始)
+        for (let i = 1; i < records.length; i++) {
+            const row = records[i];
+            if (row.length < 3) continue; // 明らかに列が足りない行はスキップ
             
-            const values = lines[i].split(',');
-            const animal = {};
-            for (let j = 0; j < keys.length; j++) {
-                animal[keys[j]] = values[j] ? values[j].trim() : '';
-            }
+            const animal = {
+                category:        row[0] || '',
+                is_game_animal:  row[1] || '',
+                species_name:    row[2] || '',
+                method_gun:      row[3] || '',
+                method_trap:     row[4] || '',
+                method_net:      row[5] || '',
+                gender:          row[6] || '',
+                count:           row[7] || '',
+                prohibited_area: row[8] || '',
+                habitat:         row[9] || '',
+                notes:           row[10] || '',
+                description:     row[11] || '',
+                image_1:         row[12] || '',
+                image_2:         row[13] || ''
+            };
             animals.push(animal);
         }
         
         if (animals.length === 0) {
-            throw new Error('CSVデータが空か、パースに失敗しました。');
+            throw new Error('有効なデータが見つかりませんでした。');
         }
 
         // データを一旦クリアして、CSVのデータのみで再登録
@@ -248,8 +274,7 @@ async function loadAndApplySettings() {
 }
 
 /**
- * ★ 修正: テーマを適用する (<html> タグにクラスを設定)
- * (ダークを削除し、ライトグリーン/ライトブルーを追加)
+ * テーマを適用する (<html> タグにクラスを設定)
  * @param {string} themeValue - 'light', 'sepia', 'lightgreen', 'lightblue'
  */
 function applyTheme(themeValue) {
@@ -306,18 +331,14 @@ function setupTabs() {
 
 /**
  * 画面を切り替える（タブが押されたときに呼ばれる）
- * ★ 修正: [パフォーマンス #2] メモリリーク対策
  */
 function navigateTo(pageId, pageFunction, title) {
     
-    // ★★★ クリーンアップ処理 (ここから) ★★★
-    // ページ遷移の直前に、古いページで使ったBlob URLをすべて解放する
+    // クリーンアップ処理
     if (appState.activeBlobUrls && appState.activeBlobUrls.length > 0) {
-        // console.log("Revoking URLs:", appState.activeBlobUrls);
         appState.activeBlobUrls.forEach(url => URL.revokeObjectURL(url));
-        appState.activeBlobUrls = []; // 配列を空にする
+        appState.activeBlobUrls = []; 
     }
-    // ★★★ (ここまで) ★★★
 
     appState.currentPage = pageId;
     
@@ -386,8 +407,8 @@ function getCurrentLocation() {
         
         const options = {
             enableHighAccuracy: true,
-            timeout: 10000, // 10秒
-            maximumAge: 0 // キャッシュしない
+            timeout: 10000, 
+            maximumAge: 0 
         };
 
         navigator.geolocation.getCurrentPosition(
@@ -452,6 +473,59 @@ function formatDate(dateString) {
     }
 }
 
+/**
+ * CSVパーサー (引用符付きセルや改行に対応)
+ * @param {string} text - CSVテキストデータ
+ * @returns {Array<Array<string>>} 2次元配列
+ */
+function parseCSV(text) {
+    const arr = [];
+    let quote = false;  // 'true' means we're inside a quoted field
+    let col = 0, c = 0; // Current column and char index
+    
+    // Normalize newlines
+    text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    for (; c < text.length; c++) {
+        let cc = text[c], nc = text[c+1];        // Current char, next char
+        arr[arr.length-1] = arr[arr.length-1] || []; // Create a new row if necessary
+        arr[arr.length-1][col] = arr[arr.length-1][col] || ''; // Create a new column (start with empty string) if necessary
+
+        // If the current char is a quote
+        if (cc == '"' && quote && nc == '"') { 
+            // If it's a double quote inside a quoted field, decode it to a single quote
+            arr[arr.length-1][col] += cc; 
+            ++c; // Skip the next quote
+            continue; 
+        }
+        
+        if (cc == '"') { 
+            // Toggle quote state
+            quote = !quote; 
+            continue; 
+        }
+        
+        if (cc == ',' && !quote) { 
+            // If it's a comma and NOT inside a quote, move to next column
+            ++col; 
+            continue; 
+        }
+        
+        if (cc == '\n' && !quote) { 
+            // If it's a newline and NOT inside a quote, move to next row
+            ++col; 
+            if (col > 0) { // Only start new row if current row is not empty
+                arr.push([]); // Start new row
+                col = 0; 
+            }
+            continue; 
+        }
+        
+        // Otherwise, append the current char to the current column
+        arr[arr.length-1][col] += cc;
+    }
+    return arr;
+}
 
 /**
  * 画像リサイズ関数
@@ -462,14 +536,12 @@ function resizeImage(file, maxSize = 800) {
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                // EXIFから向き情報を取得
                 EXIF.getData(img, function() {
                     const orientation = EXIF.getTag(this, "Orientation");
                     
                     let width = img.width;
                     let height = img.height;
 
-                    // リサイズ計算
                     if (width > height) {
                         if (width > maxSize) {
                             height = Math.round(height * (maxSize / width));
@@ -485,18 +557,14 @@ function resizeImage(file, maxSize = 800) {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
 
-                    // EXIFの向きに応じて canvas のサイズと描画を調整
                     if (orientation && orientation >= 5 && orientation <= 8) {
-                        // 90度回転
                         canvas.width = height;
                         canvas.height = width;
                     } else {
-                        // 通常
                         canvas.width = width;
                         canvas.height = height;
                     }
 
-                    // 向きを補正
                     switch (orientation) {
                         case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
                         case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
@@ -508,14 +576,12 @@ function resizeImage(file, maxSize = 800) {
                         default: break;
                     }
 
-                    // 90度回転(5-8)の場合、描画する画像サイズも入れ替える
                     if (orientation >= 5 && orientation <= 8) {
                         ctx.drawImage(img, 0, 0, height, width);
                     } else {
                         ctx.drawImage(img, 0, 0, width, height);
                     }
 
-                    // 高画質なJPEG Blobとして出力 (品質80%)
                     canvas.toBlob(
                         (blob) => {
                             if (!blob) {
@@ -530,26 +596,22 @@ function resizeImage(file, maxSize = 800) {
                 });
             };
             img.onerror = (e) => reject(new Error('Image loading failed'));
-            img.src = e.target.result; // FileReaderの結果をImageのsrcに
+            img.src = e.target.result;
         };
         reader.onerror = (e) => reject(new Error('File reading failed'));
-        reader.readAsDataURL(file); // EXIF.js が Data URL を必要とするため
+        reader.readAsDataURL(file);
     });
 }
 
-// ★★★ 画像拡大モーダル ★★★
 /**
- * 画像を拡大表示するモーダルを表示する
- * @param {string} blobUrl - URL.createObjectURL() で生成したURL (または通常の画像パス)
+ * 画像拡大モーダルを表示
  */
 function showImageModal(blobUrl) {
-    // 既存のモーダルがあれば削除
     closeImageModal();
     
-    // モーダルを作成
     const modalOverlay = document.createElement('div');
     modalOverlay.id = 'image-modal-overlay';
-    modalOverlay.className = 'image-modal-overlay'; // style.css で定義
+    modalOverlay.className = 'image-modal-overlay';
     
     const modalContent = document.createElement('div');
     modalContent.className = 'image-modal-content';
@@ -561,24 +623,14 @@ function showImageModal(blobUrl) {
     modalOverlay.appendChild(modalContent);
     document.body.appendChild(modalOverlay);
     
-    // オーバーレイクリックで閉じる
     modalOverlay.onclick = () => {
         closeImageModal();
     };
 }
 
-/**
- * 画像拡大モーダルを閉じる
- */
 function closeImageModal() {
     const modalOverlay = document.getElementById('image-modal-overlay');
     if (modalOverlay) {
-        // メモリリーク防止のため、imgのsrcを解放
-        // ★ 修正: [パフォーマンス #2] (ここでは解放しない)
-        const img = modalOverlay.querySelector('img');
-        if (img && img.src.startsWith('blob:')) {
-            // URL.revokeObjectURL(img.src);
-        }
         modalOverlay.remove();
     }
 }
