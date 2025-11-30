@@ -16,6 +16,8 @@
 
     <script src="https://unpkg.com/dexie@4.0.7/dist/dexie.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 </head>
 <body class="bg-gray-100">
@@ -37,7 +39,7 @@
 
     <nav class="bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 max-w-lg mx-auto h-16 flex justify-around items-center z-30">
         <button id="tab-trap" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-active">
-            <span>⛓️</span> 罠
+            <span⛓️</span> 罠
         </button>
         <button id="tab-gun" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
             <span>🔫</span> 銃
@@ -67,6 +69,19 @@
     <script src="catch.js"></script>
     <script src="checklist.js"></script>
     <script src="main.js"></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((reg) => {
+                        console.log('ServiceWorker registration successful with scope: ', reg.scope);
+                    }, (err) => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
 
 </body>
 </html>
