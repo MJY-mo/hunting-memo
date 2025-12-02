@@ -208,16 +208,6 @@ nav.bg-white {
 
 
 /* --- エラーメッセージ --- */
-/* (変更なし) */
-.error-box {
-    background-color: #fee2e2; /* bg-red-100 */
-    border: 1px solid #f87171; /* border-red-400 */
-    color: #b91c1c; /* text-red-700 */
-    padding: 1rem; /* px-4 py-3 */
-    border-radius: 0.5rem; /* rounded-lg */
-}
-
-/* (既存のCSS... error-box まで) */
 .error-box {
     background-color: #fee2e2; /* bg-red-100 */
     border: 1px solid #f87171; /* border-red-400 */
@@ -363,10 +353,6 @@ html.theme-light-blue #header,
 html.theme-light-blue #app .card,
 html.theme-light-blue #app .trap-card,
 html.theme-light-blue nav {
-    /*
-     * どのテーマであっても、白背景のコンポーネント内は
-     * 常に「黒文字」(#111827)で表示されます。
-     */
     color: #111827;
 }
 
@@ -379,4 +365,109 @@ html.theme-sepia .page-title,
 html.theme-light-green .page-title,
 html.theme-light-blue .page-title {
     color: inherit;
+}
+
+/* ----------------------------------------------------------------
+ * 図鑑リストの新デザイン (info.js) - 追加分
+ * ---------------------------------------------------------------- */
+
+/* カード全体: 横並びレイアウト */
+.animal-card {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem; /* rounded-lg */
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.animal-card:active {
+    background-color: #f3f4f6;
+}
+
+/* サムネイル画像エリア */
+.animal-thumb-container {
+    flex-shrink: 0;
+    width: 60px;
+    height: 60px;
+    border-radius: 0.375rem; /* rounded-md */
+    overflow: hidden;
+    margin-right: 1rem;
+    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.animal-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 枠に合わせてトリミング */
+}
+
+/* テキスト情報エリア */
+.animal-info {
+    flex-grow: 1;
+    min-width: 0; /* フレックスアイテムの縮小用 */
+}
+
+.animal-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+.animal-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1f2937; /* text-gray-800 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* バッジ群 */
+.animal-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+/* バッジ共通スタイル */
+.badge {
+    display: inline-block;
+    padding: 0.125rem 0.375rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 0.25rem;
+    white-space: nowrap;
+}
+
+/* バッジごとの色設定 (Tailwindの色味を参考に調整) */
+.badge-mammal {
+    background-color: #fef3c7; /* amber-100 */
+    color: #92400e;       /* amber-800 */
+}
+.badge-bird {
+    background-color: #e0f2fe; /* sky-100 */
+    color: #075985;       /* sky-800 */
+}
+.badge-game {
+    background-color: #dcfce7; /* green-100 */
+    color: #166534;       /* green-800 */
+    border: 1px solid #86efac;
+}
+.badge-invasive {
+    background-color: #fae8ff; /* fuchsia-100 */
+    color: #86198f;       /* fuchsia-800 */
+    border: 1px solid #f0abfc;
+}
+
+/* 右矢印 */
+.animal-arrow {
+    flex-shrink: 0;
+    margin-left: 0.5rem;
+    color: #9ca3af;
+    font-weight: bold;
 }
