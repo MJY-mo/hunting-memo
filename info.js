@@ -1,5 +1,6 @@
 // このファイルは info.js です
-// ★ 修正: 「禁止区域」が空欄や「-」の場合、行を表示しないように変更
+// ★ 修正: 鳥獣詳細ページで「生態」と「被害」を分けて表示
+// ★ 修正: 捕獲者情報の写真管理機能
 
 /**
  * 「情報」タブのメインページを表示する
@@ -204,8 +205,7 @@ async function renderGameAnimalList() {
 }
 
 /**
- * ★ 修正: 鳥獣詳細ページ (項目整理版)
- * - 禁止区域が「-」や空欄の場合に非表示にする処理を追加
+ * ★ 修正: 鳥獣詳細ページ (生態と被害を分離)
  */
 async function showGameAnimalDetail(id) {
     try {
@@ -246,7 +246,7 @@ async function showGameAnimalDetail(id) {
         // 2. 性別制限 (オスのみの場合のみ表示)
         const genderValue = (animal.gender && animal.gender.includes('オスのみ')) ? animal.gender : null;
 
-        // 3. 禁止区域 (値がある場合のみ表示。 "-" も非表示対象)
+        // 3. 禁止区域 (値がある場合のみ表示)
         let prohibitedAreaValue = animal.prohibited_area;
         if (!prohibitedAreaValue || prohibitedAreaValue === 'nan' || prohibitedAreaValue === '-') {
             prohibitedAreaValue = null;
@@ -257,11 +257,10 @@ async function showGameAnimalDetail(id) {
             ['区分', statusValue],
             ['性別制限', genderValue],
             ['捕獲数制限', animal.count],
-            ['禁止区域', prohibitedAreaValue], // ★ 修正: フィルタリング済みの変数を使用
+            ['禁止区域', prohibitedAreaValue],
             ['生息地', animal.habitat],
             ['備考', animal.notes]
         ].map(([label, value]) => {
-            // 値がない、nan、nullの場合は行ごと非表示
             if (!value || value === 'nan') return '';
             return `
                 <tr class="border-b">
@@ -279,9 +278,16 @@ async function showGameAnimalDetail(id) {
                 </div>
                 
                 <div class="card bg-white">
-                    <h2 class="text-lg font-semibold border-b pb-2 mb-2">特徴・説明</h2>
+                    <h2 class="text-lg font-semibold border-b pb-2 mb-2">生態</h2>
                     <p class="text-sm text-gray-800 leading-relaxed">
-                        ${animal.description ? escapeHTML(animal.description).replace(/\n/g, '<br>') : '情報なし'}
+                        ${animal.ecology ? escapeHTML(animal.ecology).replace(/\n/g, '<br>') : '情報なし'}
+                    </p>
+                </div>
+
+                <div class="card bg-white">
+                    <h2 class="text-lg font-semibold border-b pb-2 mb-2">被害・特徴</h2>
+                    <p class="text-sm text-gray-800 leading-relaxed">
+                        ${animal.damage ? escapeHTML(animal.damage).replace(/\n/g, '<br>') : '情報なし'}
                     </p>
                 </div>
 

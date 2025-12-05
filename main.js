@@ -1,7 +1,5 @@
 // このファイルは main.js です
-// ★ 修正: CSVを「UTF-8」として確実に読み込む（文字化け対策）
-// ★ 修正: 更新ボタンを押すたびに最新データを取得する（キャッシュ対策）
-// ★ 修正: 説明文の「、」や改行に対応したCSV読み込みロジック
+// ★ 修正: CSVの列定義を変更 (説明欄 -> 生態, 被害 に分割) 対応版
 
 // --- グローバル変数・DOM要素 ---
 const app = document.getElementById('app');
@@ -113,11 +111,8 @@ async function populateDefaultTrapTypes() {
             { name: 'くくり罠' },
             { name: '箱罠' }
         ]);
-        console.log("Default trap types populated (if they didn't exist).");
     } catch (err) {
-        if (err.name === 'BulkError') {
-            console.log("Default trap types already exist (BulkError ignored).");
-        } else {
+        if (err.name !== 'BulkError') {
             console.error("Failed to populate default trap types:", err);
         }
     }
@@ -128,7 +123,6 @@ async function populateDefaultTrapTypes() {
  */
 async function populateDefaultHunterProfile() {
     try {
-        // 'main' というキーで単一のプロファイルを作成
         await db.hunter_profile.add({
             key: 'main',
             name: '',
@@ -137,19 +131,15 @@ async function populateDefaultHunterProfile() {
             registration_renewal: '',
             explosives_permit_renewal: ''
         });
-        console.log("Default hunter profile created.");
     } catch (err) {
-        if (err.name === 'ConstraintError') {
-            // 既に 'main' が存在する場合は何もしない
-            console.log("Hunter profile already exists.");
-        } else {
+        if (err.name !== 'ConstraintError') {
             console.error("Failed to create default hunter profile:", err);
         }
     }
 }
 
 
-// ★★★ ここからCSV読み込み関連の修正・強化 ★★★
+// ★★★ ここからCSV読み込み関連 ★★★
 
 /**
  * 狩猟鳥獣データをGitHubから取得してDBに登録する
@@ -179,7 +169,7 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         // ★ 文字化け対策: .text() を使用してブラウザ標準のUTF-8デコードに任せる
         const csvText = await response.text();
 
-        // ★ CSV解析: 強力なパーサーを使用
+        // ★ CSV解析
         const records = parseCSV(csvText);
 
         if (records.length < 1) { 
@@ -187,7 +177,6 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         }
 
         // ★ ヘッダー行の自動判定
-        // 1行目の1列目に「分類」が含まれていれば、それはヘッダー行とみなしてスキップ
         let startIndex = 0;
         if (records[0][0] && records[0][0].includes('分類')) {
             startIndex = 1; 
@@ -202,10 +191,10 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
             const row = records[i];
             if (row.length < 3) continue; // 明らかに列が足りない行はスキップ
             
-            // --- CSVの列定義 (CSVファイルの列順序と一致させる) ---
+            // --- CSVの列定義 (★ 修正: 列が増えたことに対応) ---
             // 0: 分類, 1: 狩猟鳥獣か, 2: 種名, 3: 銃猟, 4: 罠猟, 5: 網猟
             // 6: 性別, 7: 数, 8: 禁止区域, 9: 生息地, 10: 備考
-            // 11: 説明, 12: 画像1, 13: 画像2
+            // 11: 生態 (New), 12: 被害 (New), 13: 画像1, 14: 画像2
             
             const animal = {
                 category:        row[0] || '',
@@ -219,9 +208,10 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
                 prohibited_area: row[8] || '',
                 habitat:         row[9] || '',
                 notes:           row[10] || '',
-                description:     row[11] || '',
-                image_1:         row[12] || '',
-                image_2:         row[13] || ''
+                ecology:         row[11] || '', // ★ 新規
+                damage:          row[12] || '', // ★ 新規
+                image_1:         row[13] || '', // ★ 列番号変更
+                image_2:         row[14] || ''  // ★ 列番号変更
             };
             animals.push(animal);
         }
@@ -275,12 +265,11 @@ async function loadAndApplySettings() {
 }
 
 /**
- * テーマを適用する (<html> タグにクラスを設定)
+ * テーマを適用する
  */
 function applyTheme(themeValue) {
     const root = document.documentElement; // <html> タグ
     
-    // 既存のテーマクラスをすべて削除
     root.classList.remove('theme-light', 'theme-dark', 'theme-sepia', 'theme-light-green', 'theme-light-blue');
 
     if (themeValue === 'sepia') {
@@ -330,10 +319,9 @@ function setupTabs() {
 }
 
 /**
- * 画面を切り替える（タブが押されたときに呼ばれる）
+ * 画面を切り替える
  */
 function navigateTo(pageId, pageFunction, title) {
-    
     // クリーンアップ処理
     if (appState.activeBlobUrls && appState.activeBlobUrls.length > 0) {
         appState.activeBlobUrls.forEach(url => URL.revokeObjectURL(url));
@@ -368,75 +356,34 @@ function updateHeader(title, showBack = false) {
     
     if (showBack) {
         backButton.onclick = () => {
-            if (appState.currentPage === 'trap') {
-                navigateTo('trap', showTrapPage, '罠');
-            }
-            else if (appState.currentPage === 'gun') {
-                navigateTo('gun', showGunPage, '銃');
-            }
-            else if (appState.currentPage === 'catch') {
-                navigateTo('catch', showCatchPage, '捕獲');
-            }
-            else if (appState.currentPage === 'checklist') {
-                navigateTo('checklist', showChecklistPage, 'チェック');
-            }
-            else if (appState.currentPage === 'info') {
-                 navigateTo('info', showInfoPage, '情報');
-            }
-            else if (appState.currentPage === 'settings') {
-                 navigateTo('settings', showSettingsPage, '設定');
-            }
-            else navigateTo('trap', showTrapPage, '罠'); // デフォルトに戻る
+            if (appState.currentPage === 'trap') navigateTo('trap', showTrapPage, '罠');
+            else if (appState.currentPage === 'gun') navigateTo('gun', showGunPage, '銃');
+            else if (appState.currentPage === 'catch') navigateTo('catch', showCatchPage, '捕獲');
+            else if (appState.currentPage === 'checklist') navigateTo('checklist', showChecklistPage, 'チェック');
+            else if (appState.currentPage === 'info') navigateTo('info', showInfoPage, '情報');
+            else if (appState.currentPage === 'settings') navigateTo('settings', showSettingsPage, '設定');
+            else navigateTo('trap', showTrapPage, '罠');
         };
     }
-
     headerActions.innerHTML = '';
 }
 
 // --- 共通ヘルパー関数 ---
 
-/**
- * GPS位置情報を取得する
- */
 function getCurrentLocation() {
     return new Promise((resolve, reject) => {
         if (!navigator.geolocation) {
             reject(new Error('お使いのブラウザはGPS機能に対応していません。'));
             return;
         }
-        
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 10000, 
-            maximumAge: 0 
-        };
-
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                resolve({
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude
-                });
-            },
-            (err) => {
-                if (err.code === 1) {
-                    reject(new Error('GPSの使用が許可されませんでした。設定を確認してください。'));
-                } else if (err.code === 2) {
-                    reject(new Error('GPSの測位に失敗しました。場所を変えてお試しください。'));
-                } else if (err.code === 3) {
-                    reject(new Error('GPSの測位がタイムアウトしました。'));
-                } else {
-                    reject(new Error(`不明なGPSエラーが発生しました: ${err.message}`));
-                }
-            },
-            options
+            (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+            (err) => reject(new Error('GPSの測位に失敗しました。')),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
     });
 }
 
-/**
- * HTMLエスケープ
- */
 function escapeHTML(str) {
     if (str === null || str === undefined) return '';
     return str.toString()
@@ -447,89 +394,39 @@ function escapeHTML(str) {
          .replace(/'/g, '&#39;');
 }
 
-/**
- * 日付フォーマット (YYYY/MM/DD)
- */
 function formatDate(dateString) {
     if (!dateString) return '未設定';
     try {
         const parts = dateString.split('-');
-        if (parts.length === 3) {
-            const year = parts[0];
-            const month = parts[1];
-            const day = parts[2];
-            return `${year}/${month}/${day}`;
-        }
+        if (parts.length === 3) return `${parts[0]}/${parts[1]}/${parts[2]}`;
         const date = new Date(dateString);
         if (isNaN(date.getTime())) return dateString; 
-        
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        return `${year}/${month}/${day}`;
-
+        return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
     } catch (e) {
         return dateString;
     }
 }
 
-/**
- * CSVパーサー (引用符付きセルや改行に対応した強化版)
- * @param {string} text - CSVテキストデータ
- * @returns {Array<Array<string>>} 2次元配列
- */
 function parseCSV(text) {
     const arr = [];
-    let quote = false;  // 'true' means we're inside a quoted field
-    let col = 0, c = 0; // Current column and char index
-    
-    // Normalize newlines
+    let quote = false;
+    let col = 0, c = 0;
     text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     
     for (; c < text.length; c++) {
-        let cc = text[c], nc = text[c+1];        // Current char, next char
-        arr[arr.length-1] = arr[arr.length-1] || []; // Create a new row if necessary
-        arr[arr.length-1][col] = arr[arr.length-1][col] || ''; // Create a new column (start with empty string) if necessary
+        let cc = text[c], nc = text[c+1];
+        arr[arr.length-1] = arr[arr.length-1] || [];
+        arr[arr.length-1][col] = arr[arr.length-1][col] || '';
 
-        // If the current char is a quote
-        if (cc == '"' && quote && nc == '"') { 
-            // If it's a double quote inside a quoted field, decode it to a single quote
-            arr[arr.length-1][col] += cc; 
-            ++c; // Skip the next quote
-            continue; 
-        }
-        
-        if (cc == '"') { 
-            // Toggle quote state
-            quote = !quote; 
-            continue; 
-        }
-        
-        if (cc == ',' && !quote) { 
-            // If it's a comma and NOT inside a quote, move to next column
-            ++col; 
-            continue; 
-        }
-        
-        if (cc == '\n' && !quote) { 
-            // If it's a newline and NOT inside a quote, move to next row
-            ++col; 
-            if (col > 0) { // Only start new row if current row is not empty
-                arr.push([]); // Start new row
-                col = 0; 
-            }
-            continue; 
-        }
-        
-        // Otherwise, append the current char to the current column
+        if (cc == '"' && quote && nc == '"') { arr[arr.length-1][col] += cc; ++c; continue; }
+        if (cc == '"') { quote = !quote; continue; }
+        if (cc == ',' && !quote) { ++col; continue; }
+        if (cc == '\n' && !quote) { ++col; if (col > 0) { arr.push([]); col = 0; } continue; }
         arr[arr.length-1][col] += cc;
     }
     return arr;
 }
 
-/**
- * 画像リサイズ関数
- */
 function resizeImage(file, maxSize = 800) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -538,33 +435,17 @@ function resizeImage(file, maxSize = 800) {
             img.onload = () => {
                 EXIF.getData(img, function() {
                     const orientation = EXIF.getTag(this, "Orientation");
-                    
                     let width = img.width;
                     let height = img.height;
-
                     if (width > height) {
-                        if (width > maxSize) {
-                            height = Math.round(height * (maxSize / width));
-                            width = maxSize;
-                        }
+                        if (width > maxSize) { height = Math.round(height * (maxSize / width)); width = maxSize; }
                     } else {
-                        if (height > maxSize) {
-                            width = Math.round(width * (maxSize / height));
-                            height = maxSize;
-                        }
+                        if (height > maxSize) { width = Math.round(width * (maxSize / height)); height = maxSize; }
                     }
-
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-
-                    if (orientation && orientation >= 5 && orientation <= 8) {
-                        canvas.width = height;
-                        canvas.height = width;
-                    } else {
-                        canvas.width = width;
-                        canvas.height = height;
-                    }
-
+                    if (orientation >= 5 && orientation <= 8) { canvas.width = height; canvas.height = width; }
+                    else { canvas.width = width; canvas.height = height; }
                     switch (orientation) {
                         case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;
                         case 3: ctx.transform(-1, 0, 0, -1, width, height); break;
@@ -573,69 +454,34 @@ function resizeImage(file, maxSize = 800) {
                         case 6: ctx.transform(0, 1, -1, 0, height, 0); break;
                         case 7: ctx.transform(0, -1, -1, 0, height, width); break;
                         case 8: ctx.transform(0, -1, 1, 0, 0, width); break;
-                        default: break;
                     }
-
-                    // 画像描画の方向修正ロジック (canvasサイズ変更後)
-                    if (orientation >= 5 && orientation <= 8) {
-                        ctx.drawImage(img, 0, 0, height, width);
-                    } else {
-                        ctx.drawImage(img, 0, 0, width, height);
-                    }
-
-                    canvas.toBlob(
-                        (blob) => {
-                            if (!blob) {
-                                reject(new Error('Canvas to Blob conversion failed'));
-                                return;
-                            }
-                            resolve(blob);
-                        },
-                        'image/jpeg',
-                        0.8
-                    );
+                    if (orientation >= 5 && orientation <= 8) ctx.drawImage(img, 0, 0, height, width);
+                    else ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob((blob) => { if (blob) resolve(blob); else reject(new Error('変換失敗')); }, 'image/jpeg', 0.8);
                 });
             };
-            img.onerror = (e) => reject(new Error('Image loading failed'));
+            img.onerror = (e) => reject(new Error('画像読込失敗'));
             img.src = e.target.result;
         };
         reader.readAsDataURL(file);
     });
 }
 
-// ★★★ 画像拡大モーダル ★★★
-/**
- * 画像を拡大表示するモーダルを表示する
- * @param {string} blobUrl - URL.createObjectURL() で生成したURL (または通常の画像パス)
- */
 function showImageModal(blobUrl) {
-    // 既存のモーダルがあれば削除
     closeImageModal();
-    
-    // モーダルを作成
     const modalOverlay = document.createElement('div');
     modalOverlay.id = 'image-modal-overlay';
-    modalOverlay.className = 'image-modal-overlay'; // style.css で定義
-    
+    modalOverlay.className = 'image-modal-overlay'; 
     const modalContent = document.createElement('div');
     modalContent.className = 'image-modal-content';
-    
     const img = document.createElement('img');
     img.src = blobUrl;
-    
     modalContent.appendChild(img);
     modalOverlay.appendChild(modalContent);
     document.body.appendChild(modalOverlay);
-    
-    // オーバーレイクリックで閉じる
-    modalOverlay.onclick = () => {
-        closeImageModal();
-    };
+    modalOverlay.onclick = () => closeImageModal();
 }
 
-/**
- * 画像拡大モーダルを閉じる
- */
 function closeImageModal() {
     const modalOverlay = document.getElementById('image-modal-overlay');
     if (modalOverlay) {
