@@ -21,16 +21,17 @@ const urlsToCache = [
     './favicon.ico',
     './icon-192x192.png', // アイコンがあれば
     
-    // --- 外部ライブラリ (CDN) ---
+    // --- ★ 修正: ローカルのライブラリファイルを指定 ---
+    './libs/tailwindcss.js',
+    './libs/dexie.js',
+    './libs/exif.min.js',
+    './libs/font-awesome/css/all.min.css',
     
-    // ★ 重要: Tailwind CSS は CORSヘッダーを返さないことがあるため、
-    // 'no-cors' モードでリクエストオブジェクトとして定義し、不透明レスポンスとしてキャッシュする
-    new Request('https://cdn.tailwindcss.com', { mode: 'no-cors' }),
+    // Font Awesomeのフォントファイルもキャッシュ推奨 (アイコンが表示されないのを防ぐため)
+    // ※使用しているバージョン(v6系)に合わせてファイル名を指定
+    './libs/font-awesome/webfonts/fa-solid-900.woff2',
+    './libs/font-awesome/webfonts/fa-solid-900.ttf'
 
-    // 以下のCDN (unpkg, cdnjs) は通常CORS対応しているため、文字列のままでOK
-    'https://unpkg.com/dexie@4.0.7/dist/dexie.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css' 
 ];
 
 // インストール処理
