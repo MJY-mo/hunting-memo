@@ -1,4 +1,6 @@
-/* ★★★ 修正: フォントサイズ定義を5段階に変更 ★★★ */
+/* style.css (修正済み完全版) */
+
+/* ★ フォントサイズ定義 ★ */
 :root {
     /* デフォルト (ライトテーマ) */
     --color-bg-primary: #f3f4f6; /* bg-gray-100 */
@@ -7,7 +9,6 @@
     --color-text-secondary: #4b5563; /* text-gray-600 */
     --color-border: #d1d5db; /* border-gray-300 */
     --color-border-focus: rgb(59 130 246); /* focus:border-blue-500 */
-    /* font-size-base は :root.font-size-xxx で設定 */
 }
 
 :root.theme-dark {
@@ -28,38 +29,25 @@
     --color-border-focus: #a98f71;
 }
 
-:root.font-size-xsmall {
-    --font-size-base: 12px;
-}
-:root.font-size-small {
-    --font-size-base: 14px;
-}
-:root.font-size-medium {
-    --font-size-base: 16px;
-}
-:root.font-size-large {
-    --font-size-base: 18px;
-}
-:root.font-size-xlarge {
-    --font-size-base: 20px;
-}
-/* ★★★ 修正ここまで ★★★ */
+:root.font-size-xsmall { --font-size-base: 12px; }
+:root.font-size-small { --font-size-base: 14px; }
+:root.font-size-medium { --font-size-base: 16px; }
+:root.font-size-large { --font-size-base: 18px; }
+:root.font-size-xlarge { --font-size-base: 20px; }
 
 
-/* Tailwind CSSがベースですが、@apply を使わずに標準CSSで記述します */
+/* Base Styles */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overscroll-behavior-y: none;
     max-width: 640px; /* max-w-lg */
     margin: 0 auto;
     
-    /* ★ 修正: CSS変数を使用 */
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
-    font-size: var(--font-size-base); /* ★ 適用 */
+    font-size: var(--font-size-base);
 }
 
-/* ★ 修正: ヘッダーとタブバーのテーマ対応 (index.html の定義に基づく) */
 #header,
 nav.bg-white {
     background-color: var(--color-bg-secondary);
@@ -70,21 +58,19 @@ nav.bg-white {
 }
 
 
-/* --- タブバー --- */
+/* Tabs */
 .tab-active {
-    color: #059669; /* text-emerald-600 (これはテーマ固定) */
+    color: #059669; /* text-emerald-600 */
     border-top: 2px solid #059669;
     font-weight: 600; /* font-semibold */
 }
 .tab-inactive {
-    /* ★ 修正: CSS変数を使用 */
     color: var(--color-text-secondary);
     border-top: 2px solid transparent;
 }
 
-/* --- フォーム共通スタイル (UI改善で追加) --- */
+/* Forms */
 .card {
-    /* ★ 修正: CSS変数を使用 */
     background-color: var(--color-bg-secondary);
     border-radius: 0.5rem; /* rounded-lg */
     padding: 1rem; /* p-4 */
@@ -98,7 +84,6 @@ nav.bg-white {
     display: block;
     font-size: 0.875rem; /* text-sm */
     font-weight: 500; /* font-medium */
-    /* ★ 修正: CSS変数を使用 */
     color: var(--color-text-primary);
     margin-bottom: 0.25rem; /* mb-1 */
 }
@@ -106,11 +91,7 @@ nav.bg-white {
 .form-select {
     display: block;
     width: 100%;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-    /* ★ 修正: CSS変数を使用 */
+    padding: 0.5rem 0.75rem;
     border: 1px solid var(--color-border);
     background-color: var(--color-bg-secondary);
     color: var(--color-text-primary);
@@ -123,22 +104,23 @@ nav.bg-white {
 .form-select:focus {
     outline: 2px solid transparent;
     outline-offset: 2px;
-    /* ★ 修正: CSS変数を使用 */
     border-color: var(--color-border-focus);
     box-shadow: 0 0 0 2px var(--color-border-focus);
 }
-/* ★ 修正: inputプレースホルダーの文字色 */
 .form-input::placeholder {
     color: var(--color-text-secondary);
     opacity: 0.7;
 }
 
 
-/* --- ボタン共通スタイル (UI改善で追加) --- */
-/* (ボタン色は視認性のためテーマ変更しない) */
+/* Buttons */
 .btn {
     display: inline-flex;
     justify-content: center;
+    /* ★ 修正: アイコン位置調整 */
+    align-items: center; 
+    gap: 0.5rem; 
+    
     padding: 0.5rem 1rem; /* py-2 px-4 */
     border: 1px solid transparent;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); /* shadow-sm */
@@ -157,7 +139,6 @@ nav.bg-white {
     background-color: rgb(29 78 216); /* hover:bg-blue-700 */
 }
 .btn-secondary {
-    /* ★ 修正: CSS変数を使用 */
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
     border-color: var(--color-border);
@@ -172,21 +153,25 @@ nav.bg-white {
 .btn-danger:hover {
     background-color: rgb(185 28 28); /* hover:bg-red-700 */
 }
+.btn-success {
+    background-color: #10b981; /* emerald-500 */
+    color: white;
+}
+.btn-success:hover {
+    background-color: #059669; /* emerald-600 */
+}
 .btn-loading {
     opacity: 0.75;
     cursor: not-allowed;
 }
 
 
-/* --- ★★★ 罠カード (修正箇所) ★★★ --- */
+/* Trap Card */
 .trap-card {
-    /* ★ 修正: CSS変数を使用 */
     background-color: var(--color-bg-secondary);
-    
-    /* shadow-lg */
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    border-radius: 0.5rem; /* rounded-lg */
-    padding: 1rem; /* p-4 */
+    border-radius: 0.5rem;
+    padding: 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -196,18 +181,15 @@ nav.bg-white {
 .trap-card:hover {
     opacity: 0.8;
 }
-
-/* ★ 修正: 罠カード内の文字色 */
 .trap-card h3 {
     color: var(--color-text-primary);
 }
-/* (h3 の .text-blue-600 などはCSS優先度で上書きされる) */
 .trap-card p {
     color: var(--color-text-secondary);
 }
 
 
-/* --- エラーメッセージ --- */
+/* Error Box */
 .error-box {
     background-color: #fee2e2; /* bg-red-100 */
     border: 1px solid #f87171; /* border-red-400 */
@@ -216,7 +198,7 @@ nav.bg-white {
     border-radius: 0.5rem; /* rounded-lg */
 }
 
-/* ★★★ 新規 (3/4): 画像拡大モーダル ★★★ */
+/* Image Modal & Preview */
 .image-modal-overlay {
     position: fixed;
     top: 0;
@@ -243,7 +225,6 @@ nav.bg-white {
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
 }
 
-/* ★ 修正: 写真プレビューのスタイル (catch.js, info.js で使用) */
 .photo-preview {
     position: relative;
     width: 100%;
@@ -287,97 +268,32 @@ nav.bg-white {
 .photo-preview-btn-delete:hover {
     background-color: rgb(185 28 28); /* hover:bg-red-700 */
 }
-/*
- * ----------------------------------------------------------------
- * テーマ変更用の設定 (セレクタ修正版)
- * ----------------------------------------------------------------
- */
 
-/*
- * --- ライト (デフォルト) ---
- * <html>.theme-light
- * index.html の <body class="bg-gray-100"> がそのまま適用される。
- */
-html.theme-light body {
-    background-color: #f3f4f6; /* Tailwind 'gray-100' */
-    color: #111827; /* デフォルトの黒文字 */
-}
+/* Theme Override Selectors */
+html.theme-light body { background-color: #f3f4f6; color: #111827; }
+html.theme-sepia body { background-color: #f7f3e8; color: #1f2937; }
+html.theme-light-green body { background-color: #f0fdf4; color: #15803d; }
+html.theme-light-blue body { background-color: #f0f9ff; color: #0c4a6e; }
 
-/*
- * --- セピア ---
- * <html>.theme-sepia
- */
-html.theme-sepia body {
-    /* 1. <body> の背景色 (bg-gray-100) を上書き */
-    background-color: #f7f3e8; /* セピア背景 */
-    
-    /* 2. カードの外の文字 (.page-title) の色を濃いグレーにする */
-    color: #1f2937;
-}
-
-/*
- * --- ライトグリーン ---
- * <html>.theme-light-green
- */
-html.theme-light-green body {
-    background-color: #f0fdf4; /* Tailwind 'green-50' */
-    color: #15803d; /* Tailwind 'green-700' */
-}
-
-/*
- * --- ライトブルー ---
- * <html>.theme-light-blue
- */
-html.theme-light-blue body {
-    background-color: #f0f9ff; /* Tailwind 'sky-50' */
-    color: #0c4a6e; /* Tailwind 'sky-900' */
-}
-
-
-/*
- * --- 継承の制御 (重要) ---
- *
- * <html>.theme-xxx body で設定した文字色(color)が、
- * 白背景の要素 (ヘッダー、カード、タブバー) に継承されないように、
- * これらの要素の文字色を強制的に「黒」で上書きする。
- */
-html.theme-sepia #header,
-html.theme-sepia #app .card,
-html.theme-sepia #app .trap-card,
-html.theme-sepia nav,
-html.theme-light-green #header,
-html.theme-light-green #app .card,
-html.theme-light-green #app .trap-card,
-html.theme-light-green nav,
-html.theme-light-blue #header,
-html.theme-light-blue #app .card,
-html.theme-light-blue #app .trap-card,
-html.theme-light-blue nav {
+html.theme-sepia #header, html.theme-sepia #app .card, html.theme-sepia #app .trap-card, html.theme-sepia nav,
+html.theme-light-green #header, html.theme-light-green #app .card, html.theme-light-green #app .trap-card, html.theme-light-green nav,
+html.theme-light-blue #header, html.theme-light-blue #app .card, html.theme-light-blue #app .trap-card, html.theme-light-blue nav {
     color: #111827;
 }
 
-/*
- * .page-title だけは、テーマの色を継承させたいので、
- * 上記の .card { color: #111827; } 指定よりも
- * 優先度が高い指定で、色を 'inherit' (親から継承) に戻す。
- */
 html.theme-sepia .page-title,
 html.theme-light-green .page-title,
 html.theme-light-blue .page-title {
     color: inherit;
 }
 
-/* ----------------------------------------------------------------
- * 図鑑リストの新デザイン (info.js) - 追加分
- * ---------------------------------------------------------------- */
-
-/* カード全体: 横並びレイアウト */
+/* --- 図鑑リストの新デザイン (info.js) --- */
 .animal-card {
     display: flex;
     align-items: center;
     padding: 0.75rem;
     border: 1px solid #e5e7eb;
-    border-radius: 0.5rem; /* rounded-lg */
+    border-radius: 0.5rem;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     cursor: pointer;
     transition: background-color 0.2s;
@@ -385,13 +301,11 @@ html.theme-light-blue .page-title {
 .animal-card:active {
     background-color: #f3f4f6;
 }
-
-/* サムネイル画像エリア */
 .animal-thumb-container {
     flex-shrink: 0;
     width: 60px;
     height: 60px;
-    border-radius: 0.375rem; /* rounded-md */
+    border-radius: 0.375rem;
     overflow: hidden;
     margin-right: 1rem;
     border: 1px solid #e5e7eb;
@@ -399,42 +313,33 @@ html.theme-light-blue .page-title {
     align-items: center;
     justify-content: center;
 }
-
 .animal-thumb {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* 枠に合わせてトリミング */
+    object-fit: cover;
 }
-
-/* テキスト情報エリア */
 .animal-info {
     flex-grow: 1;
-    min-width: 0; /* フレックスアイテムの縮小用 */
+    min-width: 0;
 }
-
 .animal-header {
     display: flex;
     align-items: center;
     margin-bottom: 0.25rem;
 }
-
 .animal-name {
     font-size: 1rem;
     font-weight: 700;
-    color: #1f2937; /* text-gray-800 */
+    color: #1f2937;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
-/* バッジ群 */
 .animal-badges {
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
 }
-
-/* バッジ共通スタイル */
 .badge {
     display: inline-block;
     padding: 0.125rem 0.375rem;
@@ -443,28 +348,10 @@ html.theme-light-blue .page-title {
     border-radius: 0.25rem;
     white-space: nowrap;
 }
-
-/* バッジごとの色設定 (Tailwindの色味を参考に調整) */
-.badge-mammal {
-    background-color: #fef3c7; /* amber-100 */
-    color: #92400e;       /* amber-800 */
-}
-.badge-bird {
-    background-color: #e0f2fe; /* sky-100 */
-    color: #075985;       /* sky-800 */
-}
-.badge-game {
-    background-color: #dcfce7; /* green-100 */
-    color: #166534;       /* green-800 */
-    border: 1px solid #86efac;
-}
-.badge-invasive {
-    background-color: #fae8ff; /* fuchsia-100 */
-    color: #86198f;       /* fuchsia-800 */
-    border: 1px solid #f0abfc;
-}
-
-/* 右矢印 */
+.badge-mammal { background-color: #fef3c7; color: #92400e; }
+.badge-bird { background-color: #e0f2fe; color: #075985; }
+.badge-game { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.badge-invasive { background-color: #fae8ff; color: #86198f; border: 1px solid #f0abfc; }
 .animal-arrow {
     flex-shrink: 0;
     margin-left: 0.5rem;

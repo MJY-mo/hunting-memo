@@ -1,36 +1,70 @@
-// このファイルは info.js です
-// ★ 修正: 図鑑リストを「画像付き・バッジ付き」のA/B/C案デザインに変更
-// ★ 修正: 「分類」を「並び替え」に、「狩猟対象」を「属性」フィルターに変更
+// このファイルは info.js です (修正版: トップメニュー追加 & 図鑑機能刷新)
 
 /**
  * 「情報」タブのメインページを表示する
  */
 function showInfoPage() {
-    // 状態の初期化 (初回のみ)
-    if (!appState.infoSort) {
-        appState.infoSort = 'default'; // 'default', 'name'
-    }
-    if (!appState.infoFilterAttribute) {
-        appState.infoFilterAttribute = 'all'; 
-    }
-
-    // ナビゲーション
-    navigateTo('info', renderInfoMenu, '情報');
+    navigateTo('info', renderInfoTopPage, '情報');
 }
 
 /**
- * 情報タブのメニュー（図鑑・捕獲者情報）を描画
+ * 情報タブのトップメニュー（分岐画面）を描画
  */
-async function renderInfoMenu() {
-    // ヘッダー更新
+function renderInfoTopPage() {
     updateHeader('情報', false);
 
-    // HTML構築
+    app.innerHTML = `
+        <div class="space-y-4">
+            <div class="card bg-white hover:bg-gray-50 cursor-pointer" id="btn-game-animal-list">
+                <div class="flex items-center p-4">
+                    <div class="bg-green-100 p-3 rounded-full mr-4">
+                        <i class="fas fa-book text-green-600 text-2xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800">狩猟鳥獣図鑑</h2>
+                        <p class="text-sm text-gray-500">狩猟対象や特徴を確認</p>
+                    </div>
+                    <div class="ml-auto text-gray-400">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card bg-white hover:bg-gray-50 cursor-pointer" id="btn-hunter-profile">
+                <div class="flex items-center p-4">
+                    <div class="bg-blue-100 p-3 rounded-full mr-4">
+                        <i class="fas fa-id-card text-blue-600 text-2xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800">捕獲者情報</h2>
+                        <p class="text-sm text-gray-500">免許や許可証の期限管理</p>
+                    </div>
+                    <div class="ml-auto text-gray-400">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('btn-game-animal-list').onclick = () => showGameAnimalListPage();
+    document.getElementById('btn-hunter-profile').onclick = () => showHunterProfilePage();
+}
+
+/**
+ * 狩猟鳥獣図鑑ページを表示
+ */
+async function showGameAnimalListPage() {
+    // 状態の初期化 (初回のみ)
+    if (!appState.infoSort) appState.infoSort = 'default';
+    if (!appState.infoFilterAttribute) appState.infoFilterAttribute = 'all';
+
+    updateHeader('狩猟鳥獣図鑑', true);
+    backButton.onclick = () => showInfoPage(); // メニューに戻る
+
     app.innerHTML = `
         <div class="space-y-4">
             <div class="card bg-white">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">狩猟鳥獣図鑑</h2>
-                
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div class="form-group mb-0">
                         <label for="info-sort" class="form-label">並び替え:</label>
@@ -59,13 +93,6 @@ async function renderInfoMenu() {
                     <p class="text-gray-500 text-center py-4">読み込み中...</p>
                 </div>
             </div>
-
-            <div class="card bg-white">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲者情報</h2>
-                <div id="hunter-profile-container">
-                    <p class="text-gray-500">読み込み中...</p>
-                </div>
-            </div>
         </div>
     `;
 
@@ -73,7 +100,7 @@ async function renderInfoMenu() {
     document.getElementById('info-sort').value = appState.infoSort;
     document.getElementById('info-filter-attribute').value = appState.infoFilterAttribute;
 
-    // イベントリスナー設定
+    // イベントリスナー
     document.getElementById('info-sort').addEventListener('change', (e) => {
         appState.infoSort = e.target.value;
         renderGameAnimalList();
@@ -84,23 +111,20 @@ async function renderInfoMenu() {
         renderGameAnimalList();
     });
 
-    // リスト描画
     await renderGameAnimalList();
-    await renderHunterProfile();
 }
 
 /**
- * 鳥獣図鑑リストを描画する (A案:サムネイル, B案:バッジ, C案:分類色)
+ * 鳥獣図鑑リストを描画する
  */
 async function renderGameAnimalList() {
     const listElement = document.getElementById('game-animal-list');
     if (!listElement) return;
 
     try {
-        // 全データ取得
         let animals = await db.game_animal_list.toArray();
 
-        // 1. フィルタリング (属性)
+        // 1. フィルタリング
         const attr = appState.infoFilterAttribute;
         if (attr !== 'all') {
             animals = animals.filter(a => {
@@ -108,10 +132,8 @@ async function renderGameAnimalList() {
                 if (attr === 'invasive') return (a.notes && a.notes.includes('外来'));
                 if (attr === 'mammal') return a.category === '哺乳類';
                 if (attr === 'bird') return a.category === '鳥類';
-                // 記号の揺らぎに対応 (○:丸, 〇:漢数字ゼロ)
                 if (attr === 'gun') return ['○', '〇', '◎'].includes(a.method_gun);
                 if (attr === 'trap') return ['○', '〇', '◎'].includes(a.method_trap);
-                // 網は「△」を除外して「〇」のみ
                 if (attr === 'net') return ['○', '〇', '◎'].includes(a.method_net);
                 return true;
             });
@@ -121,7 +143,6 @@ async function renderGameAnimalList() {
         if (appState.infoSort === 'name') {
             animals.sort((a, b) => a.species_name.localeCompare(b.species_name, 'ja'));
         } else {
-            // default: ID順 (CSV順)
             animals.sort((a, b) => a.id - b.id);
         }
 
@@ -132,68 +153,34 @@ async function renderGameAnimalList() {
 
         // 3. HTML生成
         listElement.innerHTML = animals.map(animal => {
-            // --- バッジ生成 ---
             let badges = '';
-            
-            // 分類バッジ (C案: 色分け)
-            if (animal.category === '哺乳類') {
-                badges += `<span class="badge badge-mammal">哺乳類</span>`;
-            } else if (animal.category === '鳥類') {
-                badges += `<span class="badge badge-bird">鳥類</span>`;
-            }
+            if (animal.category === '哺乳類') badges += `<span class="badge badge-mammal">哺乳類</span>`;
+            else if (animal.category === '鳥類') badges += `<span class="badge badge-bird">鳥類</span>`;
+            if (animal.is_game_animal === '〇') badges += `<span class="badge badge-game">狩猟鳥獣</span>`;
+            if (animal.notes && animal.notes.includes('外来')) badges += `<span class="badge badge-invasive">外来種</span>`;
 
-            // 狩猟鳥獣バッジ
-            if (animal.is_game_animal === '〇') {
-                badges += `<span class="badge badge-game">狩猟鳥獣</span>`;
-            }
-
-            // 外来種バッジ (備考欄から判定)
-            if (animal.notes && animal.notes.includes('外来')) {
-                badges += `<span class="badge badge-invasive">外来種</span>`;
-            }
-
-            // --- サムネイル画像 (A案) ---
             let thumbHTML = '';
             if (animal.image_1) {
-                // 画像パスは ./image/ファイル名
                 const imgPath = `./image/${escapeHTML(animal.image_1)}`;
-                thumbHTML = `
-                    <div class="animal-thumb-container">
-                        <img src="${imgPath}" alt="${escapeHTML(animal.species_name)}" class="animal-thumb" loading="lazy">
-                    </div>
-                `;
+                thumbHTML = `<div class="animal-thumb-container"><img src="${imgPath}" alt="${escapeHTML(animal.species_name)}" class="animal-thumb" loading="lazy"></div>`;
             } else {
-                // 画像がない場合のダミー
-                thumbHTML = `
-                    <div class="animal-thumb-container bg-gray-100 flex items-center justify-center text-gray-300">
-                        <i class="fas fa-paw text-2xl"></i>
-                    </div>
-                `;
+                thumbHTML = `<div class="animal-thumb-container bg-gray-100 flex items-center justify-center text-gray-300"><i class="fas fa-paw text-2xl"></i></div>`;
             }
 
             return `
                 <div class="animal-card bg-white" data-id="${animal.id}">
                     ${thumbHTML}
                     <div class="animal-info">
-                        <div class="animal-header">
-                            <h3 class="animal-name">${escapeHTML(animal.species_name)}</h3>
-                        </div>
-                        <div class="animal-badges">
-                            ${badges}
-                        </div>
+                        <div class="animal-header"><h3 class="animal-name">${escapeHTML(animal.species_name)}</h3></div>
+                        <div class="animal-badges">${badges}</div>
                     </div>
-                    <div class="animal-arrow">
-                        <span>&gt;</span>
-                    </div>
+                    <div class="animal-arrow"><span>&gt;</span></div>
                 </div>
             `;
         }).join('');
 
-        // クリックイベント
         listElement.querySelectorAll('.animal-card').forEach(card => {
-            card.addEventListener('click', () => {
-                showGameAnimalDetail(parseInt(card.dataset.id, 10));
-            });
+            card.addEventListener('click', () => showGameAnimalDetail(parseInt(card.dataset.id, 10)));
         });
 
     } catch (err) {
@@ -203,7 +190,7 @@ async function renderGameAnimalList() {
 }
 
 /**
- * 鳥獣詳細ページを表示する (変更なし)
+ * 鳥獣詳細ページ
  */
 async function showGameAnimalDetail(id) {
     try {
@@ -211,21 +198,13 @@ async function showGameAnimalDetail(id) {
         if (!animal) return;
 
         updateHeader(animal.species_name, true);
-        backButton.onclick = () => showInfoPage();
+        backButton.onclick = () => showGameAnimalListPage();
 
-        // 画像セクション
         let imagesHTML = '';
-        if (animal.image_1) {
-            imagesHTML += `<img src="./image/${escapeHTML(animal.image_1)}" class="w-full h-auto rounded mb-2 border">`;
-        }
-        if (animal.image_2) {
-            imagesHTML += `<img src="./image/${escapeHTML(animal.image_2)}" class="w-full h-auto rounded mb-2 border">`;
-        }
-        if (!imagesHTML) {
-            imagesHTML = '<p class="text-gray-400 text-sm">画像はありません</p>';
-        }
+        if (animal.image_1) imagesHTML += `<img src="./image/${escapeHTML(animal.image_1)}" class="w-full h-auto rounded mb-2 border">`;
+        if (animal.image_2) imagesHTML += `<img src="./image/${escapeHTML(animal.image_2)}" class="w-full h-auto rounded mb-2 border">`;
+        if (!imagesHTML) imagesHTML = '<p class="text-gray-400 text-sm">画像はありません</p>';
 
-        // 基本情報テーブル
         const tableRows = [
             ['分類', animal.category],
             ['狩猟鳥獣', animal.is_game_animal],
@@ -239,12 +218,7 @@ async function showGameAnimalDetail(id) {
             ['備考', animal.notes]
         ].map(([label, value]) => {
             if (!value || value === 'nan') return '';
-            return `
-                <tr class="border-b">
-                    <th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${label}</th>
-                    <td class="w-2/3 p-2">${escapeHTML(value)}</td>
-                </tr>
-            `;
+            return `<tr class="border-b"><th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${label}</th><td class="w-2/3 p-2">${escapeHTML(value)}</td></tr>`;
         }).join('');
 
         app.innerHTML = `
@@ -253,23 +227,16 @@ async function showGameAnimalDetail(id) {
                     <h2 class="text-lg font-semibold border-b pb-2 mb-2">写真</h2>
                     ${imagesHTML}
                 </div>
-                
                 <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-2">特徴・説明</h2>
-                    <p class="text-sm text-gray-800 leading-relaxed">
-                        ${animal.description ? escapeHTML(animal.description).replace(/\n/g, '<br>') : '情報なし'}
-                    </p>
+                    <p class="text-sm text-gray-800 leading-relaxed">${animal.description ? escapeHTML(animal.description).replace(/\n/g, '<br>') : '情報なし'}</p>
                 </div>
-
                 <div class="card bg-white">
                     <h2 class="text-lg font-semibold border-b pb-2 mb-0">データ</h2>
-                    <table class="w-full text-sm">
-                        <tbody>${tableRows}</tbody>
-                    </table>
+                    <table class="w-full text-sm"><tbody>${tableRows}</tbody></table>
                 </div>
             </div>
         `;
-
     } catch (err) {
         console.error(err);
         alert('詳細の読み込みに失敗しました。');
@@ -277,7 +244,26 @@ async function showGameAnimalDetail(id) {
 }
 
 /**
- * 捕獲者情報セクションを描画 (変更なし)
+ * 捕獲者情報ページを表示
+ */
+async function showHunterProfilePage() {
+    updateHeader('捕獲者情報', true);
+    backButton.onclick = () => showInfoPage(); // メニューに戻る
+
+    app.innerHTML = `
+        <div class="card bg-white">
+            <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲者情報</h2>
+            <div id="hunter-profile-container">
+                <p class="text-gray-500">読み込み中...</p>
+            </div>
+        </div>
+    `;
+    
+    await renderHunterProfile();
+}
+
+/**
+ * 捕獲者情報セクションを描画
  */
 async function renderHunterProfile() {
     const container = document.getElementById('hunter-profile-container');
@@ -315,12 +301,12 @@ async function renderHunterProfile() {
 }
 
 /**
- * 捕獲者情報の編集フォーム (簡略版: 画像処理は省略)
+ * 捕獲者情報の編集フォーム
  */
 async function showHunterProfileEdit() {
     const profile = await db.hunter_profile.get('main');
     updateHeader('捕獲者情報の編集', true);
-    backButton.onclick = () => showInfoPage();
+    backButton.onclick = () => showHunterProfilePage();
 
     const fields = [
         ['name', '氏名'],
@@ -353,6 +339,6 @@ async function showHunterProfileEdit() {
             newData[key] = document.getElementById(`prof-${key}`).value;
         });
         await db.hunter_profile.put(newData);
-        showInfoPage();
+        showHunterProfilePage();
     });
 }
