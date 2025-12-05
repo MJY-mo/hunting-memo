@@ -1,6 +1,7 @@
 // このファイルは info.js です
-// ★ 修正: 鳥獣詳細ページで「生態」と「被害」を分けて表示
-// ★ 修正: 捕獲者情報の写真管理機能
+// ★ 修正: 鳥獣詳細ページの項目名を変更
+//   - 「区分」→「狩猟」
+//   - 「禁止区域」→「狩猟禁止区域」
 
 /**
  * 「情報」タブのメインページを表示する
@@ -57,11 +58,12 @@ function renderInfoTopPage() {
  * 狩猟鳥獣図鑑ページを表示
  */
 async function showGameAnimalListPage() {
+    // 状態の初期化 (初回のみ)
     if (!appState.infoSort) appState.infoSort = 'default';
     if (!appState.infoFilterAttribute) appState.infoFilterAttribute = 'all';
 
     updateHeader('狩猟鳥獣図鑑', true);
-    backButton.onclick = () => showInfoPage(); 
+    backButton.onclick = () => showInfoPage(); // メニューに戻る
 
     app.innerHTML = `
         <div class="space-y-4">
@@ -97,9 +99,11 @@ async function showGameAnimalListPage() {
         </div>
     `;
 
+    // コントロールの状態復元
     document.getElementById('info-sort').value = appState.infoSort;
     document.getElementById('info-filter-attribute').value = appState.infoFilterAttribute;
 
+    // イベントリスナー
     document.getElementById('info-sort').addEventListener('change', (e) => {
         appState.infoSort = e.target.value;
         renderGameAnimalList();
@@ -205,7 +209,7 @@ async function renderGameAnimalList() {
 }
 
 /**
- * ★ 修正: 鳥獣詳細ページ (生態と被害を分離)
+ * ★ 修正: 鳥獣詳細ページ (ラベル名の変更)
  */
 async function showGameAnimalDetail(id) {
     try {
@@ -253,11 +257,12 @@ async function showGameAnimalDetail(id) {
         }
 
         // 4. テーブル行の定義
+        // ★ 変更: ラベルを「区分」→「狩猟」、「禁止区域」→「狩猟禁止区域」に変更
         const tableRows = [
-            ['区分', statusValue],
+            ['狩猟', statusValue], 
             ['性別制限', genderValue],
             ['捕獲数制限', animal.count],
-            ['禁止区域', prohibitedAreaValue],
+            ['狩猟禁止区域', prohibitedAreaValue], 
             ['生息地', animal.habitat],
             ['備考', animal.notes]
         ].map(([label, value]) => {
