@@ -1,4 +1,6 @@
-// このファイルは info.js です (修正版: トップメニュー追加 & 図鑑機能刷新)
+// このファイルは info.js です
+// ★ 修正: 捕獲者情報に「写真の登録・表示機能」を復活
+// ★ 修正: デザインは維持しつつ、機能を追加
 
 /**
  * 「情報」タブのメインページを表示する
@@ -8,7 +10,7 @@ function showInfoPage() {
 }
 
 /**
- * 情報タブのトップメニュー（分岐画面）を描画
+ * 情報タブのトップメニュー
  */
 function renderInfoTopPage() {
     updateHeader('情報', false);
@@ -37,7 +39,7 @@ function renderInfoTopPage() {
                     </div>
                     <div>
                         <h2 class="text-lg font-bold text-gray-800">捕獲者情報</h2>
-                        <p class="text-sm text-gray-500">免許や許可証の期限管理</p>
+                        <p class="text-sm text-gray-500">免許や許可証の期限・写真管理</p>
                     </div>
                     <div class="ml-auto text-gray-400">
                         <i class="fas fa-chevron-right"></i>
@@ -55,12 +57,11 @@ function renderInfoTopPage() {
  * 狩猟鳥獣図鑑ページを表示
  */
 async function showGameAnimalListPage() {
-    // 状態の初期化 (初回のみ)
     if (!appState.infoSort) appState.infoSort = 'default';
     if (!appState.infoFilterAttribute) appState.infoFilterAttribute = 'all';
 
     updateHeader('狩猟鳥獣図鑑', true);
-    backButton.onclick = () => showInfoPage(); // メニューに戻る
+    backButton.onclick = () => showInfoPage(); 
 
     app.innerHTML = `
         <div class="space-y-4">
@@ -73,7 +74,6 @@ async function showGameAnimalListPage() {
                             <option value="name">あいうえお順</option>
                         </select>
                     </div>
-                    
                     <div class="form-group mb-0">
                         <label for="info-filter-attribute" class="form-label">属性:</label>
                         <select id="info-filter-attribute" class="form-select">
@@ -88,7 +88,6 @@ async function showGameAnimalListPage() {
                         </select>
                     </div>
                 </div>
-
                 <div id="game-animal-list" class="space-y-3">
                     <p class="text-gray-500 text-center py-4">読み込み中...</p>
                 </div>
@@ -96,16 +95,13 @@ async function showGameAnimalListPage() {
         </div>
     `;
 
-    // コントロールの状態復元
     document.getElementById('info-sort').value = appState.infoSort;
     document.getElementById('info-filter-attribute').value = appState.infoFilterAttribute;
 
-    // イベントリスナー
     document.getElementById('info-sort').addEventListener('change', (e) => {
         appState.infoSort = e.target.value;
         renderGameAnimalList();
     });
-    
     document.getElementById('info-filter-attribute').addEventListener('change', (e) => {
         appState.infoFilterAttribute = e.target.value;
         renderGameAnimalList();
@@ -115,7 +111,7 @@ async function showGameAnimalListPage() {
 }
 
 /**
- * 鳥獣図鑑リストを描画する
+ * 鳥獣図鑑リストを描画
  */
 async function renderGameAnimalList() {
     const listElement = document.getElementById('game-animal-list');
@@ -123,8 +119,6 @@ async function renderGameAnimalList() {
 
     try {
         let animals = await db.game_animal_list.toArray();
-
-        // 1. フィルタリング
         const attr = appState.infoFilterAttribute;
         if (attr !== 'all') {
             animals = animals.filter(a => {
@@ -139,7 +133,6 @@ async function renderGameAnimalList() {
             });
         }
 
-        // 2. 並び替え
         if (appState.infoSort === 'name') {
             animals.sort((a, b) => a.species_name.localeCompare(b.species_name, 'ja'));
         } else {
@@ -151,7 +144,6 @@ async function renderGameAnimalList() {
             return;
         }
 
-        // 3. HTML生成
         listElement.innerHTML = animals.map(animal => {
             let badges = '';
             if (animal.category === '哺乳類') badges += `<span class="badge badge-mammal">哺乳類</span>`;
@@ -189,9 +181,6 @@ async function renderGameAnimalList() {
     }
 }
 
-/**
- * 鳥獣詳細ページ
- */
 async function showGameAnimalDetail(id) {
     try {
         const animal = await db.game_animal_list.get(id);
@@ -248,22 +237,32 @@ async function showGameAnimalDetail(id) {
  */
 async function showHunterProfilePage() {
     updateHeader('捕獲者情報', true);
-    backButton.onclick = () => showInfoPage(); // メニューに戻る
+    backButton.onclick = () => showInfoPage();
 
     app.innerHTML = `
-        <div class="card bg-white">
-            <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲者情報</h2>
-            <div id="hunter-profile-container">
-                <p class="text-gray-500">読み込み中...</p>
+        <div class="space-y-4">
+            <div class="card bg-white">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">テキスト情報</h2>
+                <div id="hunter-profile-container">
+                    <p class="text-gray-500">読み込み中...</p>
+                </div>
+            </div>
+            
+            <div class="card bg-white">
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4">免許・許可証の写真</h2>
+                <div id="hunter-images-container" class="grid grid-cols-2 gap-2">
+                    <p class="text-gray-500 col-span-2 text-center py-4">読み込み中...</p>
+                </div>
             </div>
         </div>
     `;
     
     await renderHunterProfile();
+    await renderHunterImages();
 }
 
 /**
- * 捕獲者情報セクションを描画
+ * 捕獲者情報のテキスト部分を描画
  */
 async function renderHunterProfile() {
     const container = document.getElementById('hunter-profile-container');
@@ -283,7 +282,7 @@ async function renderHunterProfile() {
         container.innerHTML = `
             <div class="space-y-1">
                 <div class="text-right mb-2">
-                    <button id="edit-profile-btn" class="text-blue-600 text-sm hover:underline">編集</button>
+                    <button id="edit-profile-btn" class="text-blue-600 text-sm hover:underline"><i class="fas fa-edit"></i> 編集</button>
                 </div>
                 ${renderField('氏名', 'name')}
                 ${renderField('銃所持許可 期限', 'gun_license_renewal')}
@@ -301,13 +300,50 @@ async function renderHunterProfile() {
 }
 
 /**
- * 捕獲者情報の編集フォーム
+ * 捕獲者情報の画像一覧を描画
+ */
+async function renderHunterImages() {
+    const container = document.getElementById('hunter-images-container');
+    if (!container) return;
+
+    try {
+        const images = await db.profile_images.toArray();
+        
+        if (images.length === 0) {
+            container.innerHTML = `<p class="text-gray-500 col-span-2 text-center py-4 text-sm">登録された写真はありません。<br>編集画面から追加できます。</p>`;
+            return;
+        }
+
+        container.innerHTML = images.map(img => {
+            const blobUrl = URL.createObjectURL(img.image_blob);
+            appState.activeBlobUrls.push(blobUrl);
+            return `
+                <div class="relative border rounded p-1 bg-gray-50">
+                    <img src="${blobUrl}" class="w-full h-32 object-cover rounded cursor-zoom-in clickable-image">
+                </div>
+            `;
+        }).join('');
+
+        // 画像クリックで拡大
+        container.querySelectorAll('.clickable-image').forEach(img => {
+            img.addEventListener('click', (e) => showImageModal(e.target.src));
+        });
+
+    } catch (err) {
+        console.error("Failed to render profile images:", err);
+        container.innerHTML = `<p class="text-red-500 col-span-2">画像の読み込みに失敗しました。</p>`;
+    }
+}
+
+/**
+ * 捕獲者情報の編集フォーム (写真追加機能付き)
  */
 async function showHunterProfileEdit() {
     const profile = await db.hunter_profile.get('main');
     updateHeader('捕獲者情報の編集', true);
     backButton.onclick = () => showHunterProfilePage();
 
+    // テキストフィールド
     const fields = [
         ['name', '氏名'],
         ['gun_license_renewal', '銃所持許可 期限'],
@@ -324,21 +360,129 @@ async function showHunterProfileEdit() {
     `).join('');
 
     app.innerHTML = `
-        <div class="card bg-white">
-            <form id="profile-form" class="space-y-4">
-                ${inputs}
-                <button type="submit" class="btn btn-primary w-full">保存</button>
-            </form>
+        <div class="space-y-4">
+            <div class="card bg-white">
+                <h3 class="text-md font-bold mb-3 border-b pb-2">テキスト情報</h3>
+                <form id="profile-text-form" class="space-y-4">
+                    ${inputs}
+                    <button type="submit" class="btn btn-primary w-full">テキストを保存</button>
+                </form>
+            </div>
+
+            <div class="card bg-white">
+                <h3 class="text-md font-bold mb-3 border-b pb-2">写真の管理</h3>
+                
+                <div class="mb-4 p-3 bg-gray-50 rounded border">
+                    <label class="form-label mb-2">写真を追加:</label>
+                    <input type="file" id="profile-image-input" class="form-input text-sm" accept="image/*">
+                    <div id="profile-image-preview" class="mt-2"></div>
+                    <button id="btn-add-profile-image" class="btn btn-success w-full mt-2 hidden">この写真を追加</button>
+                </div>
+
+                <h4 class="text-sm font-semibold mb-2">登録済みの写真</h4>
+                <div id="edit-image-list" class="space-y-2">
+                    <p class="text-gray-500 text-sm">読み込み中...</p>
+                </div>
+            </div>
         </div>
     `;
 
-    document.getElementById('profile-form').addEventListener('submit', async (e) => {
+    // --- テキスト保存 ---
+    document.getElementById('profile-text-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const newData = { key: 'main' };
         fields.forEach(([key]) => {
             newData[key] = document.getElementById(`prof-${key}`).value;
         });
         await db.hunter_profile.put(newData);
-        showHunterProfilePage();
+        alert('テキスト情報を保存しました。');
     });
+
+    // --- 画像管理 ---
+    const imageInput = document.getElementById('profile-image-input');
+    const previewContainer = document.getElementById('profile-image-preview');
+    const addButton = document.getElementById('btn-add-profile-image');
+    let resizedBlob = null;
+
+    // 画像選択時のプレビューとリサイズ
+    imageInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            previewContainer.innerHTML = '';
+            addButton.classList.add('hidden');
+            return;
+        }
+        previewContainer.innerHTML = `<p class="text-gray-500 text-sm">処理中...</p>`;
+        
+        try {
+            resizedBlob = await resizeImage(file, 800); // main.jsの関数
+            const url = URL.createObjectURL(resizedBlob);
+            appState.activeBlobUrls.push(url);
+            previewContainer.innerHTML = `<img src="${url}" class="h-32 object-contain border rounded bg-white">`;
+            addButton.classList.remove('hidden');
+        } catch (err) {
+            previewContainer.innerHTML = `<p class="text-red-500 text-sm">エラー: ${err.message}</p>`;
+            addButton.classList.add('hidden');
+        }
+    });
+
+    // 画像追加ボタン
+    addButton.addEventListener('click', async () => {
+        if (!resizedBlob) return;
+        try {
+            await db.profile_images.add({
+                type: 'license', // 汎用タイプ
+                image_blob: resizedBlob
+            });
+            // リセット
+            imageInput.value = '';
+            previewContainer.innerHTML = '';
+            addButton.classList.add('hidden');
+            resizedBlob = null;
+            // リスト更新
+            await renderEditImageList();
+        } catch (err) {
+            alert('保存に失敗しました。');
+        }
+    });
+
+    // 登録済み画像リストの描画
+    async function renderEditImageList() {
+        const listEl = document.getElementById('edit-image-list');
+        const images = await db.profile_images.toArray();
+        
+        if (images.length === 0) {
+            listEl.innerHTML = `<p class="text-gray-400 text-sm">写真はありません。</p>`;
+            return;
+        }
+
+        listEl.innerHTML = images.map(img => {
+            const url = URL.createObjectURL(img.image_blob);
+            appState.activeBlobUrls.push(url);
+            return `
+                <div class="flex items-center justify-between p-2 border rounded bg-white">
+                    <img src="${url}" class="h-12 w-12 object-cover rounded cursor-zoom-in clickable-image">
+                    <button class="btn btn-danger btn-sm text-xs delete-img-btn" data-id="${img.id}">削除</button>
+                </div>
+            `;
+        }).join('');
+
+        // 削除ボタン
+        listEl.querySelectorAll('.delete-img-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                if (confirm('この写真を削除しますか？')) {
+                    await db.profile_images.delete(parseInt(e.target.dataset.id));
+                    await renderEditImageList();
+                }
+            });
+        });
+        
+        // 拡大表示
+        listEl.querySelectorAll('.clickable-image').forEach(img => {
+            img.addEventListener('click', (e) => showImageModal(e.target.src));
+        });
+    }
+
+    // 初回リスト描画
+    await renderEditImageList();
 }

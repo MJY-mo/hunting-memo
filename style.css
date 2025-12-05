@@ -165,6 +165,13 @@ nav.bg-white {
     cursor: not-allowed;
 }
 
+.btn:disabled {
+    background-color: #9ca3af !important; /* bg-gray-400 */
+    color: #e5e7eb !important; /* text-gray-200 */
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 1; /* 重複適用を防ぐため */
+}
 
 /* Trap Card */
 .trap-card {
