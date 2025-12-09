@@ -1,4 +1,6 @@
 // このファイルは settings.js です
+// ★ 修正: アプリの最新仕様に合わせて説明文を微調整
+//   - 情報タブ: 「生態」「被害」の項目分割について記述を更新
 
 /**
  * 「設定」タブのメインページを表示する
@@ -45,7 +47,7 @@ async function renderSettingsMenu() {
                            <p>罠の設置・管理を行います。</p>
                            <ul class="list-disc list-inside space-y-1">
                                 <li><strong>種類を管理:</strong> 「種類を管理」のボタンから、罠の種類（型式や構造）の候補を編集できます。</li>
-                                <li><strong>新規設置:</strong> 「新規設置」ボタンから、新しく架設する罠を入力します。</li>
+                                <li><strong>新規設置:</strong> 「新規設置」ボタンから、新しく架設する罠を入力します。（※「過去の罠」タブを開いている時は押せません）</li>
                                 <li><strong>設置中の罠:</strong> 現在設置している罠の一覧です。クリックすると詳細が見られます。</li>
                                 <li><strong>過去の罠:</strong> 設置中の罠を編集し「解除」した罠がここに移動します。</li>
                                 <li><strong>罠の詳細:</strong>
@@ -125,12 +127,18 @@ async function renderSettingsMenu() {
                             <span class="w-6 inline-block">📖</span> 情報タブ
                         </summary>
                         <div class="mt-2 pt-2 border-t text-gray-700 space-y-2">
+                            <p>トップメニューから以下の機能を選択します。</p>
                             <ul class="list-disc list-inside space-y-1">
-                                <li><strong>鳥獣図鑑:</strong> 狩猟や有害鳥獣駆除の対象の鳥獣を一覧できます。</li>
+                                <li><strong>狩猟鳥獣図鑑:</strong>
+                                    <ul class="list-disc list-inside ml-4">
+                                        <li>狩猟対象の鳥獣の「生態」「被害」「狩猟禁止区域」などを確認できます。</li>
+                                        <li>「並び替え」や「属性（狩猟鳥獣、外来種など）」で絞り込み表示が可能です。</li>
+                                    </ul>
+                                </li>
                                 <li><strong>捕獲者情報:</strong>
                                     <ul class="list-disc list-inside ml-4">
-                                        <li>銃所持許可証や狩猟免許などの「期限」をテキストで保存できます。</li>
-                                        <li>各期限の欄に、許可証や免許証の「写真」を複数枚アップロードして保存できます。</li>
+                                        <li>銃所持許可証や狩猟免許などの「期限」を管理できます。</li>
+                                        <li>「編集」ボタンから、項目ごとにテキストを保存したり、写真を登録したりできます。</li>
                                     </ul>
                                 </li>
                             </ul>
@@ -167,9 +175,9 @@ async function renderSettingsMenu() {
                     <select id="setting-font-size" class="form-select">
                         ${fontOption('xsmall', '極小')}
                         ${fontOption('small', '小')}
-                        ${fontOption('medium', '中')}
+                        ${fontOption('medium', '中 (標準)')}
                         ${fontOption('large', '大')}
-                        ${fontOption('xlarge', '極大')}
+                        ${fontOption('xlarge', '特大')}
                     </select>
                 </div>
             </div>
@@ -240,7 +248,6 @@ async function renderSettingsMenu() {
         </div>
     `;
     
-    // ヘッダーを更新
     updateHeader('設定', false);
     
     // --- イベントリスナー ---
@@ -307,19 +314,17 @@ async function renderSettingsMenu() {
         }
     });
 
-    // ★ 追加: アプリ強制更新ボタンの処理
+    // アプリ強制更新ボタン
     document.getElementById('force-app-update-btn').addEventListener('click', async () => {
         if (!confirm('アプリのキャッシュをクリアして再読み込みしますか？\n（登録データは消えません）')) {
             return;
         }
 
-        // ボタンを無効化
         const btn = document.getElementById('force-app-update-btn');
         btn.disabled = true;
         btn.textContent = '更新中...';
 
         try {
-            // 1. Service Worker の登録解除
             if ('serviceWorker' in navigator) {
                 const registrations = await navigator.serviceWorker.getRegistrations();
                 for (const registration of registrations) {
@@ -327,7 +332,6 @@ async function renderSettingsMenu() {
                 }
             }
 
-            // 2. Cache Storage の全削除
             if ('caches' in window) {
                 const keys = await caches.keys();
                 for (const key of keys) {
@@ -335,7 +339,6 @@ async function renderSettingsMenu() {
                 }
             }
 
-            // 3. ページを強制リロード
             window.location.reload(true);
 
         } catch (err) {
@@ -347,7 +350,8 @@ async function renderSettingsMenu() {
     });
 }
 
-// --- JSON (バックアップ) 機能 ---
+// --- 以下、エクスポート・インポート・CSV関連関数 (変更なし) ---
+
 async function exportAllData() {
     const statusEl = document.getElementById('import-export-status');
     statusEl.textContent = 'エクスポート準備中...';
@@ -444,7 +448,6 @@ async function importAllData(file) {
     }
 }
 
-// --- CSVエクスポート機能 ---
 function convertToCSV(data, headers) {
     let csv = '\uFEFF';
     csv += headers.join(',') + '\r\n';
@@ -564,7 +567,6 @@ async function exportCatchesAsCSV() {
     }
 }
 
-// --- Base64 / Blob ヘルパー ---
 function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
         if (!blob || !(blob instanceof Blob)) {
