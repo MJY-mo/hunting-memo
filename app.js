@@ -1,13 +1,5 @@
-// ============================================================================
-// app.js - 狩猟アプリ 統合JavaScriptファイル (完全版)
-// ============================================================================
-
-// ----------------------------------------------------------------------------
-// 1. データベース定義
-// ----------------------------------------------------------------------------
 const db = new Dexie('HuntingAppDB');
 
-// スキーマ定義 (最新版 v14)
 db.version(14).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose, [is_open+trap_number], [is_open+setup_date], [is_open+close_date]',
     trap_type: '++id, &name',
@@ -22,14 +14,7 @@ db.version(14).stores({
     settings: '&key',
     hunter_profile: '&key'
 });
-console.log("Database schema defined (app.js integrated)");
 
-
-// ----------------------------------------------------------------------------
-// 2. メインロジック & 共通関数
-// ----------------------------------------------------------------------------
-
-// グローバル変数・DOM要素
 const app = document.getElementById('app');
 const headerTitle = document.getElementById('headerTitle');
 const backButton = document.getElementById('backButton');
@@ -44,7 +29,6 @@ const tabs = {
     settings: document.getElementById('tab-settings'),
 };
 
-// アプリケーションの状態管理
 const appState = {
     currentPage: 'trap',
     currentTrapId: null,
@@ -66,11 +50,8 @@ const appState = {
     isEditing: false
 };
 
-// --- アプリ初期化 ---
 window.addEventListener('load', () => {
-    console.log("Window loaded. Initializing app...");
     db.open().then(async () => {
-        console.log("Database opened successfully.");
         await loadAndApplySettings();
         await populateDefaultTrapTypes();
         await populateDefaultHunterProfile();
@@ -79,34 +60,37 @@ window.addEventListener('load', () => {
         navigateTo('trap', showTrapPage, '罠');
     }).catch(err => {
         console.error("Failed to open database:", err);
-        app.innerHTML = `<div class="error-box">データベースの起動に失敗しました。アプリが使用できません。</div>`;
+        app.innerHTML = `<div class="error-box">データベースの起動に失敗しました。</div>`;
     });
 });
 
-// 初期データ投入関数
 async function populateDefaultTrapTypes() {
-    try { await db.trap_type.bulkAdd([{ name: 'くくり罠' }, { name: '箱罠' }]); } catch (err) { /* ignore */ }
-}
-async function populateDefaultHunterProfile() {
-    try { await db.hunter_profile.add({ key: 'main', name: '', gun_license_renewal: '', hunting_license_renewal: '', registration_renewal: '', explosives_permit_renewal: '' }); } catch (err) { /* ignore */ }
+    try {
+        await db.trap_type.bulkAdd([{ name: 'くくり罠' }, { name: '箱罠' }]);
+    } catch (err) {}
 }
 
-// CSV読み込み (最新版: 生態・被害対応)
+async function populateDefaultHunterProfile() {
+    try {
+        await db.hunter_profile.add({
+            key: 'main', name: '', gun_license_renewal: '', hunting_license_renewal: '', registration_renewal: '', explosives_permit_renewal: ''
+        });
+    } catch (err) {}
+}
+
 async function populateGameAnimalListIfNeeded(forceUpdate = false) {
     try {
         const count = await db.game_animal_list.count();
-        if (count > 0 && !forceUpdate) {
-            console.log(`Game animal list is already populated (${count} items). Skipping.`);
-            return;
-        }
-        console.log(forceUpdate ? "Forcing update..." : "Populating from GitHub...");
+        if (count > 0 && !forceUpdate) return;
+
         const CSV_URL = 'https://raw.githubusercontent.com/MJY-mo/hunting-memo/refs/heads/main/%E7%8B%A9%E7%8C%9F%E9%B3%A5%E7%8D%A3.csv'; 
         const fetchUrl = `${CSV_URL}?t=${Date.now()}`;
         const response = await fetch(fetchUrl);
-        if (!response.ok) throw new Error(`Failed to fetch CSV: ${response.statusText}`);
+        if (!response.ok) throw new Error(`Failed to fetch CSV`);
+
         const csvText = await response.text();
         const records = parseCSV(csvText);
-        if (records.length < 1) throw new Error('CSVデータが空か、正しい形式ではありません。');
+        if (records.length < 1) throw new Error('CSVデータが不正です');
 
         let startIndex = 0;
         if (records[0][0] && records[0][0].includes('分類')) startIndex = 1;
@@ -119,49 +103,59 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
                 category: row[0] || '', is_game_animal: row[1] || '', species_name: row[2] || '',
                 method_gun: row[3] || '', method_trap: row[4] || '', method_net: row[5] || '',
                 gender: row[6] || '', count: row[7] || '', prohibited_area: row[8] || '',
-                habitat: row[9] || '', notes: row[10] || '',
-                ecology: row[11] || '', damage: row[12] || '',
+                habitat: row[9] || '', notes: row[10] || '', ecology: row[11] || '', damage: row[12] || '',
                 image_1: row[13] || '', image_2: row[14] || ''
             };
             animals.push(animal);
         }
-        if (animals.length === 0) throw new Error('有効なデータが見つかりませんでした。');
-
         await db.transaction('rw', db.game_animal_list, async () => {
             await db.game_animal_list.clear();
             await db.game_animal_list.bulkAdd(animals);
         });
-        console.log(`Game animal list populated successfully (${animals.length} items).`);
     } catch (err) {
-        console.error("Failed to populate game animal list:", err);
+        console.error(err);
         const statusEl = document.getElementById('csv-status');
         if (statusEl) statusEl.textContent = '更新失敗: ' + err.message;
     }
 }
 
-// 設定適用
 async function loadAndApplySettings() {
     try {
         let themeSetting = await db.settings.get('theme');
-        if (!themeSetting) { themeSetting = { key: 'theme', value: 'light' }; await db.settings.put(themeSetting); }
+        if (!themeSetting) {
+            themeSetting = { key: 'theme', value: 'light' };
+            await db.settings.put(themeSetting);
+        }
         applyTheme(themeSetting.value);
+        
         let fontSizeSetting = await db.settings.get('fontSize');
-        if (!fontSizeSetting) { fontSizeSetting = { key: 'fontSize', value: 'medium' }; await db.settings.put(fontSizeSetting); }
+        if (!fontSizeSetting) {
+            fontSizeSetting = { key: 'fontSize', value: 'medium' };
+            await db.settings.put(fontSizeSetting);
+        }
         applyFontSize(fontSizeSetting.value);
-    } catch (err) { console.error("Failed to load settings:", err); }
+    } catch (err) {}
 }
+
 function applyTheme(themeValue) {
     const root = document.documentElement;
     root.classList.remove('theme-light', 'theme-dark', 'theme-sepia', 'theme-light-green', 'theme-light-blue');
-    root.classList.add(themeValue === 'sepia' ? 'theme-sepia' : themeValue === 'lightgreen' ? 'theme-light-green' : themeValue === 'lightblue' ? 'theme-light-blue' : 'theme-light');
+    if (themeValue === 'sepia') root.classList.add('theme-sepia');
+    else if (themeValue === 'lightgreen') root.classList.add('theme-light-green');
+    else if (themeValue === 'lightblue') root.classList.add('theme-light-blue');
+    else root.classList.add('theme-light');
 }
+
 function applyFontSize(sizeValue) {
     const root = document.documentElement;
     root.classList.remove('font-size-xsmall', 'font-size-small', 'font-size-medium', 'font-size-large', 'font-size-xlarge');
-    root.classList.add(`font-size-${sizeValue}`);
+    if (sizeValue === 'xsmall') root.classList.add('font-size-xsmall');
+    else if (sizeValue === 'small') root.classList.add('font-size-small');
+    else if (sizeValue === 'large') root.classList.add('font-size-large');
+    else if (sizeValue === 'xlarge') root.classList.add('font-size-xlarge');
+    else root.classList.add('font-size-medium');
 }
 
-// ナビゲーション
 function setupTabs() {
     tabs.trap.addEventListener('click', () => { appState.trapView = 'open'; navigateTo('trap', showTrapPage, '罠'); });
     tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
@@ -172,26 +166,18 @@ function setupTabs() {
 }
 
 function navigateTo(pageId, pageFunction, title) {
-    if (appState.activeBlobUrls && appState.activeBlobUrls.length > 0) {
+    if (appState.activeBlobUrls.length > 0) {
         appState.activeBlobUrls.forEach(url => URL.revokeObjectURL(url));
-        appState.activeBlobUrls = [];
+        appState.activeBlobUrls = []; 
     }
     appState.currentPage = pageId;
-    
-    // タブの見た目更新 (classList.replaceは使わない)
-    Object.values(tabs).forEach(tab => {
-        if(tab) {
-            tab.classList.remove('tab-active');
-            tab.classList.add('tab-inactive');
-        }
-    });
-    if (tabs[pageId]) {
-        tabs[pageId].classList.remove('tab-inactive');
-        tabs[pageId].classList.add('tab-active');
-    }
-
+    Object.values(tabs).forEach(tab => { if (tab) { tab.classList.remove('tab-active'); tab.classList.add('tab-inactive'); }});
+    if (tabs[pageId]) { tabs[pageId].classList.remove('tab-inactive'); tabs[pageId].classList.add('tab-active'); }
     updateHeader(title, false);
-    try { pageFunction(); } catch (err) { console.error(`Failed: ${pageId}`, err); app.innerHTML = `<div class="error-box">エラー: ${err.message}</div>`; }
+    try { pageFunction(); } catch (err) {
+        console.error(err);
+        app.innerHTML = `<div class="error-box">エラー: ${err.message}</div>`;
+    }
 }
 
 function updateHeader(title, showBack = false) {
@@ -211,22 +197,24 @@ function updateHeader(title, showBack = false) {
     headerActions.innerHTML = '';
 }
 
-// 共通ヘルパー
 function getCurrentLocation() {
     return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) { reject(new Error('GPS非対応')); return; }
+        if (!navigator.geolocation) { reject(new Error('GPS機能非対応')); return; }
         navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-            (err) => reject(new Error('GPS取得失敗')), { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            (err) => reject(new Error('GPS測位失敗')),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
     });
 }
+
 function escapeHTML(str) {
     if (str == null) return '';
     return str.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
 function formatDate(dateString) {
-    if (!dateString) return '-';
+    if (!dateString) return '未設定';
     try {
         const parts = dateString.split('-');
         if (parts.length === 3) return `${parts[0]}/${parts[1]}/${parts[2]}`;
@@ -235,6 +223,7 @@ function formatDate(dateString) {
         return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
     } catch (e) { return dateString; }
 }
+
 function parseCSV(text) {
     const arr = [];
     let quote = false;
@@ -252,6 +241,7 @@ function parseCSV(text) {
     }
     return arr;
 }
+
 function resizeImage(file, maxSize = 800) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -287,23 +277,21 @@ function resizeImage(file, maxSize = 800) {
         reader.readAsDataURL(file);
     });
 }
+
 function showImageModal(blobUrl) {
     closeImageModal();
-    const ol = document.createElement('div'); ol.id = 'image-modal-overlay'; ol.className = 'image-modal-overlay';
-    const ct = document.createElement('div'); ct.className = 'image-modal-content';
-    const img = document.createElement('img'); img.src = blobUrl;
-    ct.appendChild(img); ol.appendChild(ct); document.body.appendChild(ol);
-    ol.onclick = closeImageModal;
+    const d = document.createElement('div');
+    d.id = 'image-modal-overlay';
+    d.className = 'image-modal-overlay'; 
+    d.innerHTML = `<div class="image-modal-content"><img src="${blobUrl}"></div>`;
+    d.onclick = () => closeImageModal();
+    document.body.appendChild(d);
 }
+
 function closeImageModal() {
-    const ol = document.getElementById('image-modal-overlay');
-    if (ol) ol.remove();
+    const d = document.getElementById('image-modal-overlay');
+    if (d) d.remove();
 }
-
-
-// ----------------------------------------------------------------------------
-// 3. 罠管理機能 (UI改善)
-// ----------------------------------------------------------------------------
 
 async function showTrapPage() {
     const view = appState.trapView;
@@ -314,28 +302,23 @@ async function showTrapPage() {
     const isNewDisabled = view === 'closed';
 
     app.innerHTML = `
-        <div class="space-y-2">
-            <div class="sub-tab-container">
-                <div id="trap-tab-open" class="sub-tab-btn ${view === 'open' ? 'active' : ''}">設置中</div>
-                <div id="trap-tab-closed" class="sub-tab-btn ${view === 'closed' ? 'active' : ''}">過去の罠</div>
+        <div class="space-y-4">
+            <div class="flex border-b border-gray-300">
+                <button id="trap-tab-open" class="flex-1 py-2 text-center font-semibold ${view === 'open' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}">設置中</button>
+                <button id="trap-tab-closed" class="flex-1 py-2 text-center font-semibold ${view === 'closed' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}">過去の罠</button>
             </div>
-            
             <div class="flex space-x-2">
                 <button id="new-trap-btn" class="btn btn-primary flex-1" ${isNewDisabled ? 'disabled' : ''}><i class="fas fa-plus"></i> 新規設置</button>
-                <button id="manage-types-btn" class="btn btn-secondary flex-1"><i class="fas fa-cog"></i> 種類管理</button>
+                <button id="manage-types-btn" class="btn btn-secondary flex-1"><i class="fas fa-cog"></i> 種類を管理</button>
             </div>
-
             <div class="card bg-white">
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-2 gap-4">
                     <div class="form-group mb-0">
-                        <label class="form-label">種類</label>
-                        <select id="trap-filter-type" class="form-select">
-                            <option value="all" ${filters.type === 'all' ? 'selected' : ''}>すべて</option>
-                            ${typeOptions}
-                        </select>
+                        <label class="form-label">種類:</label>
+                        <select id="trap-filter-type" class="form-select"><option value="all" ${filters.type === 'all' ? 'selected' : ''}>すべて</option>${typeOptions}</select>
                     </div>
                     <div class="form-group mb-0">
-                        <label class="form-label">順序</label>
+                        <label class="form-label">ソート:</label>
                         <div class="flex space-x-2">
                             <select id="trap-sort-key" class="form-select">
                                 <option value="trap_number" ${sort.key === 'trap_number' ? 'selected' : ''}>番号</option>
@@ -349,7 +332,7 @@ async function showTrapPage() {
                     </div>
                 </div>
             </div>
-            <div id="trap-list" class="space-y-1"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
+            <div id="trap-list" class="space-y-3"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
         </div>
     `;
     updateHeader('罠管理', false);
@@ -358,7 +341,6 @@ async function showTrapPage() {
     document.getElementById('trap-tab-closed').onclick = () => { appState.trapView = 'closed'; showTrapPage(); };
     document.getElementById('new-trap-btn').onclick = () => { if (!isNewDisabled) showTrapEditForm(null); };
     document.getElementById('manage-types-btn').onclick = () => showTrapTypeManagement();
-    
     document.getElementById('trap-filter-type').addEventListener('change', (e) => { filters.type = e.target.value; renderTrapList(); });
     document.getElementById('trap-sort-key').addEventListener('change', (e) => { sort.key = e.target.value; renderTrapList(); });
     document.getElementById('trap-sort-order').addEventListener('change', (e) => { sort.order = e.target.value; renderTrapList(); });
@@ -378,7 +360,7 @@ async function renderTrapList() {
         let query = db.trap.where('is_open').equals(isOpen);
         let traps = await query.toArray();
 
-        if (filters.type !== 'all') { traps = traps.filter(t => t.type === filters.type); }
+        if (filters.type !== 'all') traps = traps.filter(t => t.type === filters.type);
         
         traps.sort((a, b) => {
             let valA = a[sort.key], valB = b[sort.key];
@@ -394,18 +376,15 @@ async function renderTrapList() {
 
         listEl.innerHTML = traps.map((trap, index) => {
             const count = catchCounts[index];
-            const badge = count > 0 ? `<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-bold">${count}</span>` : '';
+            const badge = count > 0 ? `<span class="text-xs font-semibold py-1 px-2 rounded text-emerald-600 bg-emerald-200">${count}件</span>` : '';
             return `
                 <div class="trap-card bg-white" data-id="${trap.id}">
-                    <div>
-                        <h3 class="font-bold text-blue-600">No. ${escapeHTML(trap.trap_number)}</h3>
-                        <p>${escapeHTML(trap.type)} <span class="text-xs text-gray-400">(${formatDate(trap.setup_date)})</span></p>
+                    <div class="flex-grow">
+                        <h3 class="text-lg font-semibold text-blue-600">No. ${escapeHTML(trap.trap_number)}</h3>
+                        <p class="text-sm text-gray-600">${escapeHTML(trap.type)} / ${formatDate(trap.setup_date)}</p>
                         ${trap.close_date ? `<p class="text-xs text-gray-500">撤去: ${formatDate(trap.close_date)}</p>` : ''}
                     </div>
-                    <div class="flex items-center gap-2">
-                        ${badge}
-                        <i class="fas fa-chevron-right text-gray-300"></i>
-                    </div>
+                    <div class="flex-shrink-0 ml-4 flex items-center space-x-2">${badge}<span>&gt;</span></div>
                 </div>
             `;
         }).join('');
@@ -420,54 +399,52 @@ async function showTrapDetailPage(id) {
     const trap = await db.trap.get(id);
     if (!trap) return;
     
-    updateHeader(`No.${trap.trap_number}`, true);
+    updateHeader(`罠 No.${trap.trap_number}`, true);
     backButton.onclick = () => showTrapPage();
 
     let actionButtons = `
-        <div class="flex gap-2">
+        <div class="card bg-white"><div class="flex space-x-2">
             <button id="edit-trap-btn" class="btn btn-secondary flex-1">編集</button>
             <button id="delete-trap-btn" class="btn btn-danger flex-1">削除</button>
-        </div>`;
+        </div></div>`;
 
     const catchCount = await db.catch_records.where('trap_id').equals(id).count();
     let catchSection = `
         <div class="card bg-white">
-            <div class="flex justify-between items-center mb-2">
-                <h3 class="font-bold text-gray-800">捕獲記録 (${catchCount})</h3>
-                <button id="add-catch-to-trap-btn" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i></button>
+            <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録 (${catchCount}件)</h2>
+            <div class="space-y-3">
+                <button id="show-related-catches-btn" class="btn btn-secondary w-full justify-start text-left"><span class="w-6"><i class="fas fa-paw"></i></span> この罠の捕獲記録を見る</button>
+                <button id="add-catch-to-trap-btn" class="btn btn-primary w-full justify-start text-left"><span class="w-6"><i class="fas fa-plus"></i></span> この罠での捕獲記録を追加</button>
             </div>
-            <button id="show-related-catches-btn" class="btn btn-secondary w-full text-sm">一覧を見る</button>
         </div>`;
 
     let closeSection = '';
     if (trap.is_open === 1) {
         closeSection = `
             <div class="card bg-white border border-red-200">
-                <label class="form-label">撤去日</label>
-                <div class="flex gap-2">
-                    <input type="date" id="close-date-input" class="form-input" value="${new Date().toISOString().split('T')[0]}">
-                    <button id="close-trap-btn" class="btn btn-success whitespace-nowrap">撤去する</button>
-                </div>
+                <h2 class="text-lg font-semibold border-b pb-2 mb-4 text-red-600">罠の撤去</h2>
+                <div class="form-group"><label class="form-label">撤去日:</label><input type="date" id="close-date-input" class="form-input" value="${new Date().toISOString().split('T')[0]}"></div>
+                <button id="close-trap-btn" class="btn btn-success w-full">この罠を解除する</button>
             </div>`;
     }
 
-    let infoHTML = `<div class="card bg-white"><table class="w-full text-sm"><tbody>`;
+    let infoHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2><table class="w-full text-sm"><tbody>`;
     const rows = [
         ['番号', trap.trap_number], ['種類', trap.type], ['設置日', formatDate(trap.setup_date)],
         ['状態', trap.is_open ? '設置中' : '撤去済'], ['撤去日', trap.close_date ? formatDate(trap.close_date) : '-'],
-        ['座標', `${trap.latitude||'-'}, ${trap.longitude||'-'}`]
+        ['座標', `${trap.latitude||''}, ${trap.longitude||''}`]
     ];
-    rows.forEach(r => infoHTML += `<tr><th class="text-left py-1 w-1/3 text-gray-500">${r[0]}</th><td>${escapeHTML(r[1])}</td></tr>`);
+    rows.forEach(r => infoHTML += `<tr class="border-b"><th class="w-1/3 text-left p-2 bg-gray-50">${r[0]}</th><td class="p-2">${escapeHTML(r[1])}</td></tr>`);
     infoHTML += `</tbody></table></div>`;
 
     let imageHTML = '';
     if (trap.image_blob) {
         const url = URL.createObjectURL(trap.image_blob);
         appState.activeBlobUrls.push(url);
-        imageHTML = `<div class="card bg-white"><div class="photo-preview cursor-zoom-in"><img src="${url}" id="detail-image"></div></div>`;
+        imageHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${url}" id="detail-image"></div></div>`;
     }
 
-    app.innerHTML = `<div class="space-y-2">${actionButtons}${imageHTML}${infoHTML}${trap.memo ? `<div class="card bg-white"><h3 class="font-bold border-b mb-1">メモ</h3><p class="text-sm">${escapeHTML(trap.memo)}</p></div>` : ''}${catchSection}${closeSection}</div>`;
+    app.innerHTML = `<div class="space-y-4">${actionButtons}${imageHTML}${infoHTML}${trap.memo ? `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">メモ</h2><p class="text-sm">${escapeHTML(trap.memo)}</p></div>` : ''}${catchSection}${closeSection}</div>`;
 
     document.getElementById('edit-trap-btn').onclick = () => showTrapEditForm(id);
     document.getElementById('delete-trap-btn').onclick = () => deleteTrap(id);
@@ -476,10 +453,8 @@ async function showTrapDetailPage(id) {
     
     if (trap.is_open === 1) {
         document.getElementById('close-trap-btn').onclick = async () => {
-            const closeDate = document.getElementById('close-date-input').value;
-            if(!closeDate) return alert('撤去日を入力してください');
             if(confirm('この罠を撤去済みにしますか？')) {
-                await db.trap.update(id, { is_open: 0, close_date: closeDate });
+                await db.trap.update(id, { is_open: 0, close_date: document.getElementById('close-date-input').value });
                 showTrapDetailPage(id);
             }
         };
@@ -488,7 +463,7 @@ async function showTrapDetailPage(id) {
 }
 
 async function showTrapEditForm(id) {
-    let trap = { trap_number: '', type: '', setup_date: new Date().toISOString().split('T')[0], memo: '', latitude: '', longitude: '', image_blob: null, is_open: 1 };
+    let trap = { trap_number: '', type: '', setup_date: new Date().toISOString().split('T')[0], memo: '', latitude: '', longitude: '', image_blob: null };
     const types = await db.trap_type.toArray();
     if (id) {
         const existing = await db.trap.get(id);
@@ -504,18 +479,14 @@ async function showTrapEditForm(id) {
 
     app.innerHTML = `
         <div class="card bg-white">
-            <form id="trap-form" class="space-y-3">
-                <div class="form-group"><label class="form-label">番号</label><input type="text" id="trap-number" class="form-input" value="${escapeHTML(trap.trap_number)}" required></div>
-                <div class="form-group"><label class="form-label">種類</label><select id="trap-type" class="form-select">${types.map(t=>`<option value="${t.name}" ${t.name===trap.type?'selected':''}>${t.name}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">設置日</label><input type="date" id="setup-date" class="form-input" value="${escapeHTML(trap.setup_date)}" required></div>
-                <div class="form-group">
-                    <label class="form-label">位置</label>
-                    <div class="flex gap-2 mb-1"><input type="number" step="any" id="trap-lat" class="form-input" value="${escapeHTML(trap.latitude)}" placeholder="緯度"><input type="number" step="any" id="trap-lon" class="form-input" value="${escapeHTML(trap.longitude)}" placeholder="経度"></div>
-                    <button type="button" id="get-gps-btn" class="btn btn-secondary w-full text-sm">現在地</button>
-                </div>
+            <form id="trap-form" class="space-y-4">
+                <div class="form-group"><label class="form-label">罠番号 <span class="text-red-500">*</span>:</label><input type="text" id="trap-number" class="form-input" value="${escapeHTML(trap.trap_number)}" required></div>
+                <div class="form-group"><label class="form-label">種類:</label><select id="trap-type" class="form-select">${types.map(t=>`<option value="${t.name}" ${t.name===trap.type?'selected':''}>${t.name}</option>`).join('')}</select></div>
+                <div class="form-group"><label class="form-label">設置日:</label><input type="date" id="setup-date" class="form-input" value="${escapeHTML(trap.setup_date)}" required></div>
+                <div class="form-group"><span class="form-label">位置情報</span><div class="grid grid-cols-2 gap-4"><input type="number" step="any" id="trap-lat" class="form-input" value="${escapeHTML(trap.latitude)}" placeholder="緯度"><input type="number" step="any" id="trap-lon" class="form-input" value="${escapeHTML(trap.longitude)}" placeholder="経度"></div><button type="button" id="get-gps-btn" class="btn btn-secondary w-full mt-2">現在地を取得</button></div>
                 ${imgPreview}
-                <div class="form-group"><label class="form-label">写真</label><input type="file" id="trap-image" class="form-input" accept="image/*"><div id="image-preview-container" class="mt-2"></div></div>
-                <div class="form-group"><label class="form-label">メモ</label><textarea id="trap-memo" class="form-input">${escapeHTML(trap.memo)}</textarea></div>
+                <div class="form-group"><label class="form-label">写真:</label><input type="file" id="trap-image" class="form-input" accept="image/*"><div id="image-preview-container" class="mt-2"></div></div>
+                <div class="form-group"><label class="form-label">メモ:</label><textarea id="trap-memo" class="form-input">${escapeHTML(trap.memo)}</textarea></div>
                 <button type="submit" class="btn btn-primary w-full">保存</button>
             </form>
         </div>
@@ -523,24 +494,16 @@ async function showTrapEditForm(id) {
     updateHeader(id ? '罠の編集' : '新規設置', true);
     backButton.onclick = () => id ? showTrapDetailPage(id) : showTrapPage();
 
-    document.getElementById('get-gps-btn').onclick = async () => {
-        try { const loc = await getCurrentLocation(); document.getElementById('trap-lat').value = loc.latitude; document.getElementById('trap-lon').value = loc.longitude; } catch(e) { alert(e.message); }
-    };
+    document.getElementById('get-gps-btn').onclick = async () => { try { const loc = await getCurrentLocation(); document.getElementById('trap-lat').value = loc.latitude; document.getElementById('trap-lon').value = loc.longitude; } catch(e) { alert(e.message); } };
     
     let resizedImageBlob = null;
     document.getElementById('trap-image').onchange = async (e) => {
-        const file = e.target.files[0];
-        if(!file) return;
-        try {
-            resizedImageBlob = await resizeImage(file, 800);
-            const url = URL.createObjectURL(resizedImageBlob);
-            appState.activeBlobUrls.push(url);
-            document.getElementById('image-preview-container').innerHTML = `<div class="photo-preview"><img src="${url}"></div>`;
-        } catch(e) { alert(e.message); }
+        if(!e.target.files[0]) return;
+        resizedImageBlob = await resizeImage(e.target.files[0], 800);
+        const url = URL.createObjectURL(resizedImageBlob); appState.activeBlobUrls.push(url);
+        document.getElementById('image-preview-container').innerHTML = `<div class="photo-preview"><img src="${url}"></div>`;
     };
-    if (document.getElementById('remove-image-btn')) {
-        document.getElementById('remove-image-btn').onclick = function() { this.closest('.form-group').remove(); trap.image_blob = null; };
-    }
+    if (document.getElementById('remove-image-btn')) document.getElementById('remove-image-btn').onclick = function() { this.closest('.form-group').remove(); trap.image_blob = null; };
 
     document.getElementById('trap-form').onsubmit = async (e) => {
         e.preventDefault();
@@ -555,9 +518,7 @@ async function showTrapEditForm(id) {
             is_open: id ? trap.is_open : 1 
         };
         if (resizedImageBlob) data.image_blob = resizedImageBlob;
-        
-        if (id) { await db.trap.update(id, data); showTrapDetailPage(id); }
-        else { const newId = await db.trap.add(data); showTrapDetailPage(newId); }
+        if (id) { await db.trap.update(id, data); showTrapDetailPage(id); } else { const newId = await db.trap.add(data); showTrapDetailPage(newId); }
     };
 }
 
@@ -571,7 +532,7 @@ async function deleteTrap(id) {
 }
 
 async function showTrapTypeManagement() {
-    updateHeader('種類管理', true);
+    updateHeader('罠種類の管理', true);
     backButton.onclick = () => showTrapPage();
     app.innerHTML = `
         <div class="card bg-white mb-4"><form id="type-form" class="flex gap-2"><input id="type-name" class="form-input" placeholder="新しい種類" required><button class="btn btn-primary">追加</button></form></div>
@@ -579,53 +540,34 @@ async function showTrapTypeManagement() {
     `;
     const render = async () => {
         const list = await db.trap_type.toArray();
-        document.getElementById('type-list').innerHTML = list.map(t=>`<div class="card bg-white flex justify-between p-2"><span>${escapeHTML(t.name)}</span><button class="btn btn-danger btn-sm del-type" data-id="${t.id}">×</button></div>`).join('');
-        document.querySelectorAll('.del-type').forEach(b => b.onclick = async (e)=>{
-            if(confirm('削除しますか？')) { await db.trap_type.delete(parseInt(e.target.dataset.id)); render(); }
-        });
+        document.getElementById('type-list').innerHTML = list.map(t=>`<div class="card bg-white flex justify-between p-2"><span>${escapeHTML(t.name)}</span><button class="btn btn-danger btn-sm del-type" data-id="${t.id}">削除</button></div>`).join('');
+        document.querySelectorAll('.del-type').forEach(b => b.onclick = async (e)=>{ if(confirm('削除しますか？')) { await db.trap_type.delete(parseInt(e.target.dataset.id)); render(); } });
     };
     render();
-    document.getElementById('type-form').onsubmit = async (e) => {
-        e.preventDefault();
-        try { await db.trap_type.add({name: document.getElementById('type-name').value}); document.getElementById('type-name').value=''; render(); } catch { alert('エラー'); }
-    };
+    document.getElementById('type-form').onsubmit = async (e) => { e.preventDefault(); await db.trap_type.add({name: document.getElementById('type-name').value}); render(); };
 }
-
-
-// ----------------------------------------------------------------------------
-// 4. 銃管理機能 (UI改善)
-// ----------------------------------------------------------------------------
 
 async function showGunPage() {
     const filters = appState.gunLogFilters;
-    const sort = appState.gunLogSort;
     const guns = await db.gun.toArray();
     const gunOptions = guns.map(g => `<option value="${g.id}" ${filters.gun_id == g.id ? 'selected' : ''}>${escapeHTML(g.name)}</option>`).join('');
 
     app.innerHTML = `
-        <div class="space-y-2">
-            <div class="flex gap-2">
-                <button id="new-gun-log-btn" class="btn btn-primary flex-1"><i class="fas fa-plus"></i> 使用記録</button>
-                <button id="manage-guns-btn" class="btn btn-secondary flex-1"><i class="fas fa-cog"></i> 所持銃</button>
-            </div>
-            <div class="card bg-white">
-                <div class="grid grid-cols-2 gap-2">
-                    <div class="form-group mb-0"><label class="form-label">目的</label><select id="gun-filter-purpose" class="form-select"><option value="all">全て</option><option value="狩猟">狩猟</option><option value="射撃">射撃</option><option value="有害駆除">有害駆除</option><option value="その他">その他</option></select></div>
-                    <div class="form-group mb-0"><label class="form-label">銃</label><select id="gun-filter-id" class="form-select"><option value="all">全て</option>${gunOptions}</select></div>
-                </div>
-            </div>
-            <div id="gun-log-list" class="space-y-1"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
+        <div class="space-y-4">
+            <div class="flex space-x-2"><button id="new-gun-log-btn" class="btn btn-primary flex-1"><i class="fas fa-plus"></i> 新規使用履歴</button><button id="manage-guns-btn" class="btn btn-secondary flex-1"><i class="fas fa-cog"></i> 所持銃の管理</button></div>
+            <div class="card bg-white"><div class="grid grid-cols-2 gap-4">
+                <div class="form-group mb-0"><label class="form-label">目的:</label><select id="gun-filter-purpose" class="form-select"><option value="all">すべて</option><option value="狩猟">狩猟</option><option value="射撃">射撃</option><option value="有害駆除">有害駆除</option><option value="その他">その他</option></select></div>
+                <div class="form-group mb-0"><label class="form-label">銃:</label><select id="gun-filter-id" class="form-select"><option value="all">すべて</option>${gunOptions}</select></div>
+            </div></div>
+            <div id="gun-log-list" class="space-y-3"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
         </div>
     `;
-    updateHeader('銃管理', false);
-    
+    updateHeader('銃・使用履歴', false);
     document.getElementById('gun-filter-purpose').value = filters.purpose;
-    
     document.getElementById('new-gun-log-btn').onclick = () => showGunLogEditForm(null);
     document.getElementById('manage-guns-btn').onclick = () => showGunListManagementPage();
     document.getElementById('gun-filter-purpose').onchange = (e) => { filters.purpose = e.target.value; renderGunLogList(); };
     document.getElementById('gun-filter-id').onchange = (e) => { filters.gun_id = e.target.value; renderGunLogList(); };
-
     await renderGunLogList();
 }
 
@@ -634,49 +576,29 @@ async function renderGunLogList() {
     if (!listEl) return;
     const { purpose, gun_id } = appState.gunLogFilters;
     let logs = await db.gun_log.orderBy('use_date').reverse().toArray();
-    
     if (purpose !== 'all') logs = logs.filter(l => l.purpose === purpose);
     if (gun_id !== 'all') logs = logs.filter(l => l.gun_id == gun_id);
-
-    if (logs.length === 0) { listEl.innerHTML = '<p class="text-gray-500 text-center py-4">履歴なし</p>'; return; }
-
+    if (logs.length === 0) { listEl.innerHTML = '<p class="text-gray-500 text-center">履歴なし</p>'; return; }
     const guns = await db.gun.toArray();
     const gunMap = new Map(guns.map(g => [g.id, g.name]));
     const catchCounts = await Promise.all(logs.map(l => db.catch_records.where('gun_log_id').equals(l.id).count()));
-
     listEl.innerHTML = logs.map((log, i) => {
         const count = catchCounts[i];
-        const badge = count > 0 ? `<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-bold">${count}</span>` : '';
-        return `
-            <div class="trap-card bg-white" data-id="${log.id}">
-                <div>
-                    <h3 class="font-bold text-blue-600">${formatDate(log.use_date)}</h3>
-                    <p>${escapeHTML(log.purpose)} / ${escapeHTML(gunMap.get(log.gun_id) || '削除済')}</p>
-                </div>
-                <div class="flex items-center gap-2">
-                    ${badge}
-                    <i class="fas fa-chevron-right text-gray-300"></i>
-                </div>
-            </div>`;
+        const badge = count > 0 ? `<span class="text-xs font-semibold py-1 px-2 rounded text-emerald-600 bg-emerald-200">${count}件</span>` : '';
+        return `<div class="trap-card bg-white" data-id="${log.id}"><div class="flex-grow"><h3 class="text-lg font-semibold text-blue-600">${formatDate(log.use_date)}</h3><p class="text-sm text-gray-600">${escapeHTML(log.purpose)} / ${escapeHTML(gunMap.get(log.gun_id) || '削除済')}</p>${log.ammo_count ? `<p class="text-sm text-gray-500">消費: ${log.ammo_count}発</p>` : ''}</div><div class="flex-shrink-0 ml-4 flex items-center space-x-2">${badge}<span>&gt;</span></div></div>`;
     }).join('');
-    
     listEl.querySelectorAll('.trap-card').forEach(d => d.onclick = () => showGunLogDetailPage(parseInt(d.dataset.id)));
 }
 
 async function showGunListManagementPage() {
     updateHeader('所持銃の管理', true);
     backButton.onclick = () => showGunPage();
-    app.innerHTML = `
-        <div class="space-y-2">
-            <div class="card bg-white"><button id="add-gun-btn" class="btn btn-primary w-full"><i class="fas fa-plus"></i> 銃を追加</button></div>
-            <div id="gun-mgmt-list" class="space-y-1"></div>
-        </div>
-    `;
+    app.innerHTML = `<div class="space-y-4"><div class="card bg-white"><button id="add-gun-btn" class="btn btn-primary w-full"><i class="fas fa-plus"></i> 銃を追加</button></div><div id="gun-mgmt-list" class="space-y-3"></div></div>`;
     document.getElementById('add-gun-btn').onclick = () => showGunEditForm(null);
     const listEl = document.getElementById('gun-mgmt-list');
     const guns = await db.gun.toArray();
     if(guns.length===0) listEl.innerHTML = '<p class="text-center text-gray-500">登録なし</p>';
-    else listEl.innerHTML = guns.map(g => `<div class="trap-card bg-white" data-id="${g.id}"><div><h3 class="font-bold">${escapeHTML(g.name)}</h3><p class="text-sm text-gray-600">${escapeHTML(g.type)} / ${escapeHTML(g.caliber)}</p></div><i class="fas fa-chevron-right text-gray-300"></i></div>`).join('');
+    else listEl.innerHTML = guns.map(g => `<div class="trap-card bg-white" data-id="${g.id}"><div><h3 class="text-lg font-semibold">${escapeHTML(g.name)}</h3><p class="text-sm text-gray-600">${escapeHTML(g.type)} / ${escapeHTML(g.caliber)}</p></div><span>&gt;</span></div>`).join('');
     listEl.querySelectorAll('.trap-card').forEach(d => d.onclick = () => showGunDetailPage(parseInt(d.dataset.id)));
 }
 
@@ -685,23 +607,35 @@ async function showGunDetailPage(id) {
     if (!gun) return;
     updateHeader(gun.name, true);
     backButton.onclick = () => showGunListManagementPage();
-
-    // 編集・削除
-    const actions = `<div class="flex gap-2"><button id="edit-gun" class="btn btn-secondary flex-1">編集</button><button id="del-gun" class="btn btn-danger flex-1">削除</button></div>`;
     
-    // 基本情報
-    let info = `<div class="card bg-white"><h3 class="font-bold border-b mb-2">弾の管理</h3><div class="flex justify-between items-center mb-2"><span>残弾数:</span><span id="ammo-rem" class="font-bold text-xl">...</span></div><form id="ammo-purchase-form" class="flex gap-2"><input type="date" id="ammo-date" class="form-input w-1/3" value="${new Date().toISOString().split('T')[0]}"><input type="number" id="ammo-amount" class="form-input flex-1" placeholder="購入数" required><button class="btn btn-sm btn-primary">追加</button></form></div>`;
+    // 弾管理
+    const today = new Date().toISOString().split('T')[0];
+    const ammoHTML = `
+        <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">弾の管理</h2>
+            <form id="ammo-purchase-form" class="space-y-3 mb-4">
+                <div class="form-group"><label class="form-label">購入日:</label><input type="date" id="ammo-date" class="form-input" value="${today}" required></div>
+                <div class="form-group"><label class="form-label">購入数:</label><input type="number" id="ammo-amount" class="form-input" min="1" required></div>
+                <button type="submit" class="btn btn-primary w-full">購入を記録</button>
+            </form>
+            <h3 class="text-md font-semibold mt-4">集計</h3>
+            <table class="w-full text-sm my-2"><tbody>
+                <tr class="border-b"><th class="w-1/2 text-left bg-gray-50 p-2">総購入数</th><td id="ammo-total-p" class="p-2">...</td></tr>
+                <tr class="border-b"><th class="w-1/2 text-left bg-gray-50 p-2">総消費数</th><td id="ammo-total-c" class="p-2">...</td></tr>
+                <tr class="border-b"><th class="w-1/2 text-left bg-gray-50 p-2">残弾数</th><td id="ammo-rem" class="p-2 font-bold">...</td></tr>
+            </tbody></table>
+            <h3 class="text-md font-semibold mt-4">履歴</h3>
+            <div id="ammo-log-list" class="max-h-60 overflow-y-auto border rounded-lg mt-2"><table class="w-full text-sm"><thead class="bg-gray-50 sticky top-0"><tr><th class="p-2 text-left">日付</th><th class="p-2 text-left">内容</th><th class="p-2 text-right">数</th></tr></thead><tbody id="ammo-tbody"></tbody></table></div>
+        </div>`;
 
-    // 履歴ボタン
-    const histBtn = `<div class="card bg-white"><button id="show-hist" class="btn btn-secondary w-full text-left"><span class="w-6"><i class="fas fa-history"></i></span> この銃の履歴を見る</button></div>`;
-
-    app.innerHTML = `<div class="space-y-2">${actions}${info}${histBtn}</div>`;
+    app.innerHTML = `<div class="space-y-4">
+        <div class="card bg-white"><div class="flex space-x-2"><button id="edit-gun" class="btn btn-secondary flex-1">編集</button><button id="del-gun" class="btn btn-danger flex-1">削除</button></div></div>
+        <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">使用履歴</h2><button id="show-hist" class="btn btn-secondary w-full text-left"><span class="w-6"><i class="fas fa-history"></i></span> この銃の履歴を見る</button></div>
+        ${ammoHTML}
+    </div>`;
 
     document.getElementById('edit-gun').onclick = () => showGunEditForm(id);
     document.getElementById('del-gun').onclick = async () => { if(confirm('削除しますか？')) { await db.gun.delete(id); showGunListManagementPage(); }};
     document.getElementById('show-hist').onclick = () => { appState.gunLogFilters.gun_id = id; showGunPage(); };
-
-    // 弾購入イベント
     document.getElementById('ammo-purchase-form').onsubmit = async (e) => {
         e.preventDefault();
         try {
@@ -716,38 +650,26 @@ async function showGunDetailPage(id) {
 async function renderAmmoInfo(gunId) {
     const purchases = await db.ammo_purchases.where('gun_id').equals(gunId).toArray();
     const logs = await db.gun_log.where('gun_id').equals(gunId).and(l => l.ammo_count > 0).toArray();
-    
     const pTotal = purchases.reduce((s, p) => s + p.amount, 0);
     const cTotal = logs.reduce((s, l) => s + (l.ammo_count || 0), 0);
-    
-    const elRem = document.getElementById('ammo-rem');
-    if(elRem) elRem.textContent = `${pTotal - cTotal} 発`;
+    document.getElementById('ammo-total-p').textContent = `${pTotal} 発`;
+    document.getElementById('ammo-total-c').textContent = `${cTotal} 発`;
+    document.getElementById('ammo-rem').textContent = `${pTotal - cTotal} 発`;
+    const combined = [...purchases.map(p => ({ d: p.purchase_date, t: '購入', a: p.amount, id: p.id, isP: true })), ...logs.map(l => ({ d: l.use_date, t: `消費 (${l.purpose})`, a: -l.ammo_count, id: l.id, isP: false }))].sort((a, b) => b.d.localeCompare(a.d));
+    document.getElementById('ammo-tbody').innerHTML = combined.map(r => `<tr class="border-b"><td class="p-2">${formatDate(r.d)}</td><td class="p-2">${escapeHTML(r.t)}</td><td class="p-2 text-right ${r.a > 0 ? 'text-green-600' : 'text-red-600'}">${r.a > 0 ? '+' : ''}${r.a}${r.isP ? `<button class="btn btn-danger btn-sm ml-2 del-ammo" data-id="${r.id}">&times;</button>` : ''}</td></tr>`).join('');
+    document.querySelectorAll('.del-ammo').forEach(b => b.onclick = async (e) => { if(confirm('削除しますか？')) { await db.ammo_purchases.delete(parseInt(e.target.dataset.id)); renderAmmoInfo(gunId); } });
 }
 
 async function showGunEditForm(id) {
     let gun = { name: '', type: '', caliber: '' };
     if (id) gun = await db.gun.get(id);
-    
     updateHeader(id ? '銃の編集' : '銃の登録', true);
     backButton.onclick = () => id ? showGunDetailPage(id) : showGunListManagementPage();
-
-    app.innerHTML = `
-        <div class="card bg-white">
-            <form id="gun-form" class="space-y-3">
-                <div class="form-group"><label class="form-label">名前</label><input id="g-name" class="form-input" value="${escapeHTML(gun.name)}" required></div>
-                <div class="form-group"><label class="form-label">種類</label><input id="g-type" class="form-input" value="${escapeHTML(gun.type)}"></div>
-                <div class="form-group"><label class="form-label">口径</label><input id="g-cal" class="form-input" value="${escapeHTML(gun.caliber)}"></div>
-                <button class="btn btn-primary w-full">保存</button>
-            </form>
-        </div>
-    `;
+    app.innerHTML = `<div class="card bg-white"><form id="gun-form" class="space-y-4"><div class="form-group"><label class="form-label">名前:</label><input id="g-name" class="form-input" value="${escapeHTML(gun.name)}" required></div><div class="form-group"><label class="form-label">種類:</label><input id="g-type" class="form-input" value="${escapeHTML(gun.type)}"></div><div class="form-group"><label class="form-label">口径:</label><input id="g-cal" class="form-input" value="${escapeHTML(gun.caliber)}"></div><button class="btn btn-primary w-full">保存</button></form></div>`;
     document.getElementById('gun-form').onsubmit = async (e) => {
         e.preventDefault();
         const data = { name: document.getElementById('g-name').value, type: document.getElementById('g-type').value, caliber: document.getElementById('g-cal').value };
-        try {
-            if(id) { await db.gun.update(id, data); showGunDetailPage(id); }
-            else { const nid = await db.gun.add(data); showGunDetailPage(nid); }
-        } catch { alert('保存失敗'); }
+        try { if(id) { await db.gun.update(id, data); showGunDetailPage(id); } else { const nid = await db.gun.add(data); showGunDetailPage(nid); } } catch { alert('保存失敗'); }
     };
 }
 
@@ -755,38 +677,18 @@ async function showGunLogDetailPage(id) {
     const log = await db.gun_log.get(id);
     if (!log) return;
     const gun = await db.gun.get(log.gun_id);
-    
     updateHeader('使用履歴詳細', true);
     backButton.onclick = () => showGunPage();
-
     const catchCount = await db.catch_records.where('gun_log_id').equals(id).count();
-    
-    // 画像
     let imgHTML = '';
     if(log.image_blob) {
         const u = URL.createObjectURL(log.image_blob); appState.activeBlobUrls.push(u);
-        imgHTML = `<div class="card bg-white"><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
+        imgHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
     }
-
-    // 情報
-    let info = `<div class="card bg-white"><table class="w-full text-sm"><tbody>`;
-    [['日付', formatDate(log.use_date)], ['銃', gun?gun.name:'-'], ['目的', log.purpose], ['場所', log.location], ['弾数', log.ammo_count+'発'], ['同行', log.companion]].forEach(r=> info+=`<tr><th class="w-1/3 text-left py-1 text-gray-500">${r[0]}</th><td>${escapeHTML(r[1])}</td></tr>`);
+    let info = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">記録</h2><table class="w-full text-sm"><tbody>`;
+    [['日付', formatDate(log.use_date)], ['銃', gun?gun.name:'-'], ['目的', log.purpose], ['場所', log.location], ['弾数', log.ammo_count+'発'], ['同行', log.companion]].forEach(r=> info+=`<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-2">${r[0]}</th><td class="p-2">${escapeHTML(r[1])}</td></tr>`);
     info += `</tbody></table></div>`;
-
-    app.innerHTML = `
-        <div class="space-y-2">
-            <div class="flex gap-2"><button id="edit-log" class="btn btn-secondary flex-1">編集</button><button id="del-log" class="btn btn-danger flex-1">削除</button></div>
-            ${imgHTML}${info}
-            <div class="card bg-white">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="font-bold">捕獲記録 (${catchCount})</h3>
-                    <button id="add-catch" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i></button>
-                </div>
-                <button id="view-catch" class="btn btn-secondary w-full text-sm">一覧を見る</button>
-            </div>
-        </div>
-    `;
-    
+    app.innerHTML = `<div class="space-y-4"><div class="card bg-white"><div class="flex space-x-2"><button id="edit-log" class="btn btn-secondary flex-1">編集</button><button id="del-log" class="btn btn-danger flex-1">削除</button></div></div>${imgHTML}${info}<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録 (${catchCount})</h2><div class="space-y-2"><button id="view-catch" class="btn btn-secondary w-full text-left"><span class="w-6"><i class="fas fa-paw"></i></span> 捕獲記録を見る</button><button id="add-catch" class="btn btn-primary w-full text-left"><span class="w-6"><i class="fas fa-plus"></i></span> 捕獲記録を追加</button></div></div></div>`;
     document.getElementById('edit-log').onclick = () => showGunLogEditForm(id);
     document.getElementById('del-log').onclick = () => deleteGunLog(id);
     document.getElementById('view-catch').onclick = () => { appState.currentCatchMethod='gun'; appState.currentCatchRelationId=id; navigateTo('catch', showCatchListPage, '銃の捕獲記録'); };
@@ -797,124 +699,41 @@ async function showGunLogEditForm(id) {
     let log = { use_date: new Date().toISOString().split('T')[0], gun_id: '', purpose: '狩猟', location: '', ammo_count: '', companion: '', latitude: '', longitude: '', memo: '', image_blob: null };
     if (id) log = await db.gun_log.get(id);
     const guns = await db.gun.toArray();
-
     updateHeader(id?'使用履歴 編集':'新規使用履歴', true);
     backButton.onclick = () => id ? showGunLogDetailPage(id) : showGunPage();
-
     let imgPreview = '';
     if(log.image_blob) {
         const u = URL.createObjectURL(log.image_blob); appState.activeBlobUrls.push(u);
         imgPreview = `<div class="form-group"><label class="form-label">現在の写真:</label><div class="photo-preview"><img src="${u}"><button type="button" id="rm-img" class="photo-preview-btn-delete">&times;</button></div></div>`;
     }
-
-    app.innerHTML = `
-        <div class="card bg-white">
-            <form id="log-form" class="space-y-3">
-                <div class="form-group"><label class="form-label">日付</label><input type="date" id="l-date" class="form-input" value="${log.use_date}" required></div>
-                <div class="form-group"><label class="form-label">銃</label><select id="l-gun" class="form-select" required><option value="">選択</option>${guns.map(g=>`<option value="${g.id}" ${g.id==log.gun_id?'selected':''}>${g.name}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">目的</label><select id="l-purpose" class="form-select">${['狩猟','射撃','有害駆除','その他'].map(p=>`<option value="${p}" ${p==log.purpose?'selected':''}>${p}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">消費弾数</label><input type="number" id="l-ammo" class="form-input" value="${log.ammo_count}"></div>
-                <div class="form-group"><label class="form-label">場所</label><input id="l-loc" class="form-input" value="${escapeHTML(log.location)}"></div>
-                <div class="form-group"><label class="form-label">同行者</label><input id="l-comp" class="form-input" value="${escapeHTML(log.companion)}"></div>
-                <div class="form-group"><label class="form-label">位置</label><div class="flex gap-2 mb-1"><input type="number" step="any" id="l-lat" class="form-input" value="${escapeHTML(log.latitude)}" placeholder="緯度"><input type="number" step="any" id="l-lon" class="form-input" value="${escapeHTML(log.longitude)}" placeholder="経度"></div><button type="button" id="gps-btn" class="btn btn-secondary w-full">GPS取得</button></div>
-                ${imgPreview}
-                <div class="form-group"><label class="form-label">写真</label><input type="file" id="l-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
-                <div class="form-group"><label class="form-label">メモ</label><textarea id="l-memo" class="form-input">${escapeHTML(log.memo)}</textarea></div>
-                <button class="btn btn-primary w-full">保存</button>
-            </form>
-        </div>
-    `;
-
+    app.innerHTML = `<div class="card bg-white"><form id="log-form" class="space-y-4"><div class="form-group"><label class="form-label">日付:</label><input type="date" id="l-date" class="form-input" value="${log.use_date}" required></div><div class="form-group"><label class="form-label">銃:</label><select id="l-gun" class="form-select" required><option value="">選択</option>${guns.map(g=>`<option value="${g.id}" ${g.id==log.gun_id?'selected':''}>${g.name}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">目的:</label><select id="l-purpose" class="form-select">${['狩猟','射撃','有害駆除','その他'].map(p=>`<option value="${p}" ${p==log.purpose?'selected':''}>${p}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">消費弾数:</label><input type="number" id="l-ammo" class="form-input" value="${log.ammo_count}"></div><div class="form-group"><label class="form-label">場所:</label><input id="l-loc" class="form-input" value="${escapeHTML(log.location)}"></div><div class="form-group"><label class="form-label">同行者:</label><input id="l-comp" class="form-input" value="${escapeHTML(log.companion)}"></div><div class="form-group"><span class="form-label">位置</span><div class="grid grid-cols-2 gap-4"><input type="number" step="any" id="l-lat" class="form-input" value="${escapeHTML(log.latitude)}" placeholder="緯度"><input type="number" step="any" id="l-lon" class="form-input" value="${escapeHTML(log.longitude)}" placeholder="経度"></div><button type="button" id="gps-btn" class="btn btn-secondary w-full mt-2">GPS取得</button></div>${imgPreview}<div class="form-group"><label class="form-label">写真:</label><input type="file" id="l-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div><div class="form-group"><label class="form-label">メモ:</label><textarea id="l-memo" class="form-input">${escapeHTML(log.memo)}</textarea></div><button class="btn btn-primary w-full">保存</button></form></div>`;
     document.getElementById('gps-btn').onclick = async () => { try{ const l = await getCurrentLocation(); document.getElementById('l-lat').value=l.latitude; document.getElementById('l-lon').value=l.longitude; }catch(e){alert(e.message);} };
     if(document.getElementById('rm-img')) document.getElementById('rm-img').onclick = function(){ this.closest('.form-group').remove(); log.image_blob = null; };
-    
     let resizedBlob = null;
-    document.getElementById('l-img').onchange = async (e) => {
-        if(!e.target.files[0]) return;
-        resizedBlob = await resizeImage(e.target.files[0]);
-        const u = URL.createObjectURL(resizedBlob); appState.activeBlobUrls.push(u);
-        document.getElementById('preview').innerHTML = `<div class="photo-preview"><img src="${u}"></div>`;
-    };
-
-    document.getElementById('log-form').onsubmit = async (e) => {
-        e.preventDefault();
-        const d = {
-            use_date: document.getElementById('l-date').value,
-            gun_id: parseInt(document.getElementById('l-gun').value),
-            purpose: document.getElementById('l-purpose').value,
-            ammo_count: parseInt(document.getElementById('l-ammo').value)||0,
-            location: document.getElementById('l-loc').value,
-            companion: document.getElementById('l-comp').value,
-            latitude: document.getElementById('l-lat').value,
-            longitude: document.getElementById('l-lon').value,
-            memo: document.getElementById('l-memo').value,
-            image_blob: log.image_blob
-        };
-        if(resizedBlob) d.image_blob = resizedBlob;
-        
-        if(id) { await db.gun_log.update(id, d); showGunLogDetailPage(id); }
-        else { const nid = await db.gun_log.add(d); showGunLogDetailPage(nid); }
-    };
+    document.getElementById('l-img').onchange = async (e) => { if(!e.target.files[0]) return; resizedBlob = await resizeImage(e.target.files[0]); const u = URL.createObjectURL(resizedBlob); appState.activeBlobUrls.push(u); document.getElementById('preview').innerHTML = `<div class="photo-preview"><img src="${u}"></div>`; };
+    document.getElementById('log-form').onsubmit = async (e) => { e.preventDefault(); const d = { use_date: document.getElementById('l-date').value, gun_id: parseInt(document.getElementById('l-gun').value), purpose: document.getElementById('l-purpose').value, ammo_count: parseInt(document.getElementById('l-ammo').value)||0, location: document.getElementById('l-loc').value, companion: document.getElementById('l-comp').value, latitude: document.getElementById('l-lat').value, longitude: document.getElementById('l-lon').value, memo: document.getElementById('l-memo').value, image_blob: log.image_blob }; if(resizedBlob) d.image_blob = resizedBlob; if(id) { await db.gun_log.update(id, d); showGunLogDetailPage(id); } else { const nid = await db.gun_log.add(d); showGunLogDetailPage(nid); } };
 }
 
 async function deleteGunLog(id) {
-    if(confirm('削除しますか？\n捕獲記録も削除されます。')) {
-        await db.transaction('rw', db.gun_log, db.catch_records, async()=>{
-            await db.catch_records.where('gun_log_id').equals(id).delete();
-            await db.gun_log.delete(id);
-        });
-        showGunPage();
-    }
+    if(confirm('削除しますか？\n捕獲記録も削除されます。')) { await db.transaction('rw', db.gun_log, db.catch_records, async()=>{ await db.catch_records.where('gun_log_id').equals(id).delete(); await db.gun_log.delete(id); }); showGunPage(); }
 }
 
-
-// ----------------------------------------------------------------------------
-// 5. 捕獲記録機能 (UI改善)
-// ----------------------------------------------------------------------------
-
-function showCatchPage() {
-    appState.currentCatchMethod = 'all';
-    appState.currentCatchRelationId = null;
-    showCatchListPage();
-}
+function showCatchPage() { appState.currentCatchMethod = 'all'; appState.currentCatchRelationId = null; showCatchListPage(); }
 
 async function showCatchListPage() {
     const filters = appState.catchFilters;
-    if (appState.currentCatchMethod === 'all') {
-        Object.assign(filters, { method: 'all', species: '', gender: 'all', age: 'all' });
-    }
-    
+    if (appState.currentCatchMethod === 'all') Object.assign(filters, { method: 'all', species: '', gender: 'all', age: 'all' });
     let filterHTML = '';
     if (appState.currentCatchMethod === 'all') {
-        filterHTML = `
-            <div class="card bg-white mb-2 p-2">
-                <div class="flex gap-2">
-                    <div class="form-group mb-0 flex-1"><label class="form-label">種名</label><input id="c-spec" class="form-input" list="spec-list" value="${filters.species}"><datalist id="spec-list"></datalist></div>
-                    <div class="form-group mb-0 w-1/3"><label class="form-label">方法</label><select id="c-meth" class="form-select"><option value="all">全て</option><option value="trap">罠</option><option value="gun">銃</option></select></div>
-                </div>
-            </div>`;
+        filterHTML = `<div class="card bg-white mb-4"><div class="grid grid-cols-2 gap-4"><div class="form-group mb-0"><label class="form-label">種名:</label><input id="c-spec" class="form-input" list="spec-list" value="${filters.species}"><datalist id="spec-list"></datalist></div><div class="form-group mb-0"><label class="form-label">方法:</label><select id="c-meth" class="form-select"><option value="all">全て</option><option value="trap">罠</option><option value="gun">銃</option></select></div></div></div>`;
     }
-
-    app.innerHTML = `
-        <div class="space-y-2">
-            ${filterHTML}
-            <div id="catch-list" class="space-y-1"><p class="text-center text-gray-500 py-4">読み込み中...</p></div>
-        </div>
-    `;
-    
+    app.innerHTML = `<div class="space-y-4">${filterHTML}<div id="catch-list" class="space-y-3"><p class="text-center text-gray-500 py-4">読み込み中...</p></div></div>`;
     let title = '捕獲記録';
     if(appState.currentCatchMethod === 'trap') title = '罠の捕獲記録';
     if(appState.currentCatchMethod === 'gun') title = '銃の捕獲記録';
     updateHeader(title, appState.currentCatchMethod !== 'all');
-    if (appState.currentCatchMethod !== 'all') {
-        backButton.onclick = () => appState.currentCatchMethod === 'trap' ? showTrapDetailPage(appState.currentCatchRelationId) : showGunLogDetailPage(appState.currentCatchRelationId);
-    }
-
-    if (appState.currentCatchMethod === 'all') {
-        loadSpeciesDataList();
-        document.getElementById('c-spec').onchange = (e) => { filters.species = e.target.value; renderCatchList(); };
-        document.getElementById('c-meth').onchange = (e) => { filters.method = e.target.value; renderCatchList(); };
-    }
+    if (appState.currentCatchMethod !== 'all') { backButton.onclick = () => appState.currentCatchMethod === 'trap' ? showTrapDetailPage(appState.currentCatchRelationId) : showGunLogDetailPage(appState.currentCatchRelationId); }
+    if (appState.currentCatchMethod === 'all') { loadSpeciesDataList(); document.getElementById('c-spec').onchange = (e) => { filters.species = e.target.value; renderCatchList(); }; document.getElementById('c-meth').onchange = (e) => { filters.method = e.target.value; renderCatchList(); }; }
     renderCatchList();
 }
 
@@ -927,30 +746,15 @@ async function loadSpeciesDataList() {
 async function renderCatchList() {
     const listEl = document.getElementById('catch-list');
     let records = await db.catch_records.orderBy('catch_date').reverse().toArray();
-    
     if (appState.currentCatchMethod === 'trap') records = records.filter(r => r.trap_id === appState.currentCatchRelationId);
     else if (appState.currentCatchMethod === 'gun') records = records.filter(r => r.gun_log_id === appState.currentCatchRelationId);
-    else {
-        const f = appState.catchFilters;
-        if(f.method === 'trap') records = records.filter(r => r.trap_id);
-        if(f.method === 'gun') records = records.filter(r => r.gun_log_id);
-        if(f.species) records = records.filter(r => r.species_name.includes(f.species));
-    }
-
-    if (records.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-500">なし</p>'; return; }
-
+    else { const f = appState.catchFilters; if(f.method === 'trap') records = records.filter(r => r.trap_id); if(f.method === 'gun') records = records.filter(r => r.gun_log_id); if(f.species) records = records.filter(r => r.species_name.includes(f.species)); }
+    if (records.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-500">記録なし</p>'; return; }
     listEl.innerHTML = records.map(r => {
         const methodBadge = r.trap_id ? '<span class="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">罠</span>' : '<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">銃</span>';
-        return `
-            <div class="trap-card bg-white" onclick="showCatchDetailPage(${r.id})">
-                <div>
-                    <h3 class="font-bold text-gray-800">${escapeHTML(r.species_name)}</h3>
-                    <p>${formatDate(r.catch_date)} ${r.gender||''} ${r.age||''}</p>
-                    <div class="mt-1">${methodBadge}</div>
-                </div>
-                <i class="fas fa-chevron-right text-gray-300"></i>
-            </div>`;
+        return `<div class="trap-card bg-white" data-id="${r.id}"><div><h3 class="text-lg font-semibold text-gray-800">${escapeHTML(r.species_name)}</h3><p class="text-sm text-gray-600">${formatDate(r.catch_date)} ${r.gender||''} ${r.age||''}</p><div class="mt-1">${methodBadge}</div></div><span>&gt;</span></div>`;
     }).join('');
+    listEl.querySelectorAll('.trap-card').forEach(d => d.onclick = () => showCatchDetailPage(parseInt(d.dataset.id)));
 }
 
 async function showCatchDetailPage(id) {
@@ -958,28 +762,15 @@ async function showCatchDetailPage(id) {
     if (!r) return;
     updateHeader('捕獲詳細', true);
     backButton.onclick = () => showCatchListPage();
-
     let methodInfo = '';
-    if (r.trap_id) {
-        const t = await db.trap.get(r.trap_id);
-        methodInfo = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">捕獲方法: 罠</h2><button class="btn btn-secondary w-full text-left" onclick="showTrapDetailPage(${r.trap_id})">罠 No.${t?t.trap_number:'削除済'} を見る</button></div>`;
-    } else if (r.gun_log_id) {
-        const g = await db.gun_log.get(r.gun_log_id);
-        methodInfo = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">捕獲方法: 銃</h2><button class="btn btn-secondary w-full text-left" onclick="showGunLogDetailPage(${r.gun_log_id})">使用履歴 (${g?formatDate(g.use_date):'削除済'}) を見る</button></div>`;
-    }
-
+    if (r.trap_id) { const t = await db.trap.get(r.trap_id); methodInfo = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">捕獲方法: 罠</h2><button class="btn btn-secondary w-full text-left" onclick="showTrapDetailPage(${r.trap_id})">罠 No.${t?t.trap_number:'削除済'} を見る</button></div>`; }
+    else if (r.gun_log_id) { const g = await db.gun_log.get(r.gun_log_id); methodInfo = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">捕獲方法: 銃</h2><button class="btn btn-secondary w-full text-left" onclick="showGunLogDetailPage(${r.gun_log_id})">使用履歴 (${g?formatDate(g.use_date):'削除済'}) を見る</button></div>`; }
     let imgHTML = '';
-    if(r.image_blob) {
-        const u = URL.createObjectURL(r.image_blob); appState.activeBlobUrls.push(u);
-        imgHTML = `<div class="card bg-white"><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
-    }
-
+    if(r.image_blob) { const u = URL.createObjectURL(r.image_blob); appState.activeBlobUrls.push(u); imgHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`; }
     let info = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">データ</h2><table class="w-full text-sm"><tbody>`;
-    [['種名', r.species_name], ['日付', formatDate(r.catch_date)], ['性別', r.gender], ['年齢', r.age], ['緯度', r.latitude], ['経度', r.longitude], ['メモ', r.memo]].forEach(row => info += `<tr class="border-b"><th class="w-1/3 text-left py-1 text-gray-500">${row[0]}</th><td class="p-2">${escapeHTML(row[1])}</td></tr>`);
+    [['種名', r.species_name], ['日付', formatDate(r.catch_date)], ['性別', r.gender], ['年齢', r.age], ['緯度', r.latitude], ['経度', r.longitude], ['メモ', r.memo]].forEach(row => info += `<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-2">${row[0]}</th><td class="p-2">${escapeHTML(row[1])}</td></tr>`);
     info += '</tbody></table></div>';
-
-    app.innerHTML = `<div class="space-y-2"><div class="flex gap-2"><button id="edit-c" class="btn btn-secondary flex-1">編集</button><button id="del-c" class="btn btn-danger flex-1">削除</button></div>${imgHTML}${info}${methodInfo}</div>`;
-
+    app.innerHTML = `<div class="space-y-4"><div class="card bg-white"><div class="flex space-x-2"><button id="edit-c" class="btn btn-secondary flex-1">編集</button><button id="del-c" class="btn btn-danger flex-1">削除</button></div></div>${imgHTML}${info}${methodInfo}</div>`;
     document.getElementById('edit-c').onclick = () => showCatchEditForm(id, {});
     document.getElementById('del-c').onclick = async () => { if(confirm('削除しますか？')) { await db.catch_records.delete(id); showCatchListPage(); }};
 }
@@ -987,157 +778,78 @@ async function showCatchDetailPage(id) {
 async function showCatchEditForm(id, { trapId, gunLogId }) {
     let r = { catch_date: new Date().toISOString().split('T')[0], species_name: '', gender: '不明', age: '不明', latitude: '', longitude: '', memo: '', image_blob: null };
     if (id) r = await db.catch_records.get(id);
-    
     if (!id && trapId) { const t = await db.trap.get(trapId); if(t) { r.latitude=t.latitude; r.longitude=t.longitude; } }
     if (!id && gunLogId) { const g = await db.gun_log.get(gunLogId); if(g) { r.latitude=g.latitude; r.longitude=g.longitude; r.catch_date=g.use_date; } }
-
     updateHeader(id?'捕獲記録 編集':'新規捕獲記録', true);
     backButton.onclick = () => id ? showCatchDetailPage(id) : (trapId ? showTrapDetailPage(trapId) : (gunLogId ? showGunLogDetailPage(gunLogId) : showCatchListPage()));
-
     let imgPreview = '';
-    if(r.image_blob) {
-        const u = URL.createObjectURL(r.image_blob); appState.activeBlobUrls.push(u);
-        imgPreview = `<div class="form-group"><label class="form-label">現在の写真:</label><div class="photo-preview"><img src="${u}"><button type="button" id="rm-img" class="photo-preview-btn-delete">&times;</button></div></div>`;
-    }
-
-    app.innerHTML = `
-        <div class="card bg-white">
-            <form id="catch-form" class="space-y-3">
-                <div class="form-group"><label class="form-label">日付</label><input type="date" id="c-date" class="form-input" value="${r.catch_date}" required></div>
-                <div class="form-group"><label class="form-label">種名</label><input id="c-spec" class="form-input" list="spec-list" value="${escapeHTML(r.species_name)}" required><datalist id="spec-list"></datalist></div>
-                <div class="flex gap-2">
-                    <div class="form-group flex-1"><label class="form-label">性別</label><select id="c-gen" class="form-select">${['不明','オス','メス'].map(v=>`<option ${v==r.gender?'selected':''}>${v}</option>`).join('')}</select></div>
-                    <div class="form-group flex-1"><label class="form-label">年齢</label><select id="c-age" class="form-select">${['不明','成獣','幼獣'].map(v=>`<option ${v==r.age?'selected':''}>${v}</option>`).join('')}</select></div>
-                </div>
-                <div class="form-group"><label class="form-label">位置</label><div class="flex gap-2"><input type="number" step="any" id="c-lat" class="form-input" value="${escapeHTML(r.latitude)}"><input type="number" step="any" id="c-lon" class="form-input" value="${escapeHTML(r.longitude)}"></div></div>
-                ${imgPreview}
-                <div class="form-group"><label class="form-label">写真</label><input type="file" id="c-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
-                <div class="form-group"><label class="form-label">メモ</label><textarea id="c-memo" class="form-input">${escapeHTML(r.memo)}</textarea></div>
-                <button class="btn btn-primary w-full">保存</button>
-            </form>
-        </div>
-    `;
+    if(r.image_blob) { const u = URL.createObjectURL(r.image_blob); appState.activeBlobUrls.push(u); imgPreview = `<div class="form-group"><label class="form-label">現在の写真:</label><div class="photo-preview"><img src="${u}"><button type="button" id="rm-img" class="photo-preview-btn-delete">&times;</button></div></div>`; }
+    app.innerHTML = `<div class="card bg-white"><form id="catch-form" class="space-y-4"><div class="form-group"><label class="form-label">日付:</label><input type="date" id="c-date" class="form-input" value="${r.catch_date}" required></div><div class="form-group"><label class="form-label">種名:</label><input id="c-spec" class="form-input" list="spec-list" value="${escapeHTML(r.species_name)}" required><datalist id="spec-list"></datalist></div><div class="grid grid-cols-2 gap-4"><div class="form-group flex-1"><label class="form-label">性別:</label><select id="c-gen" class="form-select">${['不明','オス','メス'].map(v=>`<option ${v==r.gender?'selected':''}>${v}</option>`).join('')}</select></div><div class="form-group flex-1"><label class="form-label">年齢:</label><select id="c-age" class="form-select">${['不明','成獣','幼獣'].map(v=>`<option ${v==r.age?'selected':''}>${v}</option>`).join('')}</select></div></div><div class="form-group"><span class="form-label">位置</span><div class="grid grid-cols-2 gap-4"><input type="number" step="any" id="c-lat" class="form-input" value="${escapeHTML(r.latitude)}"><input type="number" step="any" id="c-lon" class="form-input" value="${escapeHTML(r.longitude)}"></div></div>${imgPreview}<div class="form-group"><label class="form-label">写真:</label><input type="file" id="c-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div><div class="form-group"><label class="form-label">メモ:</label><textarea id="c-memo" class="form-input">${escapeHTML(r.memo)}</textarea></div><button class="btn btn-primary w-full">保存</button></form></div>`;
     loadSpeciesDataList();
     if(document.getElementById('rm-img')) document.getElementById('rm-img').onclick = function(){ this.closest('.form-group').remove(); r.image_blob = null; };
-    
     let resizedBlob = null;
-    document.getElementById('c-img').onchange = async (e) => {
-        if(!e.target.files[0]) return;
-        resizedBlob = await resizeImage(e.target.files[0]);
-        const u = URL.createObjectURL(resizedBlob); appState.activeBlobUrls.push(u);
-        document.getElementById('preview').innerHTML = `<div class="photo-preview"><img src="${u}"></div>`;
-    };
-
-    document.getElementById('catch-form').onsubmit = async (e) => {
-        e.preventDefault();
-        const d = {
-            catch_date: document.getElementById('c-date').value,
-            species_name: document.getElementById('c-spec').value,
-            gender: document.getElementById('c-gen').value,
-            age: document.getElementById('c-age').value,
-            latitude: document.getElementById('c-lat').value,
-            longitude: document.getElementById('c-lon').value,
-            memo: document.getElementById('c-memo').value,
-            image_blob: r.image_blob,
-            trap_id: id ? r.trap_id : trapId,
-            gun_log_id: id ? r.gun_log_id : gunLogId
-        };
-        if(resizedBlob) d.image_blob = resizedBlob;
-        
-        if(id) { await db.catch_records.update(id, d); showCatchDetailPage(id); }
-        else { const nid = await db.catch_records.add(d); showCatchDetailPage(nid); }
-    };
+    document.getElementById('c-img').onchange = async (e) => { if(!e.target.files[0]) return; resizedBlob = await resizeImage(e.target.files[0]); const u = URL.createObjectURL(resizedBlob); appState.activeBlobUrls.push(u); document.getElementById('preview').innerHTML = `<div class="photo-preview"><img src="${u}"></div>`; };
+    document.getElementById('catch-form').onsubmit = async (e) => { e.preventDefault(); const d = { catch_date: document.getElementById('c-date').value, species_name: document.getElementById('c-spec').value, gender: document.getElementById('c-gen').value, age: document.getElementById('c-age').value, latitude: document.getElementById('c-lat').value, longitude: document.getElementById('c-lon').value, memo: document.getElementById('c-memo').value, image_blob: r.image_blob, trap_id: id ? r.trap_id : trapId, gun_log_id: id ? r.gun_log_id : gunLogId }; if(resizedBlob) d.image_blob = resizedBlob; if(id) { await db.catch_records.update(id, d); showCatchDetailPage(id); } else { const nid = await db.catch_records.add(d); showCatchDetailPage(nid); } };
 }
-
-
-// ----------------------------------------------------------------------------
-// 6. チェックリスト機能 (UI改善)
-// ----------------------------------------------------------------------------
 
 function showChecklistPage() { navigateTo('checklist', renderChecklistSets, 'チェックリスト一覧'); }
 
 async function renderChecklistSets() {
     updateHeader('チェックリスト一覧', false);
     app.innerHTML = `
-        <div class="space-y-2">
+        <div class="space-y-4">
             <div class="card bg-white"><form id="add-set-form" class="flex gap-2"><input id="new-set-name" class="form-input" placeholder="例: 単独猟" required><button class="btn btn-primary">作成</button></form></div>
-            <div id="set-list" class="space-y-1"></div>
+            <div id="set-list" class="space-y-3"></div>
         </div>
     `;
-    
     const sets = await db.checklist_sets.toArray();
     document.getElementById('set-list').innerHTML = sets.map(s => `
-        <div class="trap-card bg-white" onclick="showChecklistDetail(${s.id})">
+        <div class="trap-card bg-white" data-id="${s.id}">
             <h3 class="text-lg font-semibold">${escapeHTML(s.name)}</h3>
             <div class="flex items-center gap-2"><button class="btn btn-danger btn-sm del-set" data-id="${s.id}">削除</button><span>&gt;</span></div>
         </div>
     `).join('');
-
-    document.getElementById('set-list').querySelectorAll('.trap-card').forEach(d => {
-        if(d.tagName === 'BUTTON') return; // 削除ボタン回避
-        d.onclick = (e) => { if(!e.target.classList.contains('del-set')) showChecklistDetail(parseInt(d.dataset.id)); };
-    });
-    document.querySelectorAll('.del-set').forEach(b => b.onclick = async (e) => {
-        e.stopPropagation();
-        if(confirm('削除しますか？')) {
-            const id = parseInt(e.target.dataset.id);
-            await db.checklist_items.where('list_id').equals(id).delete();
-            await db.checklist_sets.delete(id);
-            renderChecklistSets();
-        }
-    });
-
-    document.getElementById('add-set-form').onsubmit = async (e) => {
-        e.preventDefault();
-        try { await db.checklist_sets.add({name: document.getElementById('new-set-name').value}); renderChecklistSets(); } catch { alert('作成失敗'); }
-    };
+    document.getElementById('set-list').querySelectorAll('.trap-card').forEach(d => { if(d.tagName === 'BUTTON') return; d.onclick = (e) => { if(!e.target.classList.contains('del-set')) showChecklistDetail(parseInt(d.dataset.id)); }; });
+    document.querySelectorAll('.del-set').forEach(b => b.onclick = async (e) => { if(confirm('削除しますか？')) { const id = parseInt(e.target.dataset.id); await db.checklist_items.where('list_id').equals(id).delete(); await db.checklist_sets.delete(id); renderChecklistSets(); } });
+    document.getElementById('add-set-form').onsubmit = async (e) => { e.preventDefault(); try { await db.checklist_sets.add({name: document.getElementById('new-set-name').value}); renderChecklistSets(); } catch { alert('作成失敗'); } };
 }
 
 async function showChecklistDetail(id) {
     const set = await db.checklist_sets.get(id);
-    let mode = 'check'; // check or edit
-    
+    let mode = 'check'; 
     const render = async () => {
         updateHeader(set.name, true);
         backButton.onclick = showChecklistPage;
         const items = await db.checklist_items.where('list_id').equals(id).toArray();
-        
         let html = `
             <div class="sub-tab-container">
                 <div id="tab-check" class="sub-tab-btn ${mode==='check'?'active':''}">チェック</div>
                 <div id="tab-edit" class="sub-tab-btn ${mode==='edit'?'active':''}">項目管理</div>
             </div>
         `;
-
         if(mode === 'check') {
             html += `
-                <div class="card p-2"><button id="reset" class="btn btn-secondary w-full">チェックをリセット</button></div>
-                <div class="space-y-1">
+                <div class="card bg-white mb-4"><button id="reset" class="btn btn-secondary w-full">チェックをリセット</button></div>
+                <div class="space-y-2">
                     ${items.map(i => `
-                        <div class="card flex items-center p-2 cursor-pointer row" data-id="${i.id}">
-                            <div class="w-6 h-6 border rounded mr-2 flex items-center justify-center ${i.is_checked?'bg-blue-600 border-blue-600 text-white':''}">${i.is_checked?'✓':''}</div>
+                        <div class="card bg-white flex items-center p-3 cursor-pointer row" data-id="${i.id}">
+                            <div class="w-6 h-6 border rounded mr-3 flex items-center justify-center ${i.is_checked?'bg-blue-600 border-blue-600 text-white':''}">${i.is_checked?'✓':''}</div>
                             <span class="${i.is_checked?'text-gray-400 line-through':''} checklist-item">${escapeHTML(i.name)}</span>
                         </div>`).join('')}
                 </div>`;
         } else {
             html += `
-                <div class="card p-2 flex gap-2"><input id="new-item" class="form-input" placeholder="項目名"><button id="add-item" class="btn btn-primary">追加</button></div>
-                <div class="space-y-1">
-                    ${items.map(i => `<div class="card flex justify-between p-2"><span>${escapeHTML(i.name)}</span><button class="btn btn-sm btn-danger del-item" data-id="${i.id}">×</button></div>`).join('')}
+                <div class="card bg-white mb-4"><div class="flex gap-2"><input id="new-item" class="form-input" placeholder="項目名"><button id="add-item" class="btn btn-primary">追加</button></div></div>
+                <div class="space-y-2">
+                    ${items.map(i => `<div class="card bg-white flex justify-between p-3"><span>${escapeHTML(i.name)}</span><button class="btn btn-sm btn-danger del-item" data-id="${i.id}">×</button></div>`).join('')}
                 </div>`;
         }
         app.innerHTML = html;
-
         document.getElementById('tab-check').onclick = () => { mode='check'; render(); };
         document.getElementById('tab-edit').onclick = () => { mode='edit'; render(); };
-
         if(mode==='check') {
             document.getElementById('reset').onclick = async () => { await db.checklist_items.where('list_id').equals(id).modify({is_checked:false}); render(); };
-            document.querySelectorAll('.row').forEach(r => r.onclick = async (e) => {
-                const i = items.find(x => x.id === parseInt(e.currentTarget.dataset.id));
-                await db.checklist_items.update(i.id, {is_checked: !i.is_checked});
-                render();
-            });
+            document.querySelectorAll('.row').forEach(r => r.onclick = async (e) => { const i = items.find(x => x.id === parseInt(e.currentTarget.dataset.id)); await db.checklist_items.update(i.id, {is_checked: !i.is_checked}); render(); });
         } else {
             document.getElementById('add-item').onclick = async () => { await db.checklist_items.add({list_id:id, name:document.getElementById('new-item').value, is_checked:false}); render(); };
             document.querySelectorAll('.del-item').forEach(b => b.onclick = async (e) => { await db.checklist_items.delete(parseInt(e.target.dataset.id)); render(); });
@@ -1146,342 +858,264 @@ async function showChecklistDetail(id) {
     render();
 }
 
-
-// ----------------------------------------------------------------------------
-// 7. 情報 (図鑑・プロフィール) (UI改善)
-// ----------------------------------------------------------------------------
-
-function showInfoPage() {
-    navigateTo('info', renderInfoTopPage, '情報');
-}
+function showInfoPage() { navigateTo('info', renderInfoTopPage, '情報'); }
 
 function renderInfoTopPage() {
     updateHeader('情報', false);
     app.innerHTML = `
-        <div class="space-y-2">
-            <div class="card flex items-center gap-3 p-3 cursor-pointer" onclick="showGameAnimalListPage()">
-                <div class="bg-green-100 p-2 rounded text-green-600 text-xl"><i class="fas fa-book"></i></div>
-                <div><h3 class="font-bold">狩猟鳥獣図鑑</h3><p class="text-xs text-gray-500">生態・被害・特徴</p></div>
-                <i class="fas fa-chevron-right ml-auto text-gray-300"></i>
+        <div class="space-y-4">
+            <div class="card bg-white hover:bg-gray-50 cursor-pointer" onclick="showGameAnimalListPage()">
+                <div class="flex items-center p-4">
+                    <div class="bg-green-100 p-3 rounded-full mr-4"><i class="fas fa-book text-green-600 text-2xl"></i></div>
+                    <div><h2 class="text-lg font-bold text-gray-800">狩猟鳥獣図鑑</h2><p class="text-sm text-gray-500">狩猟対象や特徴を確認</p></div>
+                    <div class="ml-auto text-gray-400"><i class="fas fa-chevron-right"></i></div>
+                </div>
             </div>
-            <div class="card flex items-center gap-3 p-3 cursor-pointer" onclick="showHunterProfilePage()">
-                <div class="bg-blue-100 p-2 rounded text-blue-600 text-xl"><i class="fas fa-id-card"></i></div>
-                <div><h3 class="font-bold">捕獲者情報</h3><p class="text-xs text-gray-500">許可証管理</p></div>
-                <i class="fas fa-chevron-right ml-auto text-gray-300"></i>
+            <div class="card bg-white hover:bg-gray-50 cursor-pointer" onclick="showHunterProfilePage()">
+                <div class="flex items-center p-4">
+                    <div class="bg-blue-100 p-3 rounded-full mr-4"><i class="fas fa-id-card text-blue-600 text-2xl"></i></div>
+                    <div><h2 class="text-lg font-bold text-gray-800">捕獲者情報</h2><p class="text-sm text-gray-500">免許や許可証の期限・写真管理</p></div>
+                    <div class="ml-auto text-gray-400"><i class="fas fa-chevron-right"></i></div>
+                </div>
             </div>
         </div>
     `;
 }
 
-// 図鑑一覧
 async function showGameAnimalListPage() {
     if (!appState.infoSort) appState.infoSort = 'default';
     if (!appState.infoFilterAttribute) appState.infoFilterAttribute = 'all';
     updateHeader('狩猟鳥獣図鑑', true);
     backButton.onclick = () => showInfoPage();
-
     app.innerHTML = `
-        <div class="space-y-2">
-            <div class="card bg-white p-2">
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div class="form-group mb-0">
-                        <label class="form-label">並び替え:</label>
-                        <select id="info-sort" class="form-select">
-                            <option value="default">標準 (CSV順)</option>
-                            <option value="name">あいうえお順</option>
-                        </select>
-                    </div>
-                    <div class="form-group mb-0">
-                        <label class="form-label">属性:</label>
-                        <select id="info-filter-attribute" class="form-select">
-                            <option value="all">すべて表示</option>
-                            <option value="game_animal">狩猟鳥獣</option>
-                            <option value="invasive">外来種</option>
-                            <option value="mammal">哺乳類</option>
-                            <option value="bird">鳥類</option>
-                            <option value="gun">銃猟</option>
-                            <option value="trap">罠猟</option>
-                            <option value="net">網猟</option>
-                        </select>
-                    </div>
+        <div class="space-y-4">
+            <div class="card bg-white">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="form-group mb-0"><label class="form-label">並び替え:</label><select id="info-sort" class="form-select"><option value="default">標準 (CSV順)</option><option value="name">あいうえお順</option></select></div>
+                    <div class="form-group mb-0"><label class="form-label">属性:</label><select id="info-filter-attribute" class="form-select"><option value="all">すべて表示</option><option value="game_animal">狩猟鳥獣</option><option value="invasive">外来種</option><option value="mammal">哺乳類</option><option value="bird">鳥類</option><option value="gun">銃猟</option><option value="trap">罠猟</option><option value="net">網猟</option></select></div>
                 </div>
-                <div class="card p-2 flex gap-2"><input id="search" class="form-input" placeholder="名前で検索..."></div>
-                <div id="ga-list" class="space-y-1"><p class="text-center py-4">読み込み中...</p></div>
+                <div id="game-animal-list" class="space-y-3"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
             </div>
-        </div>`;
-    
+        </div>
+    `;
     document.getElementById('info-sort').value = appState.infoSort;
     document.getElementById('info-filter-attribute').value = appState.infoFilterAttribute;
-
-    document.getElementById('info-sort').addEventListener('change', (e) => { appState.infoSort = e.target.value; renderGAList(); });
-    document.getElementById('info-filter-attribute').addEventListener('change', (e) => { appState.infoFilterAttribute = e.target.value; renderGAList(); });
-    document.getElementById('search').oninput = (e) => { renderGAList(e.target.value); };
-
-    renderGAList();
+    document.getElementById('info-sort').addEventListener('change', (e) => { appState.infoSort = e.target.value; renderGameAnimalList(); });
+    document.getElementById('info-filter-attribute').addEventListener('change', (e) => { appState.infoFilterAttribute = e.target.value; renderGameAnimalList(); });
+    await renderGameAnimalList();
 }
 
-async function renderGAList(searchTerm = '') {
-    const listEl = document.getElementById('ga-list');
-    let animals = await db.game_animal_list.toArray();
-    const attr = appState.infoFilterAttribute;
-    
-    if (attr !== 'all') {
-        animals = animals.filter(a => {
-            if (attr === 'game_animal') return a.is_game_animal === '〇';
-            if (attr === 'invasive') return a.notes && a.notes.includes('外来');
-            if (attr === 'mammal') return a.category === '哺乳類';
-            if (attr === 'bird') return a.category === '鳥類';
-            if (attr === 'gun') return ['○', '〇', '◎'].includes(a.method_gun);
-            if (attr === 'trap') return ['○', '〇', '◎'].includes(a.method_trap);
-            if (attr === 'net') return ['○', '〇', '◎'].includes(a.method_net);
-            return true;
-        });
-    }
-    if (searchTerm) {
-        animals = animals.filter(a => a.species_name.includes(searchTerm));
-    }
-
-    if (appState.infoSort === 'name') animals.sort((a, b) => a.species_name.localeCompare(b.species_name, 'ja'));
-    else animals.sort((a, b) => a.id - b.id);
-
-    if(animals.length === 0) { listEl.innerHTML = '<p class="text-center">該当なし</p>'; return; }
-
-    listEl.innerHTML = animals.map(a => {
-        let badges = '';
-        if (a.category === '哺乳類') badges += `<span class="badge" style="background:#fef3c7;color:#92400e;">哺乳類</span>`;
-        if (a.category === '鳥類') badges += `<span class="badge" style="background:#e0f2fe;color:#075985;">鳥類</span>`;
-        if (a.is_game_animal === '〇') badges += `<span class="badge" style="background:#dcfce7;color:#166534;">狩猟鳥獣</span>`;
-        
-        const img = a.image_1 ? `<img src="./image/${escapeHTML(a.image_1)}" class="animal-thumb">` : `<div class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-300"><i class="fas fa-paw"></i></div>`;
-        return `
-            <div class="animal-card bg-white" onclick="showGameAnimalDetail(${a.id})">
-                <div class="flex items-center gap-2">
-                    <div class="w-12 h-12 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                        ${a.image_1 ? `<img src="./image/${escapeHTML(a.image_1)}" class="w-full h-full object-cover">` : '<i class="fas fa-paw text-gray-300 m-auto"></i>'}
-                    </div>
-                    <div>
-                        <h3 class="font-bold">${escapeHTML(a.species_name)}</h3>
-                        <div class="flex gap-1">${badges}</div>
-                    </div>
-                </div>
-                <i class="fas fa-chevron-right text-gray-300"></i>
-            </div>`;
-    }).join('');
+async function renderGameAnimalList() {
+    const listElement = document.getElementById('game-animal-list');
+    if (!listElement) return;
+    try {
+        let animals = await db.game_animal_list.toArray();
+        const attr = appState.infoFilterAttribute;
+        if (attr !== 'all') {
+            animals = animals.filter(a => {
+                if (attr === 'game_animal') return a.is_game_animal === '〇';
+                if (attr === 'invasive') return (a.notes && a.notes.includes('外来'));
+                if (attr === 'mammal') return a.category === '哺乳類';
+                if (attr === 'bird') return a.category === '鳥類';
+                if (attr === 'gun') return ['○', '〇', '◎'].includes(a.method_gun);
+                if (attr === 'trap') return ['○', '〇', '◎'].includes(a.method_trap);
+                if (attr === 'net') return ['○', '〇', '◎'].includes(a.method_net);
+                return true;
+            });
+        }
+        if (appState.infoSort === 'name') { animals.sort((a, b) => a.species_name.localeCompare(b.species_name, 'ja')); } else { animals.sort((a, b) => a.id - b.id); }
+        if (animals.length === 0) { listElement.innerHTML = `<p class="text-gray-500 text-center py-4">該当する鳥獣はいません。</p>`; return; }
+        listElement.innerHTML = animals.map(animal => {
+            let badges = '';
+            if (animal.category === '哺乳類') badges += `<span class="badge" style="background:#fef3c7;color:#92400e;">哺乳類</span>`;
+            else if (animal.category === '鳥類') badges += `<span class="badge" style="background:#e0f2fe;color:#075985;">鳥類</span>`;
+            if (animal.is_game_animal === '〇') badges += `<span class="badge" style="background:#dcfce7;color:#166534;">狩猟鳥獣</span>`;
+            if (animal.notes && animal.notes.includes('外来')) badges += `<span class="badge" style="background:#fae8ff;color:#86198f;">外来種</span>`;
+            let thumbHTML = '';
+            if (animal.image_1) { const imgPath = `./image/${escapeHTML(animal.image_1)}`; thumbHTML = `<div class="animal-thumb-container"><img src="${imgPath}" alt="${escapeHTML(animal.species_name)}" class="animal-thumb" loading="lazy"></div>`; } else { thumbHTML = `<div class="animal-thumb-container bg-gray-100 flex items-center justify-center text-gray-300"><i class="fas fa-paw text-2xl"></i></div>`; }
+            return `<div class="animal-card bg-white" data-id="${animal.id}">${thumbHTML}<div class="animal-info"><div class="animal-header"><h3 class="animal-name">${escapeHTML(animal.species_name)}</h3></div><div class="animal-badges">${badges}</div></div><div class="animal-arrow"><span>&gt;</span></div></div>`;
+        }).join('');
+        listElement.querySelectorAll('.animal-card').forEach(card => { card.addEventListener('click', () => showGameAnimalDetail(parseInt(card.dataset.id, 10))); });
+    } catch (err) { console.error("Failed to render game animal list:", err); }
 }
 
 async function showGameAnimalDetail(id) {
-    const a = await db.game_animal_list.get(id);
-    if (!a) return;
-    updateHeader(a.species_name, true);
-    backButton.onclick = () => showGameAnimalListPage();
-    
-    let imgs = '';
-    if(a.image_1) imgs += `<img src="./image/${escapeHTML(a.image_1)}" class="w-full h-48 object-cover rounded mb-1">`;
-    if(a.image_2) imgs += `<img src="./image/${escapeHTML(a.image_2)}" class="w-full h-48 object-cover rounded">`;
-
-    // 区分ロジック
-    let methods = [];
-    if(a.is_game_animal === '〇') {
-        const s = ['○', '〇', '◎'];
-        if(s.includes(a.method_gun)) methods.push('銃');
-        if(s.includes(a.method_trap)) methods.push('罠');
-        if(s.includes(a.method_net)) methods.push('網');
-    }
-    const statusVal = methods.length > 0 ? methods.join('・') : (a.is_game_animal === '〇' ? '狩猟鳥獣' : '非狩猟鳥獣');
-    const genderVal = (a.gender && a.gender.includes('オスのみ')) ? a.gender : null;
-    let prohibitedVal = a.prohibited_area;
-    if (!prohibitedVal || prohibitedVal === 'nan' || prohibitedVal === '-') prohibitedVal = null;
-
-    app.innerHTML = `
-        <div class="space-y-2">
-            ${imgs ? `<div class="card p-1">${imgs}</div>` : ''}
-            <div class="card"><h3 class="font-bold border-b mb-1">生態</h3><p class="text-sm">${a.ecology||'-'}</p></div>
-            <div class="card"><h3 class="font-bold border-b mb-1">被害・特徴</h3><p class="text-sm">${a.damage||'-'}</p></div>
-            <div class="card">
-                <h3 class="font-bold border-b mb-1">データ</h3>
-                <table class="w-full text-sm">
-                    <tr><th class="text-left w-1/3 text-gray-500">狩猟</th><td>${statusVal}</td></tr>
-                    ${genderVal ? `<tr><th class="text-left text-gray-500">性別制限</th><td>${genderVal}</td></tr>` : ''}
-                    <tr><th class="text-left text-gray-500">制限</th><td>${a.count||'-'}</td></tr>
-                    ${prohibitedVal ? `<tr><th class="text-left text-gray-500">狩猟禁止区域</th><td>${prohibitedVal}</td></tr>` : ''}
-                    <tr><th class="text-left text-gray-500">生息地</th><td>${a.habitat||'-'}</td></tr>
-                    <tr><th class="text-left text-gray-500">備考</th><td>${a.notes||'-'}</td></tr>
-                </table>
-            </div>
-        </div>
-    `;
+    try {
+        const animal = await db.game_animal_list.get(id);
+        if (!animal) return;
+        updateHeader(animal.species_name, true);
+        backButton.onclick = () => showGameAnimalListPage();
+        let imagesHTML = '';
+        if (animal.image_1) imagesHTML += `<img src="./image/${escapeHTML(animal.image_1)}" class="w-full h-auto rounded mb-2 border">`;
+        if (animal.image_2) imagesHTML += `<img src="./image/${escapeHTML(animal.image_2)}" class="w-full h-auto rounded mb-2 border">`;
+        if (!imagesHTML) imagesHTML = '<p class="text-gray-400 text-sm">画像はありません</p>';
+        let statusValue = '';
+        if (animal.is_game_animal === '〇') {
+            const methods = [];
+            const validSym = ['○', '〇', '◎'];
+            if (validSym.includes(animal.method_gun)) methods.push('銃');
+            if (validSym.includes(animal.method_trap)) methods.push('罠');
+            if (validSym.includes(animal.method_net)) methods.push('網');
+            statusValue = methods.length > 0 ? methods.join('・') : '狩猟鳥獣';
+        } else { statusValue = '非狩猟鳥獣'; }
+        const genderValue = (animal.gender && animal.gender.includes('オスのみ')) ? animal.gender : null;
+        let prohibitedAreaValue = animal.prohibited_area;
+        if (!prohibitedAreaValue || prohibitedAreaValue === 'nan' || prohibitedAreaValue === '-') prohibitedAreaValue = null;
+        const tableRows = [['狩猟', statusValue], ['性別制限', genderValue], ['捕獲数制限', animal.count], ['狩猟禁止区域', prohibitedAreaValue], ['生息地', animal.habitat], ['備考', animal.notes]].map(([label, value]) => {
+            if (!value || value === 'nan') return '';
+            return `<tr class="border-b"><th class="w-1/3 text-left font-medium text-gray-600 p-2 bg-gray-50">${label}</th><td class="w-2/3 p-2">${escapeHTML(value)}</td></tr>`;
+        }).join('');
+        app.innerHTML = `<div class="space-y-4"><div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">写真</h2>${imagesHTML}</div><div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">生態</h2><p class="text-sm text-gray-800 leading-relaxed">${animal.ecology ? escapeHTML(animal.ecology).replace(/\n/g, '<br>') : '情報なし'}</p></div><div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">被害・特徴</h2><p class="text-sm text-gray-800 leading-relaxed">${animal.damage ? escapeHTML(animal.damage).replace(/\n/g, '<br>') : '情報なし'}</p></div><div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-0">データ</h2><table class="w-full text-sm"><tbody>${tableRows}</tbody></table></div></div>`;
+    } catch (err) { console.error(err); alert('詳細の読み込みに失敗しました。'); }
 }
 
-// プロフィール (項目別保存版)
 async function showHunterProfilePage() {
-    updateHeader('登録情報', true);
+    updateHeader('捕獲者情報', true);
     backButton.onclick = () => showInfoPage();
-    
-    const p = await db.hunter_profile.get('main') || {};
-    const imgs = await db.profile_images.toArray();
-    const fields = [{k:'name',l:'氏名'},{k:'gun_license_renewal',l:'銃所持許可'},{k:'hunting_license_renewal',l:'狩猟免状'},{k:'registration_renewal',l:'登録証'},{k:'explosives_permit_renewal',l:'火薬許可'}];
+    app.innerHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">登録情報</h2><div id="hunter-profile-container"><p class="text-gray-500">読み込み中...</p></div></div>`;
+    await renderHunterProfile();
+}
 
-    app.innerHTML = `
-        <div class="space-y-2">
-            <div class="card text-right py-1"><button id="edit" class="text-blue-600 text-sm">編集モードへ</button></div>
-            ${fields.map(f => {
-                const myImgs = imgs.filter(i=>i.type===f.k);
-                let imgHTML = '';
-                if(myImgs.length) {
-                    imgHTML = `<div class="flex gap-1 mt-1 overflow-x-auto">` + myImgs.map(i=>{
-                        const u = URL.createObjectURL(i.image_blob); appState.activeBlobUrls.push(u);
-                        return `<img src="${u}" class="h-12 w-12 rounded border object-cover" onclick="showImageModal(this.src)">`;
-                    }).join('') + `</div>`;
-                }
-                return `<div class="card"><div class="flex justify-between"><span class="text-gray-500 text-sm">${f.l}</span><span class="font-bold">${escapeHTML(p[f.k]||'')}</span></div>${imgHTML}</div>`;
-            }).join('')}
-        </div>
-    `;
-    document.getElementById('edit').onclick = () => showHunterProfileEdit();
+async function renderHunterProfile() {
+    const container = document.getElementById('hunter-profile-container');
+    try {
+        const profile = await db.hunter_profile.get('main') || {};
+        const allImages = await db.profile_images.toArray();
+        const fields = [{ key: 'name', label: '氏名' }, { key: 'gun_license_renewal', label: '銃所持許可 期限' }, { key: 'hunting_license_renewal', label: '狩猟免状 期限' }, { key: 'registration_renewal', label: '狩猟者登録 期限' }, { key: 'explosives_permit_renewal', label: '火薬類譲受許可 期限' }];
+        let html = `<div class="text-right mb-2"><button id="edit-profile-btn" class="text-blue-600 text-sm hover:underline"><i class="fas fa-edit"></i> 編集</button></div>`;
+        fields.forEach(field => {
+            const value = profile[field.key] || '未設定';
+            const fieldImages = allImages.filter(img => img.type === field.key);
+            let imagesHtml = '';
+            if (fieldImages.length > 0) {
+                imagesHtml = `<div class="flex gap-2 mt-2 overflow-x-auto pb-2">`;
+                fieldImages.forEach(img => {
+                    const url = URL.createObjectURL(img.image_blob);
+                    appState.activeBlobUrls.push(url);
+                    imagesHtml += `<img src="${url}" class="h-16 w-16 object-cover rounded border cursor-zoom-in clickable-image">`;
+                });
+                imagesHtml += `</div>`;
+            }
+            html += `<div class="mb-4 border-b pb-3 last:border-b-0"><div class="flex justify-between items-center"><span class="text-sm font-medium text-gray-500">${field.label}</span><span class="text-base font-bold text-gray-800">${escapeHTML(value)}</span></div>${imagesHtml}</div>`;
+        });
+        container.innerHTML = html;
+        document.getElementById('edit-profile-btn').addEventListener('click', showHunterProfileEdit);
+        container.querySelectorAll('.clickable-image').forEach(img => { img.addEventListener('click', (e) => showImageModal(e.target.src)); });
+    } catch (err) { container.innerHTML = '読み込みエラー'; }
 }
 
 async function showHunterProfileEdit() {
-    updateHeader('情報編集', true);
+    const profile = await db.hunter_profile.get('main') || {};
+    const allImages = await db.profile_images.toArray();
+    updateHeader('捕獲者情報の編集', true);
     backButton.onclick = () => showHunterProfilePage();
-    
-    const p = await db.hunter_profile.get('main') || {key:'main'};
-    const imgs = await db.profile_images.toArray();
-    const fields = [{k:'name',l:'氏名'},{k:'gun_license_renewal',l:'銃所持許可'},{k:'hunting_license_renewal',l:'狩猟免状'},{k:'registration_renewal',l:'登録証'},{k:'explosives_permit_renewal',l:'火薬許可'}];
-
-    app.innerHTML = `<div id="editor" class="space-y-2"></div><input type="file" id="file" hidden>`;
-    const editor = document.getElementById('editor');
-    const fileIn = document.getElementById('file');
-    let targetKey = null;
-
-    fields.forEach(f => {
-        const myImgs = imgs.filter(i=>i.type===f.k);
-        let imgHTML = myImgs.map(i => {
-            const u = URL.createObjectURL(i.image_blob); appState.activeBlobUrls.push(u);
-            return `<div class="relative inline-block mr-1"><img src="${u}" class="h-12 w-12 rounded object-cover"><button class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center del-img" data-id="${i.id}">×</button></div>`;
-        }).join('');
-
-        const div = document.createElement('div');
-        div.className = 'card';
-        div.innerHTML = `
-            <label class="form-label">${f.l}</label>
-            <div class="flex gap-2 mb-2"><input id="in-${f.k}" class="form-input flex-1" value="${escapeHTML(p[f.k]||'')}"><button class="btn btn-primary w-16 save" data-key="${f.k}">保存</button></div>
-            <div class="flex items-center flex-wrap">${imgHTML}<button class="btn btn-secondary btn-sm h-12 w-12 flex flex-col items-center justify-center text-xs add-img" data-key="${f.k}"><i class="fas fa-camera"></i></button></div>
-        `;
-        editor.appendChild(div);
+    const fields = [{ key: 'name', label: '氏名' }, { key: 'gun_license_renewal', label: '銃所持許可 期限' }, { key: 'hunting_license_renewal', label: '狩猟免状 期限' }, { key: 'registration_renewal', label: '狩猟者登録 期限' }, { key: 'explosives_permit_renewal', label: '火薬類譲受許可 期限' }];
+    app.innerHTML = `<div class="card bg-white"><h3 class="text-md font-bold mb-4 border-b pb-2">項目別編集</h3><div id="edit-fields-container" class="space-y-6"></div></div><input type="file" id="hidden-image-input" accept="image/*" style="display: none;">`;
+    const container = document.getElementById('edit-fields-container');
+    const fileInput = document.getElementById('hidden-image-input');
+    let currentTargetKey = null;
+    fields.forEach(field => {
+        const fieldDiv = document.createElement('div');
+        fieldDiv.className = 'border-b pb-4 last:border-b-0';
+        const fieldImages = allImages.filter(img => img.type === field.key);
+        let imagesHtml = '';
+        fieldImages.forEach(img => {
+            const url = URL.createObjectURL(img.image_blob);
+            appState.activeBlobUrls.push(url);
+            imagesHtml += `<div class="relative inline-block mr-2 mb-2"><img src="${url}" class="h-16 w-16 object-cover rounded border"><button class="btn-delete-img absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" data-id="${img.id}">&times;</button></div>`;
+        });
+        fieldDiv.innerHTML = `<label class="form-label">${field.label}</label><div class="flex space-x-2 mb-2"><input type="text" id="input-${field.key}" class="form-input flex-1" value="${escapeHTML(profile[field.key] || '')}"><button class="btn btn-primary btn-save-individual w-20" data-key="${field.key}">保存</button></div><div class="mt-2"><div class="flex flex-wrap items-center">${imagesHtml}<button class="btn-add-img btn btn-secondary btn-sm h-16 w-16 flex flex-col items-center justify-center text-xs text-gray-500 border-dashed border-2" data-key="${field.key}"><i class="fas fa-camera text-lg mb-1"></i>追加</button></div></div>`;
+        container.appendChild(fieldDiv);
     });
-
-    editor.querySelectorAll('.save').forEach(b => b.onclick = async (e) => {
-        const k = e.target.dataset.key;
-        p[k] = document.getElementById(`in-${k}`).value;
-        await db.hunter_profile.put(p);
-        e.target.textContent='OK'; setTimeout(()=>e.target.textContent='保存',1000);
+    container.querySelectorAll('.btn-save-individual').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const key = e.target.dataset.key;
+            const input = document.getElementById(`input-${key}`);
+            const newValue = input.value;
+            const originalText = e.target.textContent;
+            try {
+                const currentProfile = await db.hunter_profile.get('main') || { key: 'main' };
+                currentProfile[key] = newValue;
+                await db.hunter_profile.put(currentProfile);
+                e.target.textContent = 'OK!';
+                e.target.classList.replace('btn-primary', 'btn-success');
+                setTimeout(() => { e.target.textContent = originalText; e.target.classList.replace('btn-success', 'btn-primary'); }, 1500);
+            } catch (err) { alert('保存失敗'); }
+        });
     });
-    editor.querySelectorAll('.add-img').forEach(b => b.onclick = (e) => { targetKey=e.currentTarget.dataset.key; fileIn.click(); });
-    editor.querySelectorAll('.del-img').forEach(b => b.onclick = async (e) => { await db.profile_images.delete(parseInt(e.target.dataset.id)); showHunterProfileEdit(); });
-
-    fileIn.onchange = async (e) => {
-        if(e.target.files[0]) {
-            const b = await resizeImage(e.target.files[0]);
-            await db.profile_images.add({type:targetKey, image_blob:b});
+    container.querySelectorAll('.btn-add-img').forEach(btn => { btn.addEventListener('click', (e) => { currentTargetKey = e.currentTarget.dataset.key; fileInput.click(); }); });
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file || !currentTargetKey) return;
+        try {
+            const resizedBlob = await resizeImage(file, 800);
+            await db.profile_images.add({ type: currentTargetKey, image_blob: resizedBlob });
             showHunterProfileEdit();
-        }
-        fileIn.value = '';
-    };
+        } catch (err) { console.error(err); alert('写真の保存に失敗しました。'); } finally { fileInput.value = ''; }
+    });
+    container.querySelectorAll('.btn-delete-img').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            if (confirm('この写真を削除しますか？')) {
+                const id = parseInt(e.target.dataset.id);
+                await db.profile_images.delete(id);
+                showHunterProfileEdit();
+            }
+        });
+    });
 }
 
+function showSettingsPage() { navigateTo('settings', renderSettingsMenu, '設定'); }
 
-// ----------------------------------------------------------------------------
-// 8. 設定機能
-// ----------------------------------------------------------------------------
-
-function showSettingsPage() {
-    updateHeader('設定', false);
-    app.innerHTML = `
-        <div class="space-y-2">
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">使用方法</h2>
-                <div class="space-y-2">
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">⛓️ 罠タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">罠の設置・管理・捕獲記録を行います。</div></details>
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">🔫 銃タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">銃と弾の管理、発砲履歴の記録を行います。</div></details>
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">🦌 捕獲タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">全ての捕獲記録を一覧表示・検索します。</div></details>
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">✅ チェックタブ</summary><div class="mt-2 pt-2 border-t text-gray-700">持ち物リストなどを作成し、出猟前にチェックできます。</div></details>
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">📖 情報タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">鳥獣図鑑（生態・被害）の閲覧や、許可証期限・写真の管理ができます。</div></details>
-                </div>
-            </div>
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">表示設定</h2>
-                <div class="form-group"><label class="form-label">背景色:</label><select id="st-theme" class="form-select"><option value="light">ライト</option><option value="sepia">セピア</option><option value="lightgreen">緑</option><option value="lightblue">ブルー</option></select></div>
-                <div class="form-group"><label class="form-label">文字サイズ:</label><select id="st-size" class="form-select"><option value="xsmall">極小</option><option value="small">小</option><option value="medium">中</option><option value="large">大</option><option value="xlarge">特大</option></select></div>
-            </div>
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">データ管理</h2>
-                <button id="exp-btn" class="btn btn-primary w-full mb-2">バックアップ (保存)</button>
-                <button id="imp-btn" class="btn btn-danger w-full">復元 (読込)</button>
-                <input type="file" id="imp-file" style="display:none">
-                <hr class="my-4">
-                <button id="csv-gun" class="btn btn-secondary w-full mb-2">銃履歴CSV出力</button>
-                <button id="csv-catch" class="btn btn-secondary w-full mb-2">捕獲記録CSV出力</button>
-                <hr class="my-2">
-                <button id="upd-dic" class="btn btn-secondary w-full">図鑑データをCSVから更新</button>
-                <p id="csv-st" class="text-sm text-center text-gray-500 h-4"></p>
-            </div>
-            <div class="card bg-white border border-yellow-300"><h2 class="text-lg font-semibold border-b pb-2 mb-4 text-yellow-700">システム</h2>
-                <button id="sys-upd" class="btn btn-warning w-full font-bold">アプリを最新に更新</button>
-            </div>
-        </div>
-    `;
-
-    document.getElementById('st-theme').onchange = async (e) => { await db.settings.put({key:'theme',value:e.target.value}); applyTheme(e.target.value); };
-    document.getElementById('st-size').onchange = async (e) => { await db.settings.put({key:'fontSize',value:e.target.value}); applyFontSize(e.target.value); };
-    
-    document.getElementById('exp-btn').onclick = exportAllData;
-    document.getElementById('imp-btn').onclick = () => document.getElementById('imp-file').click();
-    document.getElementById('imp-file').onchange = (e) => { if(e.target.files.length>0) importAllData(e.target.files[0]); };
-    
-    document.getElementById('csv-gun').onclick = exportGunLogsAsCSV;
-    document.getElementById('csv-catch').onclick = exportCatchesAsCSV;
-    document.getElementById('upd-dic').onclick = async () => {
-        if(confirm('図鑑を更新しますか？')) {
-            document.getElementById('csv-st').textContent = '更新中...';
-            try { await populateGameAnimalListIfNeeded(true); document.getElementById('csv-st').textContent = '完了'; } catch { document.getElementById('csv-st').textContent = '失敗'; }
-        }
-    };
-    
-    document.getElementById('sys-upd').onclick = async () => {
-        if(confirm('キャッシュを削除してリロードしますか？')) {
-            if('serviceWorker' in navigator) (await navigator.serviceWorker.getRegistrations()).forEach(r=>r.unregister());
-            if('caches' in window) (await caches.keys()).forEach(k=>caches.delete(k));
-            location.reload(true);
-        }
-    };
+async function renderSettingsMenu() {
+    let currentTheme = 'light';
+    let currentFontSize = 'medium';
+    try {
+        const themeSetting = await db.settings.get('theme');
+        if (themeSetting) currentTheme = themeSetting.value;
+        const fontSizeSetting = await db.settings.get('fontSize');
+        if (fontSizeSetting) currentFontSize = fontSizeSetting.value;
+    } catch (err) {}
+    const themeOption = (value, label) => `<option value="${value}" ${currentTheme === value ? 'selected' : ''}>${label}</option>`;
+    const fontOption = (value, label) => `<option value="${value}" ${currentFontSize === value ? 'selected' : ''}>${label}</option>`;
+    app.innerHTML = `<div class="space-y-4"><div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">使用方法</h2><div class="space-y-2"><details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">⛓️ 罠タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">罠の設置・管理・捕獲記録を行います。</div></details><details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">🔫 銃タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">銃と弾の管理、発砲履歴の記録を行います。</div></details><details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">🦌 捕獲タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">全ての捕獲記録を一覧表示・検索します。</div></details><details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">✅ チェックタブ</summary><div class="mt-2 pt-2 border-t text-gray-700">持ち物リストなどを作成し、出猟前にチェックできます。</div></details><details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">📖 情報タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">鳥獣図鑑（生態・被害）の閲覧や、許可証期限・写真の管理ができます。</div></details></div></div><div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">表示設定</h2><div class="form-group"><label for="setting-theme" class="form-label">背景色:</label><select id="setting-theme" class="form-select">${themeOption('light', 'ライト')}${themeOption('sepia', 'セピア')}${themeOption('lightgreen', 'グリーン')}${themeOption('lightblue', 'ブルー')}</select></div><div class="form-group"><label for="setting-font-size" class="form-label">文字サイズ:</label><select id="setting-font-size" class="form-select">${fontOption('xsmall', '極小')}${fontOption('small', '小')}${fontOption('medium', '中')}${fontOption('large', '大')}${fontOption('xlarge', '特大')}</select></div></div><div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">データ管理</h2><button id="export-data-btn" class="btn btn-primary w-full mb-2">バックアップ (保存)</button><button id="import-data-btn" class="btn btn-danger w-full">復元 (読込)</button><input type="file" id="import-file-input" style="display:none"><hr class="my-4"><button id="export-gun-logs-csv-btn" class="btn btn-secondary w-full mb-2">銃履歴CSV出力</button><button id="export-catches-csv-btn" class="btn btn-secondary w-full mb-2">捕獲記録CSV出力</button><hr class="my-2"><button id="update-game-list-btn" class="btn btn-secondary w-full">図鑑データをCSVから更新</button><p id="csv-status" class="text-sm text-center text-gray-500 h-4"></p></div><div class="card bg-white border border-yellow-300"><h2 class="text-lg font-semibold border-b pb-2 mb-4 text-yellow-700">システム</h2><button id="force-app-update-btn" class="btn btn-warning w-full font-bold">アプリを最新に更新</button></div></div>`;
+    document.getElementById('setting-theme').addEventListener('change', async (e) => { await db.settings.put({ key: 'theme', value: e.target.value }); applyTheme(e.target.value); });
+    document.getElementById('setting-font-size').addEventListener('change', async (e) => { await db.settings.put({ key: 'fontSize', value: e.target.value }); applyFontSize(e.target.value); });
+    document.getElementById('export-data-btn').addEventListener('click', exportAllData);
+    document.getElementById('import-data-btn').addEventListener('click', () => document.getElementById('import-file-input').click());
+    document.getElementById('import-file-input').addEventListener('change', (e) => { if (e.target.files.length > 0) importAllData(e.target.files[0]); });
+    document.getElementById('export-gun-logs-csv-btn').addEventListener('click', exportGunLogsAsCSV);
+    document.getElementById('export-catches-csv-btn').addEventListener('click', exportCatchesAsCSV);
+    document.getElementById('update-game-list-btn').addEventListener('click', async () => { if (confirm('図鑑を更新しますか？')) { try { await populateGameAnimalListIfNeeded(true); document.getElementById('csv-status').textContent = '完了'; } catch { document.getElementById('csv-status').textContent = '失敗'; } } });
+    document.getElementById('force-app-update-btn').addEventListener('click', async () => { if (confirm('キャッシュを削除してリロードしますか？')) { if ('serviceWorker' in navigator) (await navigator.serviceWorker.getRegistrations()).forEach(r => r.unregister()); if ('caches' in window) (await caches.keys()).forEach(k => caches.delete(k)); location.reload(true); } });
 }
 
-// データ処理
 async function exportAllData() {
     const data = {};
-    for (const t of ['hunter_profile','settings','trap','trap_type','gun','gun_log','catch_records','checklist_sets','checklist_items','game_animal_list','ammo_purchases','profile_images']) {
+    for (const t of ['hunter_profile', 'settings', 'trap', 'trap_type', 'gun', 'gun_log', 'catch_records', 'checklist_sets', 'checklist_items', 'game_animal_list', 'ammo_purchases', 'profile_images']) {
         data[t] = await db[t].toArray();
     }
-    for (const t of ['trap','catch_records','gun_log','profile_images']) {
-        if(data[t]) data[t] = await Promise.all(data[t].map(async i => ({...i, image_blob: await blobToBase64(i.image_blob)})));
+    for (const t of ['trap', 'catch_records', 'gun_log', 'profile_images']) {
+        if (data[t]) data[t] = await Promise.all(data[t].map(async i => ({ ...i, image_blob: await blobToBase64(i.image_blob) })));
     }
-    const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `backup_${new Date().toISOString().slice(0,10)}.json`;
+    const a = document.createElement('a'); a.href = url; a.download = `backup_${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
 async function importAllData(file) {
-    if(!confirm('現在のデータは上書きされます。よろしいですか？')) return;
+    if (!confirm('データは上書きされます。よろしいですか？')) return;
     try {
         const data = JSON.parse(await file.text());
         const tabs = data.tables || data;
-        const conv = async (t) => tabs[t] ? Promise.all(tabs[t].map(async i => ({...i, image_blob: await base64ToBlob(i.image_blob)}))) : [];
-        
+        const conv = async (t) => tabs[t] ? Promise.all(tabs[t].map(async i => ({ ...i, image_blob: await base64ToBlob(i.image_blob) }))) : [];
         await db.transaction('rw', db.tables, async () => {
-            await Promise.all(db.tables.map(t=>t.clear()));
+            await Promise.all(db.tables.map(t => t.clear()));
             await Promise.all([
-                db.hunter_profile.bulkAdd(tabs.hunter_profile||[]), db.settings.bulkAdd(tabs.settings||[]),
-                db.trap_type.bulkAdd(tabs.trap_type||[]), db.gun.bulkAdd(tabs.gun||[]),
-                db.ammo_purchases.bulkAdd(tabs.ammo_purchases||[]), db.game_animal_list.bulkAdd(tabs.game_animal_list||[]),
-                db.checklist_sets.bulkAdd(tabs.checklist_sets||[]), db.checklist_items.bulkAdd(tabs.checklist_items||[]),
+                db.hunter_profile.bulkAdd(tabs.hunter_profile || []), db.settings.bulkAdd(tabs.settings || []),
+                db.trap_type.bulkAdd(tabs.trap_type || []), db.gun.bulkAdd(tabs.gun || []),
+                db.ammo_purchases.bulkAdd(tabs.ammo_purchases || []), db.game_animal_list.bulkAdd(tabs.game_animal_list || []),
+                db.checklist_sets.bulkAdd(tabs.checklist_sets || []), db.checklist_items.bulkAdd(tabs.checklist_items || []),
                 db.trap.bulkAdd(await conv('trap')), db.catch_records.bulkAdd(await conv('catch_records')),
                 db.gun_log.bulkAdd(await conv('gun_log')), db.profile_images.bulkAdd(await conv('profile_images'))
             ]);
@@ -1492,25 +1126,25 @@ async function importAllData(file) {
 
 async function exportGunLogsAsCSV() {
     const logs = await db.gun_log.orderBy('use_date').toArray();
-    if(!logs.length) return alert('なし');
-    const guns = await db.gun.toArray(); const gMap = new Map(guns.map(g=>[g.id,g.name]));
-    const headers = ['ID','使用日','銃','目的','弾数','同行者','場所','緯度','経度','メモ'];
-    const csv = '\uFEFF' + headers.join(',') + '\r\n' + logs.map(l => [l.id, l.use_date, gMap.get(l.gun_id)||'', l.purpose, l.ammo_count, l.companion, l.location, l.latitude, l.longitude, l.memo].map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    if (!logs.length) return alert('なし');
+    const guns = await db.gun.toArray(); const gMap = new Map(guns.map(g => [g.id, g.name]));
+    const headers = ['ID', '使用日', '銃', '目的', '弾数', '同行者', '場所', '緯度', '経度', 'メモ'];
+    const csv = '\uFEFF' + headers.join(',') + '\r\n' + logs.map(l => [l.id, l.use_date, gMap.get(l.gun_id) || '', l.purpose, l.ammo_count, l.companion, l.location, l.latitude, l.longitude, l.memo].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(',')).join('\r\n');
     downloadCSV(csv, 'gun_logs.csv');
 }
 
 async function exportCatchesAsCSV() {
     const recs = await db.catch_records.orderBy('catch_date').toArray();
-    if(!recs.length) return alert('なし');
-    const headers = ['ID','捕獲日','種名','性別','年齢','緯度','経度','メモ'];
-    const csv = '\uFEFF' + headers.join(',') + '\r\n' + recs.map(r => [r.id, r.catch_date, r.species_name, r.gender, r.age, r.latitude, r.longitude, r.memo].map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    if (!recs.length) return alert('なし');
+    const headers = ['ID', '捕獲日', '種名', '性別', '年齢', '緯度', '経度', 'メモ'];
+    const csv = '\uFEFF' + headers.join(',') + '\r\n' + recs.map(r => [r.id, r.catch_date, r.species_name, r.gender, r.age, r.latitude, r.longitude, r.memo].map(v => `"${(v || '').toString().replace(/"/g, '""')}"`).join(',')).join('\r\n');
     downloadCSV(csv, 'catch_records.csv');
 }
 
 function downloadCSV(csv, name) {
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download = name;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = name;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
-function blobToBase64(b) { return new Promise((res,rej)=>{ if(!b){res(null);return;} const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(b); }); }
-async function base64ToBlob(d) { if(!d)return null; return (await fetch(d)).blob(); }
+function blobToBase64(b) { return new Promise((res, rej) => { if (!b) { res(null); return; } const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); }); }
+async function base64ToBlob(d) { if (!d) return null; return (await fetch(d)).blob(); }
