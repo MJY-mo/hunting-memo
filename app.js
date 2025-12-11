@@ -302,27 +302,30 @@ async function showTrapPage() {
     const typeOptions = trapTypes.map(type => `<option value="${escapeHTML(type.name)}" ${filters.type === type.name ? 'selected' : ''}>${escapeHTML(type.name)}</option>`).join('');
     const isNewDisabled = view === 'closed';
 
-    let html = `
-        <div class="space-y-4">
-            <div class="flex border-b border-gray-300">
-                <button id="trap-tab-open" class="flex-1 py-2 text-center font-semibold ${view === 'open' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}">設置中</button>
-                <button id="trap-tab-closed" class="flex-1 py-2 text-center font-semibold ${view === 'closed' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}">過去の罠</button>
+    // ★ 修正: 余白を詰め、サブタブのデザインを変更
+    app.innerHTML = `
+        <div class="space-y-2">
+            <div class="sub-tab-container">
+                <div id="trap-tab-open" class="sub-tab-btn ${view === 'open' ? 'active' : ''}">設置中</div>
+                <div id="trap-tab-closed" class="sub-tab-btn ${view === 'closed' ? 'active' : ''}">過去の罠</div>
             </div>
+            
             <div class="flex space-x-2">
                 <button id="new-trap-btn" class="btn btn-primary flex-1" ${isNewDisabled ? 'disabled' : ''}><i class="fas fa-plus"></i> 新規設置</button>
-                <button id="manage-types-btn" class="btn btn-secondary flex-1"><i class="fas fa-cog"></i> 種類を管理</button>
+                <button id="manage-types-btn" class="btn btn-secondary flex-1"><i class="fas fa-cog"></i> 種類管理</button>
             </div>
+
             <div class="card bg-white">
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-2">
                     <div class="form-group mb-0">
-                        <label class="form-label">種類:</label>
+                        <label class="form-label">種類</label>
                         <select id="trap-filter-type" class="form-select">
                             <option value="all" ${filters.type === 'all' ? 'selected' : ''}>すべて</option>
                             ${typeOptions}
                         </select>
                     </div>
                     <div class="form-group mb-0">
-                        <label class="form-label">ソート:</label>
+                        <label class="form-label">順序</label>
                         <div class="flex space-x-2">
                             <select id="trap-sort-key" class="form-select">
                                 <option value="trap_number" ${sort.key === 'trap_number' ? 'selected' : ''}>番号</option>
@@ -336,10 +339,9 @@ async function showTrapPage() {
                     </div>
                 </div>
             </div>
-            <div id="trap-list" class="space-y-3"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
+            <div id="trap-list" class="space-y-1"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
         </div>
     `;
-    app.innerHTML = html;
     updateHeader('罠管理', false);
 
     document.getElementById('trap-tab-open').onclick = () => { appState.trapView = 'open'; showTrapPage(); };
@@ -370,7 +372,6 @@ async function renderTrapList() {
         
         traps.sort((a, b) => {
             let valA = a[sort.key], valB = b[sort.key];
-            // trap_number は数値として比較したい場合があるが、文字列として保存されていることが多いのでlocaleCompare
             if (sort.key === 'trap_number') return sort.order === 'asc' ? String(valA).localeCompare(String(valB), undefined, {numeric:true}) : String(valB).localeCompare(String(valA), undefined, {numeric:true});
             if (valA < valB) return sort.order === 'asc' ? -1 : 1;
             if (valA > valB) return sort.order === 'asc' ? 1 : -1;
@@ -383,15 +384,18 @@ async function renderTrapList() {
 
         listEl.innerHTML = traps.map((trap, index) => {
             const count = catchCounts[index];
-            const badge = count > 0 ? `<span class="text-xs font-semibold py-1 px-2 rounded text-emerald-600 bg-emerald-200">${count}件</span>` : '';
+            const badge = count > 0 ? `<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-bold">${count}</span>` : '';
             return `
                 <div class="trap-card bg-white" data-id="${trap.id}">
-                    <div class="flex-grow">
-                        <h3 class="text-lg font-semibold text-blue-600">No. ${escapeHTML(trap.trap_number)}</h3>
-                        <p class="text-sm text-gray-600">${escapeHTML(trap.type)} / ${formatDate(trap.setup_date)}</p>
+                    <div>
+                        <h3 class="font-bold text-blue-600">No. ${escapeHTML(trap.trap_number)}</h3>
+                        <p>${escapeHTML(trap.type)} <span class="text-xs text-gray-400">(${formatDate(trap.setup_date)})</span></p>
                         ${trap.close_date ? `<p class="text-xs text-gray-500">撤去: ${formatDate(trap.close_date)}</p>` : ''}
                     </div>
-                    <div class="flex-shrink-0 ml-4 flex items-center space-x-2">${badge}<span>&gt;</span></div>
+                    <div class="flex items-center gap-2">
+                        ${badge}
+                        <i class="fas fa-chevron-right text-gray-300"></i>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -1128,77 +1132,59 @@ async function renderChecklistSets() {
     };
 }
 
-async function showChecklistDetail(listId) {
-    const set = await db.checklist_sets.get(listId);
-    if(!set) return;
-    updateHeader(set.name, true);
-    backButton.onclick = () => renderChecklistSets();
-
-    app.innerHTML = `
-        <div class="space-y-4">
-            <div class="flex gap-2"><button id="mode-check" class="flex-1 py-2 border-b-2 border-blue-600 text-blue-600 font-bold">チェック</button><button id="mode-edit" class="flex-1 py-2 text-gray-500">項目管理</button></div>
-            <div id="check-content"></div>
-        </div>
-    `;
+async function showChecklistDetail(id) {
+    const set = await db.checklist_sets.get(id);
+    let mode = 'check'; // check or edit
     
-    const renderCheck = async () => {
-        const items = await db.checklist_items.where('list_id').equals(listId).toArray();
-        const html = `
-            <div class="card bg-white mb-4"><button id="reset-check" class="btn btn-secondary w-full">チェックをリセット</button></div>
-            <div class="space-y-2">
-                ${items.map(i => `
-                    <div class="card bg-white flex items-center p-3 cursor-pointer item-row" data-id="${i.id}">
-                        <div class="w-6 h-6 rounded border border-gray-400 flex items-center justify-center mr-3 ${i.is_checked ? 'bg-blue-600 border-blue-600' : 'bg-white'}">
-                            ${i.is_checked ? '<i class="fas fa-check text-white text-xs"></i>' : ''}
-                        </div>
-                        <span class="${i.is_checked ? 'text-gray-400 line-through' : 'text-gray-800'} text-lg">${escapeHTML(i.name)}</span>
-                    </div>
-                `).join('')}
+    const render = async () => {
+        updateHeader(set.name, true);
+        backButton.onclick = showChecklistPage;
+        const items = await db.checklist_items.where('list_id').equals(id).toArray();
+        
+        // ★ 修正: サブタブ
+        let html = `
+            <div class="sub-tab-container">
+                <div id="tab-check" class="sub-tab-btn ${mode==='check'?'active':''}">チェック</div>
+                <div id="tab-edit" class="sub-tab-btn ${mode==='edit'?'active':''}">項目管理</div>
             </div>
         `;
-        document.getElementById('check-content').innerHTML = html;
-        document.getElementById('reset-check').onclick = async () => {
-            await db.checklist_items.where('list_id').equals(listId).modify({is_checked: false});
-            renderCheck();
-        };
-        document.querySelectorAll('.item-row').forEach(r => r.onclick = async () => {
-            const item = await db.checklist_items.get(parseInt(r.dataset.id));
-            await db.checklist_items.update(item.id, {is_checked: !item.is_checked});
-            renderCheck();
-        });
-    };
 
-    const renderEdit = async () => {
-        const items = await db.checklist_items.where('list_id').equals(listId).toArray();
-        const html = `
-            <div class="card bg-white mb-4"><form id="add-item-form" class="flex gap-2"><input id="new-item-name" class="form-input" placeholder="項目名" required><button class="btn btn-primary">追加</button></form></div>
-            <div class="space-y-2">
-                ${items.map(i => `<div class="card bg-white flex justify-between p-3"><span>${escapeHTML(i.name)}</span><button class="btn btn-danger btn-sm del-item" data-id="${i.id}">削除</button></div>`).join('')}
-            </div>
-        `;
-        document.getElementById('check-content').innerHTML = html;
-        document.getElementById('add-item-form').onsubmit = async (e) => {
-            e.preventDefault();
-            try { await db.checklist_items.add({list_id: listId, name: document.getElementById('new-item-name').value, is_checked: false}); renderEdit(); } catch { alert('追加失敗'); }
-        };
-        document.querySelectorAll('.del-item').forEach(b => b.onclick = async (e) => {
-            if(confirm('削除しますか？')) { await db.checklist_items.delete(parseInt(e.target.dataset.id)); renderEdit(); }
-        });
-    };
+        if(mode === 'check') {
+            html += `
+                <div class="card p-2"><button id="reset" class="btn btn-secondary w-full">チェックをリセット</button></div>
+                <div class="space-y-1">
+                    ${items.map(i => `
+                        <div class="card flex items-center p-2 cursor-pointer row" data-id="${i.id}">
+                            <div class="w-6 h-6 border rounded mr-2 flex items-center justify-center ${i.is_checked?'bg-blue-600 border-blue-600 text-white':''}">${i.is_checked?'✓':''}</div>
+                            <span class="${i.is_checked?'text-gray-400 line-through':''} checklist-item">${escapeHTML(i.name)}</span>
+                        </div>`).join('')}
+                </div>`;
+        } else {
+            html += `
+                <div class="card p-2 flex gap-2"><input id="new-item" class="form-input" placeholder="項目名"><button id="add-item" class="btn btn-primary">追加</button></div>
+                <div class="space-y-1">
+                    ${items.map(i => `<div class="card flex justify-between p-2"><span>${escapeHTML(i.name)}</span><button class="btn btn-sm btn-danger del-item" data-id="${i.id}">×</button></div>`).join('')}
+                </div>`;
+        }
+        app.innerHTML = html;
 
-    renderCheck(); // 初期表示
-    document.getElementById('mode-check').onclick = () => { 
-        document.getElementById('mode-check').className = "flex-1 py-2 border-b-2 border-blue-600 text-blue-600 font-bold";
-        document.getElementById('mode-edit').className = "flex-1 py-2 text-gray-500";
-        renderCheck();
+        document.getElementById('tab-check').onclick = () => { mode='check'; render(); };
+        document.getElementById('tab-edit').onclick = () => { mode='edit'; render(); };
+
+        if(mode==='check') {
+            document.getElementById('reset').onclick = async () => { await db.checklist_items.where('list_id').equals(id).modify({is_checked:false}); render(); };
+            document.querySelectorAll('.row').forEach(r => r.onclick = async (e) => {
+                const i = items.find(x => x.id === parseInt(e.currentTarget.dataset.id));
+                await db.checklist_items.update(i.id, {is_checked: !i.is_checked});
+                render();
+            });
+        } else {
+            document.getElementById('add-item').onclick = async () => { await db.checklist_items.add({list_id:id, name:document.getElementById('new-item').value, is_checked:false}); render(); };
+            document.querySelectorAll('.del-item').forEach(b => b.onclick = async (e) => { await db.checklist_items.delete(parseInt(e.target.dataset.id)); render(); });
+        }
     };
-    document.getElementById('mode-edit').onclick = () => { 
-        document.getElementById('mode-edit').className = "flex-1 py-2 border-b-2 border-blue-600 text-blue-600 font-bold";
-        document.getElementById('mode-check').className = "flex-1 py-2 text-gray-500";
-        renderEdit();
-    };
+    render();
 }
-
 
 // ----------------------------------------------------------------------------
 // 7. 情報 (図鑑・プロフィール) (元 info.js)
@@ -1209,16 +1195,16 @@ function showInfoPage() { navigateTo('info', renderInfoTopPage, '情報'); }
 function renderInfoTopPage() {
     updateHeader('情報', false);
     app.innerHTML = `
-        <div class="space-y-4">
-            <div class="card bg-white hover:bg-gray-50 cursor-pointer p-4 flex items-center" onclick="showGameAnimalListPage()">
-                <div class="bg-green-100 p-3 rounded-full mr-4"><i class="fas fa-book text-green-600 text-2xl"></i></div>
-                <div><h2 class="text-lg font-bold">狩猟鳥獣図鑑</h2><p class="text-sm text-gray-500">生態・被害・特徴</p></div>
-                <i class="fas fa-chevron-right ml-auto text-gray-400"></i>
+        <div class="space-y-2">
+            <div class="card flex items-center gap-3 p-3 cursor-pointer" onclick="showGameAnimalListPage()">
+                <div class="bg-green-100 p-2 rounded text-green-600 text-xl"><i class="fas fa-book"></i></div>
+                <div><h3 class="font-bold">狩猟鳥獣図鑑</h3><p class="text-xs text-gray-500">生態・被害・特徴</p></div>
+                <i class="fas fa-chevron-right ml-auto text-gray-300"></i>
             </div>
-            <div class="card bg-white hover:bg-gray-50 cursor-pointer p-4 flex items-center" onclick="showHunterProfilePage()">
-                <div class="bg-blue-100 p-3 rounded-full mr-4"><i class="fas fa-id-card text-blue-600 text-2xl"></i></div>
-                <div><h2 class="text-lg font-bold">捕獲者情報</h2><p class="text-sm text-gray-500">免許・許可証管理</p></div>
-                <i class="fas fa-chevron-right ml-auto text-gray-400"></i>
+            <div class="card flex items-center gap-3 p-3 cursor-pointer" onclick="showHunterProfilePage()">
+                <div class="bg-blue-100 p-2 rounded text-blue-600 text-xl"><i class="fas fa-id-card"></i></div>
+                <div><h3 class="font-bold">捕獲者情報</h3><p class="text-xs text-gray-500">許可証管理</p></div>
+                <i class="fas fa-chevron-right ml-auto text-gray-300"></i>
             </div>
         </div>
     `;
