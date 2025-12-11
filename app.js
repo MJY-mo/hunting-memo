@@ -1,9 +1,9 @@
 // ============================================================================
-// app.js - 狩猟アプリ 統合JavaScriptファイル
+// app.js - 狩猟アプリ 統合JavaScriptファイル (完全版)
 // ============================================================================
 
 // ----------------------------------------------------------------------------
-// 1. データベース定義 (元 db.js)
+// 1. データベース定義
 // ----------------------------------------------------------------------------
 const db = new Dexie('HuntingAppDB');
 
@@ -26,7 +26,7 @@ console.log("Database schema defined (app.js integrated)");
 
 
 // ----------------------------------------------------------------------------
-// 2. メインロジック & 共通関数 (元 main.js)
+// 2. メインロジック & 共通関数
 // ----------------------------------------------------------------------------
 
 // グローバル変数・DOM要素
@@ -63,7 +63,7 @@ const appState = {
     infoSort: 'default',
     infoFilterAttribute: 'all',
     activeBlobUrls: [],
-    isEditing: false // 汎用フラグ
+    isEditing: false
 };
 
 // --- アプリ初期化 ---
@@ -76,7 +76,6 @@ window.addEventListener('load', () => {
         await populateDefaultHunterProfile();
         await populateGameAnimalListIfNeeded(false);
         setupTabs();
-        // 初期タブ
         navigateTo('trap', showTrapPage, '罠');
     }).catch(err => {
         console.error("Failed to open database:", err);
@@ -171,23 +170,35 @@ function setupTabs() {
     tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
     tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
 }
+
 function navigateTo(pageId, pageFunction, title) {
     if (appState.activeBlobUrls && appState.activeBlobUrls.length > 0) {
         appState.activeBlobUrls.forEach(url => URL.revokeObjectURL(url));
         appState.activeBlobUrls = [];
     }
     appState.currentPage = pageId;
-    Object.values(tabs).forEach(tab => { if(tab) tab.classList.replace('tab-active', 'tab-inactive'); });
-    if (tabs[pageId]) tabs[pageId].classList.replace('tab-inactive', 'tab-active');
+    
+    // タブの見た目更新 (classList.replaceは使わない)
+    Object.values(tabs).forEach(tab => {
+        if(tab) {
+            tab.classList.remove('tab-active');
+            tab.classList.add('tab-inactive');
+        }
+    });
+    if (tabs[pageId]) {
+        tabs[pageId].classList.remove('tab-inactive');
+        tabs[pageId].classList.add('tab-active');
+    }
+
     updateHeader(title, false);
     try { pageFunction(); } catch (err) { console.error(`Failed: ${pageId}`, err); app.innerHTML = `<div class="error-box">エラー: ${err.message}</div>`; }
 }
+
 function updateHeader(title, showBack = false) {
     headerTitle.textContent = title;
     backButton.classList.toggle('hidden', !showBack);
     if (showBack) {
         backButton.onclick = () => {
-            // 基本的には各画面のトップに戻る
             if (appState.currentPage === 'trap') navigateTo('trap', showTrapPage, '罠');
             else if (appState.currentPage === 'gun') navigateTo('gun', showGunPage, '銃');
             else if (appState.currentPage === 'catch') navigateTo('catch', showCatchPage, '捕獲');
@@ -215,7 +226,7 @@ function escapeHTML(str) {
     return str.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function formatDate(dateString) {
-    if (!dateString) return '未設定';
+    if (!dateString) return '-';
     try {
         const parts = dateString.split('-');
         if (parts.length === 3) return `${parts[0]}/${parts[1]}/${parts[2]}`;
@@ -291,7 +302,7 @@ function closeImageModal() {
 
 
 // ----------------------------------------------------------------------------
-// 3. 罠管理機能 (元 trap.js)
+// 3. 罠管理機能 (UI改善)
 // ----------------------------------------------------------------------------
 
 async function showTrapPage() {
@@ -302,7 +313,6 @@ async function showTrapPage() {
     const typeOptions = trapTypes.map(type => `<option value="${escapeHTML(type.name)}" ${filters.type === type.name ? 'selected' : ''}>${escapeHTML(type.name)}</option>`).join('');
     const isNewDisabled = view === 'closed';
 
-    // ★ 修正: 余白を詰め、サブタブのデザインを変更
     app.innerHTML = `
         <div class="space-y-2">
             <div class="sub-tab-container">
@@ -410,60 +420,54 @@ async function showTrapDetailPage(id) {
     const trap = await db.trap.get(id);
     if (!trap) return;
     
-    updateHeader(`罠 No.${trap.trap_number}`, true);
+    updateHeader(`No.${trap.trap_number}`, true);
     backButton.onclick = () => showTrapPage();
 
-    // 編集・削除ボタン
     let actionButtons = `
-        <div class="card bg-white"><div class="flex space-x-2">
+        <div class="flex gap-2">
             <button id="edit-trap-btn" class="btn btn-secondary flex-1">編集</button>
             <button id="delete-trap-btn" class="btn btn-danger flex-1">削除</button>
-        </div></div>`;
+        </div>`;
 
-    // 捕獲記録ボタン
     const catchCount = await db.catch_records.where('trap_id').equals(id).count();
     let catchSection = `
         <div class="card bg-white">
-            <h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録 (${catchCount}件)</h2>
-            <div class="space-y-3">
-                <button id="show-related-catches-btn" class="btn btn-secondary w-full justify-start text-left"><span class="w-6"><i class="fas fa-paw"></i></span> この罠の捕獲記録を見る</button>
-                <button id="add-catch-to-trap-btn" class="btn btn-primary w-full justify-start text-left"><span class="w-6"><i class="fas fa-plus"></i></span> この罠での捕獲記録を追加</button>
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-bold text-gray-800">捕獲記録 (${catchCount})</h3>
+                <button id="add-catch-to-trap-btn" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i></button>
             </div>
+            <button id="show-related-catches-btn" class="btn btn-secondary w-full text-sm">一覧を見る</button>
         </div>`;
 
-    // 撤去ボタン (設置中の場合のみ)
     let closeSection = '';
     if (trap.is_open === 1) {
         closeSection = `
             <div class="card bg-white border border-red-200">
-                <h2 class="text-lg font-semibold border-b pb-2 mb-4 text-red-600">罠の撤去</h2>
-                <div class="form-group">
-                    <label class="form-label">撤去日:</label>
+                <label class="form-label">撤去日</label>
+                <div class="flex gap-2">
                     <input type="date" id="close-date-input" class="form-input" value="${new Date().toISOString().split('T')[0]}">
+                    <button id="close-trap-btn" class="btn btn-success whitespace-nowrap">撤去する</button>
                 </div>
-                <button id="close-trap-btn" class="btn btn-success w-full">この罠を解除する (過去へ移動)</button>
             </div>`;
     }
 
-    // 基本情報
-    let infoHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">基本情報</h2><table class="w-full text-sm"><tbody>`;
+    let infoHTML = `<div class="card bg-white"><table class="w-full text-sm"><tbody>`;
     const rows = [
         ['番号', trap.trap_number], ['種類', trap.type], ['設置日', formatDate(trap.setup_date)],
         ['状態', trap.is_open ? '設置中' : '撤去済'], ['撤去日', trap.close_date ? formatDate(trap.close_date) : '-'],
-        ['緯度', trap.latitude], ['経度', trap.longitude]
+        ['座標', `${trap.latitude||'-'}, ${trap.longitude||'-'}`]
     ];
-    rows.forEach(r => infoHTML += `<tr class="border-b"><th class="w-1/3 text-left p-2 bg-gray-50">${r[0]}</th><td class="p-2">${escapeHTML(r[1])}</td></tr>`);
+    rows.forEach(r => infoHTML += `<tr><th class="text-left py-1 w-1/3 text-gray-500">${r[0]}</th><td>${escapeHTML(r[1])}</td></tr>`);
     infoHTML += `</tbody></table></div>`;
 
-    // 画像
     let imageHTML = '';
     if (trap.image_blob) {
         const url = URL.createObjectURL(trap.image_blob);
         appState.activeBlobUrls.push(url);
-        imageHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${url}" id="detail-image"></div></div>`;
+        imageHTML = `<div class="card bg-white"><div class="photo-preview cursor-zoom-in"><img src="${url}" id="detail-image"></div></div>`;
     }
 
-    app.innerHTML = `<div class="space-y-4">${actionButtons}${imageHTML}${infoHTML}${trap.memo ? `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">メモ</h2><p class="text-sm">${escapeHTML(trap.memo)}</p></div>` : ''}${catchSection}${closeSection}</div>`;
+    app.innerHTML = `<div class="space-y-2">${actionButtons}${imageHTML}${infoHTML}${trap.memo ? `<div class="card bg-white"><h3 class="font-bold border-b mb-1">メモ</h3><p class="text-sm">${escapeHTML(trap.memo)}</p></div>` : ''}${catchSection}${closeSection}</div>`;
 
     document.getElementById('edit-trap-btn').onclick = () => showTrapEditForm(id);
     document.getElementById('delete-trap-btn').onclick = () => deleteTrap(id);
@@ -484,15 +488,13 @@ async function showTrapDetailPage(id) {
 }
 
 async function showTrapEditForm(id) {
-    let trap = { trap_number: '', type: '', setup_date: new Date().toISOString().split('T')[0], memo: '', latitude: '', longitude: '', image_blob: null };
+    let trap = { trap_number: '', type: '', setup_date: new Date().toISOString().split('T')[0], memo: '', latitude: '', longitude: '', image_blob: null, is_open: 1 };
     const types = await db.trap_type.toArray();
     if (id) {
         const existing = await db.trap.get(id);
         if (existing) trap = existing;
     }
     
-    // HTML生成 (省略: 前回のtrap.jsの内容と同様)
-    // ※簡略化のため構造のみ記述。実際はフルのフォームHTMLが入ります。
     let imgPreview = '';
     if (trap.image_blob) {
         const url = URL.createObjectURL(trap.image_blob);
@@ -502,18 +504,18 @@ async function showTrapEditForm(id) {
 
     app.innerHTML = `
         <div class="card bg-white">
-            <form id="trap-form" class="space-y-4">
-                <div class="form-group"><label class="form-label">罠番号 <span class="text-red-500">*</span>:</label><input type="text" id="trap-number" class="form-input" value="${escapeHTML(trap.trap_number)}" required></div>
-                <div class="form-group"><label class="form-label">種類:</label><select id="trap-type" class="form-select">${types.map(t=>`<option value="${t.name}" ${t.name===trap.type?'selected':''}>${t.name}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">設置日:</label><input type="date" id="setup-date" class="form-input" value="${escapeHTML(trap.setup_date)}" required></div>
+            <form id="trap-form" class="space-y-3">
+                <div class="form-group"><label class="form-label">番号</label><input type="text" id="trap-number" class="form-input" value="${escapeHTML(trap.trap_number)}" required></div>
+                <div class="form-group"><label class="form-label">種類</label><select id="trap-type" class="form-select">${types.map(t=>`<option value="${t.name}" ${t.name===trap.type?'selected':''}>${t.name}</option>`).join('')}</select></div>
+                <div class="form-group"><label class="form-label">設置日</label><input type="date" id="setup-date" class="form-input" value="${escapeHTML(trap.setup_date)}" required></div>
                 <div class="form-group">
-                    <span class="form-label">位置情報</span>
-                    <div class="grid grid-cols-2 gap-4"><input type="number" step="any" id="trap-lat" class="form-input" value="${escapeHTML(trap.latitude)}" placeholder="緯度"><input type="number" step="any" id="trap-lon" class="form-input" value="${escapeHTML(trap.longitude)}" placeholder="経度"></div>
-                    <button type="button" id="get-gps-btn" class="btn btn-secondary w-full mt-2">現在地を取得</button>
+                    <label class="form-label">位置</label>
+                    <div class="flex gap-2 mb-1"><input type="number" step="any" id="trap-lat" class="form-input" value="${escapeHTML(trap.latitude)}" placeholder="緯度"><input type="number" step="any" id="trap-lon" class="form-input" value="${escapeHTML(trap.longitude)}" placeholder="経度"></div>
+                    <button type="button" id="get-gps-btn" class="btn btn-secondary w-full text-sm">現在地</button>
                 </div>
                 ${imgPreview}
-                <div class="form-group"><label class="form-label">写真を追加/変更:</label><input type="file" id="trap-image" class="form-input" accept="image/*"><div id="image-preview-container" class="mt-2"></div></div>
-                <div class="form-group"><label class="form-label">メモ:</label><textarea id="trap-memo" class="form-input">${escapeHTML(trap.memo)}</textarea></div>
+                <div class="form-group"><label class="form-label">写真</label><input type="file" id="trap-image" class="form-input" accept="image/*"><div id="image-preview-container" class="mt-2"></div></div>
+                <div class="form-group"><label class="form-label">メモ</label><textarea id="trap-memo" class="form-input">${escapeHTML(trap.memo)}</textarea></div>
                 <button type="submit" class="btn btn-primary w-full">保存</button>
             </form>
         </div>
@@ -521,7 +523,6 @@ async function showTrapEditForm(id) {
     updateHeader(id ? '罠の編集' : '新規設置', true);
     backButton.onclick = () => id ? showTrapDetailPage(id) : showTrapPage();
 
-    // イベントリスナー (GPS, 画像処理, 保存)
     document.getElementById('get-gps-btn').onclick = async () => {
         try { const loc = await getCurrentLocation(); document.getElementById('trap-lat').value = loc.latitude; document.getElementById('trap-lon').value = loc.longitude; } catch(e) { alert(e.message); }
     };
@@ -551,7 +552,7 @@ async function showTrapEditForm(id) {
             longitude: document.getElementById('trap-lon').value,
             memo: document.getElementById('trap-memo').value,
             image_blob: trap.image_blob,
-            is_open: id ? trap.is_open : 1 // 新規なら1
+            is_open: id ? trap.is_open : 1 
         };
         if (resizedImageBlob) data.image_blob = resizedImageBlob;
         
@@ -570,7 +571,7 @@ async function deleteTrap(id) {
 }
 
 async function showTrapTypeManagement() {
-    updateHeader('罠種類の管理', true);
+    updateHeader('種類管理', true);
     backButton.onclick = () => showTrapPage();
     app.innerHTML = `
         <div class="card bg-white mb-4"><form id="type-form" class="flex gap-2"><input id="type-name" class="form-input" placeholder="新しい種類" required><button class="btn btn-primary">追加</button></form></div>
@@ -578,7 +579,7 @@ async function showTrapTypeManagement() {
     `;
     const render = async () => {
         const list = await db.trap_type.toArray();
-        document.getElementById('type-list').innerHTML = list.map(t=>`<div class="card bg-white flex justify-between p-2"><span>${escapeHTML(t.name)}</span><button class="btn btn-danger btn-sm del-type" data-id="${t.id}">削除</button></div>`).join('');
+        document.getElementById('type-list').innerHTML = list.map(t=>`<div class="card bg-white flex justify-between p-2"><span>${escapeHTML(t.name)}</span><button class="btn btn-danger btn-sm del-type" data-id="${t.id}">×</button></div>`).join('');
         document.querySelectorAll('.del-type').forEach(b => b.onclick = async (e)=>{
             if(confirm('削除しますか？')) { await db.trap_type.delete(parseInt(e.target.dataset.id)); render(); }
         });
@@ -592,7 +593,7 @@ async function showTrapTypeManagement() {
 
 
 // ----------------------------------------------------------------------------
-// 4. 銃管理機能 (元 gun.js)
+// 4. 銃管理機能 (UI改善)
 // ----------------------------------------------------------------------------
 
 async function showGunPage() {
@@ -602,21 +603,21 @@ async function showGunPage() {
     const gunOptions = guns.map(g => `<option value="${g.id}" ${filters.gun_id == g.id ? 'selected' : ''}>${escapeHTML(g.name)}</option>`).join('');
 
     app.innerHTML = `
-        <div class="space-y-4">
-            <div class="flex space-x-2">
-                <button id="new-gun-log-btn" class="btn btn-primary flex-1"><i class="fas fa-plus"></i> 新規使用履歴</button>
-                <button id="manage-guns-btn" class="btn btn-secondary flex-1"><i class="fas fa-cog"></i> 所持銃の管理</button>
+        <div class="space-y-2">
+            <div class="flex gap-2">
+                <button id="new-gun-log-btn" class="btn btn-primary flex-1"><i class="fas fa-plus"></i> 使用記録</button>
+                <button id="manage-guns-btn" class="btn btn-secondary flex-1"><i class="fas fa-cog"></i> 所持銃</button>
             </div>
             <div class="card bg-white">
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="form-group mb-0"><label class="form-label">目的:</label><select id="gun-filter-purpose" class="form-select"><option value="all">すべて</option><option value="狩猟">狩猟</option><option value="射撃">射撃</option><option value="有害駆除">有害駆除</option><option value="その他">その他</option></select></div>
-                    <div class="form-group mb-0"><label class="form-label">銃:</label><select id="gun-filter-id" class="form-select"><option value="all">すべて</option>${gunOptions}</select></div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="form-group mb-0"><label class="form-label">目的</label><select id="gun-filter-purpose" class="form-select"><option value="all">全て</option><option value="狩猟">狩猟</option><option value="射撃">射撃</option><option value="有害駆除">有害駆除</option><option value="その他">その他</option></select></div>
+                    <div class="form-group mb-0"><label class="form-label">銃</label><select id="gun-filter-id" class="form-select"><option value="all">全て</option>${gunOptions}</select></div>
                 </div>
             </div>
-            <div id="gun-log-list" class="space-y-3"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
+            <div id="gun-log-list" class="space-y-1"><p class="text-gray-500 text-center py-4">読み込み中...</p></div>
         </div>
     `;
-    updateHeader('銃・使用履歴', false);
+    updateHeader('銃管理', false);
     
     document.getElementById('gun-filter-purpose').value = filters.purpose;
     
@@ -637,7 +638,7 @@ async function renderGunLogList() {
     if (purpose !== 'all') logs = logs.filter(l => l.purpose === purpose);
     if (gun_id !== 'all') logs = logs.filter(l => l.gun_id == gun_id);
 
-    if (logs.length === 0) { listEl.innerHTML = '<p class="text-gray-500 text-center">履歴なし</p>'; return; }
+    if (logs.length === 0) { listEl.innerHTML = '<p class="text-gray-500 text-center py-4">履歴なし</p>'; return; }
 
     const guns = await db.gun.toArray();
     const gunMap = new Map(guns.map(g => [g.id, g.name]));
@@ -645,15 +646,17 @@ async function renderGunLogList() {
 
     listEl.innerHTML = logs.map((log, i) => {
         const count = catchCounts[i];
-        const badge = count > 0 ? `<span class="text-xs font-semibold py-1 px-2 rounded text-emerald-600 bg-emerald-200">${count}件</span>` : '';
+        const badge = count > 0 ? `<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-bold">${count}</span>` : '';
         return `
             <div class="trap-card bg-white" data-id="${log.id}">
-                <div class="flex-grow">
-                    <h3 class="text-lg font-semibold text-blue-600">${formatDate(log.use_date)}</h3>
-                    <p class="text-sm text-gray-600">${escapeHTML(log.purpose)} / ${escapeHTML(gunMap.get(log.gun_id) || '削除済')}</p>
-                    ${log.ammo_count ? `<p class="text-sm text-gray-500">消費: ${log.ammo_count}発</p>` : ''}
+                <div>
+                    <h3 class="font-bold text-blue-600">${formatDate(log.use_date)}</h3>
+                    <p>${escapeHTML(log.purpose)} / ${escapeHTML(gunMap.get(log.gun_id) || '削除済')}</p>
                 </div>
-                <div class="flex-shrink-0 ml-4 flex items-center space-x-2">${badge}<span>&gt;</span></div>
+                <div class="flex items-center gap-2">
+                    ${badge}
+                    <i class="fas fa-chevron-right text-gray-300"></i>
+                </div>
             </div>`;
     }).join('');
     
@@ -664,16 +667,16 @@ async function showGunListManagementPage() {
     updateHeader('所持銃の管理', true);
     backButton.onclick = () => showGunPage();
     app.innerHTML = `
-        <div class="space-y-4">
+        <div class="space-y-2">
             <div class="card bg-white"><button id="add-gun-btn" class="btn btn-primary w-full"><i class="fas fa-plus"></i> 銃を追加</button></div>
-            <div id="gun-mgmt-list" class="space-y-3"></div>
+            <div id="gun-mgmt-list" class="space-y-1"></div>
         </div>
     `;
     document.getElementById('add-gun-btn').onclick = () => showGunEditForm(null);
     const listEl = document.getElementById('gun-mgmt-list');
     const guns = await db.gun.toArray();
     if(guns.length===0) listEl.innerHTML = '<p class="text-center text-gray-500">登録なし</p>';
-    else listEl.innerHTML = guns.map(g => `<div class="trap-card bg-white" data-id="${g.id}"><div><h3 class="text-lg font-semibold">${escapeHTML(g.name)}</h3><p class="text-sm text-gray-600">${escapeHTML(g.type)} / ${escapeHTML(g.caliber)}</p></div><span>&gt;</span></div>`).join('');
+    else listEl.innerHTML = guns.map(g => `<div class="trap-card bg-white" data-id="${g.id}"><div><h3 class="font-bold">${escapeHTML(g.name)}</h3><p class="text-sm text-gray-600">${escapeHTML(g.type)} / ${escapeHTML(g.caliber)}</p></div><i class="fas fa-chevron-right text-gray-300"></i></div>`).join('');
     listEl.querySelectorAll('.trap-card').forEach(d => d.onclick = () => showGunDetailPage(parseInt(d.dataset.id)));
 }
 
@@ -684,43 +687,21 @@ async function showGunDetailPage(id) {
     backButton.onclick = () => showGunListManagementPage();
 
     // 編集・削除
-    const actions = `<div class="card bg-white"><div class="flex space-x-2"><button id="edit-gun" class="btn btn-secondary flex-1">編集</button><button id="del-gun" class="btn btn-danger flex-1">削除</button></div></div>`;
+    const actions = `<div class="flex gap-2"><button id="edit-gun" class="btn btn-secondary flex-1">編集</button><button id="del-gun" class="btn btn-danger flex-1">削除</button></div>`;
     
     // 基本情報
-    let info = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">銃の情報</h2><table class="w-full text-sm"><tbody>`;
-    [['名前', gun.name], ['種類', gun.type], ['口径', gun.caliber]].forEach(r => info += `<tr class="border-b"><th class="w-1/3 text-left p-2 bg-gray-50">${r[0]}</th><td class="p-2">${escapeHTML(r[1])}</td></tr>`);
-    info += `</tbody></table></div>`;
+    let info = `<div class="card bg-white"><h3 class="font-bold border-b mb-2">弾の管理</h3><div class="flex justify-between items-center mb-2"><span>残弾数:</span><span id="ammo-rem" class="font-bold text-xl">...</span></div><form id="ammo-purchase-form" class="flex gap-2"><input type="date" id="ammo-date" class="form-input w-1/3" value="${new Date().toISOString().split('T')[0]}"><input type="number" id="ammo-amount" class="form-input flex-1" placeholder="購入数" required><button class="btn btn-sm btn-primary">追加</button></form></div>`;
 
     // 履歴ボタン
-    const histBtn = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">使用履歴</h2><button id="show-hist" class="btn btn-secondary w-full text-left"><span class="w-6"><i class="fas fa-history"></i></span> この銃の履歴を見る</button></div>`;
+    const histBtn = `<div class="card bg-white"><button id="show-hist" class="btn btn-secondary w-full text-left"><span class="w-6"><i class="fas fa-history"></i></span> この銃の履歴を見る</button></div>`;
 
-    // 弾管理 (重複登録バグ修正版)
-    const today = new Date().toISOString().split('T')[0];
-    const ammoHTML = `
-        <div class="card bg-white">
-            <h2 class="text-lg font-semibold border-b pb-2 mb-4">弾の管理</h2>
-            <form id="ammo-purchase-form" class="space-y-3 mb-4">
-                <div class="form-group"><label class="form-label">購入日:</label><input type="date" id="ammo-date" class="form-input" value="${today}" required></div>
-                <div class="form-group"><label class="form-label">購入数:</label><input type="number" id="ammo-amount" class="form-input" min="1" required></div>
-                <button type="submit" class="btn btn-primary w-full">購入を記録</button>
-            </form>
-            <h3 class="text-md font-semibold mt-4">集計</h3>
-            <table class="w-full text-sm my-2"><tbody>
-                <tr class="border-b"><th class="w-1/2 text-left bg-gray-50 p-2">総購入数</th><td id="ammo-total-p" class="p-2">...</td></tr>
-                <tr class="border-b"><th class="w-1/2 text-left bg-gray-50 p-2">総消費数</th><td id="ammo-total-c" class="p-2">...</td></tr>
-                <tr class="border-b"><th class="w-1/2 text-left bg-gray-50 p-2">残弾数</th><td id="ammo-rem" class="p-2 font-bold">...</td></tr>
-            </tbody></table>
-            <h3 class="text-md font-semibold mt-4">履歴</h3>
-            <div id="ammo-log-list" class="max-h-60 overflow-y-auto border rounded-lg mt-2"><table class="w-full text-sm"><thead class="bg-gray-50 sticky top-0"><tr><th class="p-2 text-left">日付</th><th class="p-2 text-left">内容</th><th class="p-2 text-right">数</th></tr></thead><tbody id="ammo-tbody"></tbody></table></div>
-        </div>`;
-
-    app.innerHTML = `<div class="space-y-4">${actions}${info}${histBtn}${ammoHTML}</div>`;
+    app.innerHTML = `<div class="space-y-2">${actions}${info}${histBtn}</div>`;
 
     document.getElementById('edit-gun').onclick = () => showGunEditForm(id);
     document.getElementById('del-gun').onclick = async () => { if(confirm('削除しますか？')) { await db.gun.delete(id); showGunListManagementPage(); }};
     document.getElementById('show-hist').onclick = () => { appState.gunLogFilters.gun_id = id; showGunPage(); };
 
-    // 弾購入イベント (1回だけ登録)
+    // 弾購入イベント
     document.getElementById('ammo-purchase-form').onsubmit = async (e) => {
         e.preventDefault();
         try {
@@ -739,28 +720,8 @@ async function renderAmmoInfo(gunId) {
     const pTotal = purchases.reduce((s, p) => s + p.amount, 0);
     const cTotal = logs.reduce((s, l) => s + (l.ammo_count || 0), 0);
     
-    document.getElementById('ammo-total-p').textContent = `${pTotal} 発`;
-    document.getElementById('ammo-total-c').textContent = `${cTotal} 発`;
-    document.getElementById('ammo-rem').textContent = `${pTotal - cTotal} 発`;
-
-    const combined = [
-        ...purchases.map(p => ({ d: p.purchase_date, t: '購入', a: p.amount, id: p.id, isP: true })),
-        ...logs.map(l => ({ d: l.use_date, t: `消費 (${l.purpose})`, a: -l.ammo_count, id: l.id, isP: false }))
-    ].sort((a, b) => b.d.localeCompare(a.d));
-
-    document.getElementById('ammo-tbody').innerHTML = combined.map(r => `
-        <tr class="border-b">
-            <td class="p-2">${formatDate(r.d)}</td><td class="p-2">${escapeHTML(r.t)}</td>
-            <td class="p-2 text-right ${r.a > 0 ? 'text-green-600' : 'text-red-600'}">
-                ${r.a > 0 ? '+' : ''}${r.a}
-                ${r.isP ? `<button class="btn btn-danger btn-sm ml-2 del-ammo" data-id="${r.id}">&times;</button>` : ''}
-            </td>
-        </tr>
-    `).join('');
-    
-    document.querySelectorAll('.del-ammo').forEach(b => b.onclick = async (e) => {
-        if(confirm('削除しますか？')) { await db.ammo_purchases.delete(parseInt(e.target.dataset.id)); renderAmmoInfo(gunId); }
-    });
+    const elRem = document.getElementById('ammo-rem');
+    if(elRem) elRem.textContent = `${pTotal - cTotal} 発`;
 }
 
 async function showGunEditForm(id) {
@@ -772,10 +733,10 @@ async function showGunEditForm(id) {
 
     app.innerHTML = `
         <div class="card bg-white">
-            <form id="gun-form" class="space-y-4">
-                <div class="form-group"><label class="form-label">名前:</label><input id="g-name" class="form-input" value="${escapeHTML(gun.name)}" required></div>
-                <div class="form-group"><label class="form-label">種類:</label><input id="g-type" class="form-input" value="${escapeHTML(gun.type)}"></div>
-                <div class="form-group"><label class="form-label">口径:</label><input id="g-cal" class="form-input" value="${escapeHTML(gun.caliber)}"></div>
+            <form id="gun-form" class="space-y-3">
+                <div class="form-group"><label class="form-label">名前</label><input id="g-name" class="form-input" value="${escapeHTML(gun.name)}" required></div>
+                <div class="form-group"><label class="form-label">種類</label><input id="g-type" class="form-input" value="${escapeHTML(gun.type)}"></div>
+                <div class="form-group"><label class="form-label">口径</label><input id="g-cal" class="form-input" value="${escapeHTML(gun.caliber)}"></div>
                 <button class="btn btn-primary w-full">保存</button>
             </form>
         </div>
@@ -804,22 +765,25 @@ async function showGunLogDetailPage(id) {
     let imgHTML = '';
     if(log.image_blob) {
         const u = URL.createObjectURL(log.image_blob); appState.activeBlobUrls.push(u);
-        imgHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
+        imgHTML = `<div class="card bg-white"><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
     }
 
     // 情報
-    let info = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">記録</h2><table class="w-full text-sm"><tbody>`;
-    [['日付', formatDate(log.use_date)], ['銃', gun?gun.name:'-'], ['目的', log.purpose], ['場所', log.location], ['弾数', log.ammo_count+'発'], ['同行', log.companion]].forEach(r=> info+=`<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-2">${r[0]}</th><td class="p-2">${escapeHTML(r[1])}</td></tr>`);
+    let info = `<div class="card bg-white"><table class="w-full text-sm"><tbody>`;
+    [['日付', formatDate(log.use_date)], ['銃', gun?gun.name:'-'], ['目的', log.purpose], ['場所', log.location], ['弾数', log.ammo_count+'発'], ['同行', log.companion]].forEach(r=> info+=`<tr><th class="w-1/3 text-left py-1 text-gray-500">${r[0]}</th><td>${escapeHTML(r[1])}</td></tr>`);
     info += `</tbody></table></div>`;
 
     app.innerHTML = `
-        <div class="space-y-4">
-            <div class="card bg-white"><div class="flex space-x-2"><button id="edit-log" class="btn btn-secondary flex-1">編集</button><button id="del-log" class="btn btn-danger flex-1">削除</button></div></div>
+        <div class="space-y-2">
+            <div class="flex gap-2"><button id="edit-log" class="btn btn-secondary flex-1">編集</button><button id="del-log" class="btn btn-danger flex-1">削除</button></div>
             ${imgHTML}${info}
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">捕獲記録 (${catchCount})</h2><div class="space-y-2">
-                <button id="view-catch" class="btn btn-secondary w-full text-left"><span class="w-6"><i class="fas fa-paw"></i></span> 捕獲記録を見る</button>
-                <button id="add-catch" class="btn btn-primary w-full text-left"><span class="w-6"><i class="fas fa-plus"></i></span> 捕獲記録を追加</button>
-            </div></div>
+            <div class="card bg-white">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="font-bold">捕獲記録 (${catchCount})</h3>
+                    <button id="add-catch" class="btn btn-sm btn-primary"><i class="fas fa-plus"></i></button>
+                </div>
+                <button id="view-catch" class="btn btn-secondary w-full text-sm">一覧を見る</button>
+            </div>
         </div>
     `;
     
@@ -845,17 +809,17 @@ async function showGunLogEditForm(id) {
 
     app.innerHTML = `
         <div class="card bg-white">
-            <form id="log-form" class="space-y-4">
-                <div class="form-group"><label class="form-label">日付:</label><input type="date" id="l-date" class="form-input" value="${log.use_date}" required></div>
-                <div class="form-group"><label class="form-label">銃:</label><select id="l-gun" class="form-select" required><option value="">選択</option>${guns.map(g=>`<option value="${g.id}" ${g.id==log.gun_id?'selected':''}>${g.name}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">目的:</label><select id="l-purpose" class="form-select">${['狩猟','射撃','有害駆除','その他'].map(p=>`<option value="${p}" ${p==log.purpose?'selected':''}>${p}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">消費弾数:</label><input type="number" id="l-ammo" class="form-input" value="${log.ammo_count}"></div>
-                <div class="form-group"><label class="form-label">場所:</label><input id="l-loc" class="form-input" value="${escapeHTML(log.location)}"></div>
-                <div class="form-group"><label class="form-label">同行者:</label><input id="l-comp" class="form-input" value="${escapeHTML(log.companion)}"></div>
-                <div class="form-group"><span class="form-label">位置</span><div class="grid grid-cols-2 gap-4"><input type="number" step="any" id="l-lat" class="form-input" value="${escapeHTML(log.latitude)}" placeholder="緯度"><input type="number" step="any" id="l-lon" class="form-input" value="${escapeHTML(log.longitude)}" placeholder="経度"></div><button type="button" id="gps-btn" class="btn btn-secondary w-full mt-2">GPS取得</button></div>
+            <form id="log-form" class="space-y-3">
+                <div class="form-group"><label class="form-label">日付</label><input type="date" id="l-date" class="form-input" value="${log.use_date}" required></div>
+                <div class="form-group"><label class="form-label">銃</label><select id="l-gun" class="form-select" required><option value="">選択</option>${guns.map(g=>`<option value="${g.id}" ${g.id==log.gun_id?'selected':''}>${g.name}</option>`).join('')}</select></div>
+                <div class="form-group"><label class="form-label">目的</label><select id="l-purpose" class="form-select">${['狩猟','射撃','有害駆除','その他'].map(p=>`<option value="${p}" ${p==log.purpose?'selected':''}>${p}</option>`).join('')}</select></div>
+                <div class="form-group"><label class="form-label">消費弾数</label><input type="number" id="l-ammo" class="form-input" value="${log.ammo_count}"></div>
+                <div class="form-group"><label class="form-label">場所</label><input id="l-loc" class="form-input" value="${escapeHTML(log.location)}"></div>
+                <div class="form-group"><label class="form-label">同行者</label><input id="l-comp" class="form-input" value="${escapeHTML(log.companion)}"></div>
+                <div class="form-group"><label class="form-label">位置</label><div class="flex gap-2 mb-1"><input type="number" step="any" id="l-lat" class="form-input" value="${escapeHTML(log.latitude)}" placeholder="緯度"><input type="number" step="any" id="l-lon" class="form-input" value="${escapeHTML(log.longitude)}" placeholder="経度"></div><button type="button" id="gps-btn" class="btn btn-secondary w-full">GPS取得</button></div>
                 ${imgPreview}
-                <div class="form-group"><label class="form-label">写真:</label><input type="file" id="l-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
-                <div class="form-group"><label class="form-label">メモ:</label><textarea id="l-memo" class="form-input">${escapeHTML(log.memo)}</textarea></div>
+                <div class="form-group"><label class="form-label">写真</label><input type="file" id="l-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
+                <div class="form-group"><label class="form-label">メモ</label><textarea id="l-memo" class="form-input">${escapeHTML(log.memo)}</textarea></div>
                 <button class="btn btn-primary w-full">保存</button>
             </form>
         </div>
@@ -905,7 +869,7 @@ async function deleteGunLog(id) {
 
 
 // ----------------------------------------------------------------------------
-// 5. 捕獲記録機能 (元 catch.js)
+// 5. 捕獲記録機能 (UI改善)
 // ----------------------------------------------------------------------------
 
 function showCatchPage() {
@@ -920,22 +884,21 @@ async function showCatchListPage() {
         Object.assign(filters, { method: 'all', species: '', gender: 'all', age: 'all' });
     }
     
-    // UI生成 (フィルター部) - 簡略化して記述
     let filterHTML = '';
     if (appState.currentCatchMethod === 'all') {
         filterHTML = `
-            <div class="card bg-white mb-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="form-group mb-0"><label class="form-label">種名:</label><input id="c-spec" class="form-input" list="spec-list" value="${filters.species}"><datalist id="spec-list"></datalist></div>
-                    <div class="form-group mb-0"><label class="form-label">方法:</label><select id="c-meth" class="form-select"><option value="all">全て</option><option value="trap">罠</option><option value="gun">銃</option></select></div>
+            <div class="card bg-white mb-2 p-2">
+                <div class="flex gap-2">
+                    <div class="form-group mb-0 flex-1"><label class="form-label">種名</label><input id="c-spec" class="form-input" list="spec-list" value="${filters.species}"><datalist id="spec-list"></datalist></div>
+                    <div class="form-group mb-0 w-1/3"><label class="form-label">方法</label><select id="c-meth" class="form-select"><option value="all">全て</option><option value="trap">罠</option><option value="gun">銃</option></select></div>
                 </div>
             </div>`;
     }
 
     app.innerHTML = `
-        <div class="space-y-4">
+        <div class="space-y-2">
             ${filterHTML}
-            <div id="catch-list" class="space-y-3"><p class="text-center text-gray-500 py-4">読み込み中...</p></div>
+            <div id="catch-list" class="space-y-1"><p class="text-center text-gray-500 py-4">読み込み中...</p></div>
         </div>
     `;
     
@@ -965,7 +928,6 @@ async function renderCatchList() {
     const listEl = document.getElementById('catch-list');
     let records = await db.catch_records.orderBy('catch_date').reverse().toArray();
     
-    // フィルタリング
     if (appState.currentCatchMethod === 'trap') records = records.filter(r => r.trap_id === appState.currentCatchRelationId);
     else if (appState.currentCatchMethod === 'gun') records = records.filter(r => r.gun_log_id === appState.currentCatchRelationId);
     else {
@@ -975,21 +937,20 @@ async function renderCatchList() {
         if(f.species) records = records.filter(r => r.species_name.includes(f.species));
     }
 
-    if (records.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-500">記録なし</p>'; return; }
+    if (records.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-500">なし</p>'; return; }
 
     listEl.innerHTML = records.map(r => {
         const methodBadge = r.trap_id ? '<span class="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">罠</span>' : '<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">銃</span>';
         return `
-            <div class="trap-card bg-white" data-id="${r.id}">
+            <div class="trap-card bg-white" onclick="showCatchDetailPage(${r.id})">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-800">${escapeHTML(r.species_name)}</h3>
-                    <p class="text-sm text-gray-600">${formatDate(r.catch_date)} ${r.gender||''} ${r.age||''}</p>
+                    <h3 class="font-bold text-gray-800">${escapeHTML(r.species_name)}</h3>
+                    <p>${formatDate(r.catch_date)} ${r.gender||''} ${r.age||''}</p>
                     <div class="mt-1">${methodBadge}</div>
                 </div>
-                <span>&gt;</span>
+                <i class="fas fa-chevron-right text-gray-300"></i>
             </div>`;
     }).join('');
-    listEl.querySelectorAll('.trap-card').forEach(d => d.onclick = () => showCatchDetailPage(parseInt(d.dataset.id)));
 }
 
 async function showCatchDetailPage(id) {
@@ -1010,14 +971,14 @@ async function showCatchDetailPage(id) {
     let imgHTML = '';
     if(r.image_blob) {
         const u = URL.createObjectURL(r.image_blob); appState.activeBlobUrls.push(u);
-        imgHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
+        imgHTML = `<div class="card bg-white"><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
     }
 
     let info = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">データ</h2><table class="w-full text-sm"><tbody>`;
-    [['種名', r.species_name], ['日付', formatDate(r.catch_date)], ['性別', r.gender], ['年齢', r.age], ['緯度', r.latitude], ['経度', r.longitude], ['メモ', r.memo]].forEach(row => info += `<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-2">${row[0]}</th><td class="p-2">${escapeHTML(row[1])}</td></tr>`);
+    [['種名', r.species_name], ['日付', formatDate(r.catch_date)], ['性別', r.gender], ['年齢', r.age], ['緯度', r.latitude], ['経度', r.longitude], ['メモ', r.memo]].forEach(row => info += `<tr class="border-b"><th class="w-1/3 text-left py-1 text-gray-500">${row[0]}</th><td class="p-2">${escapeHTML(row[1])}</td></tr>`);
     info += '</tbody></table></div>';
 
-    app.innerHTML = `<div class="space-y-4"><div class="card bg-white"><div class="flex space-x-2"><button id="edit-c" class="btn btn-secondary flex-1">編集</button><button id="del-c" class="btn btn-danger flex-1">削除</button></div></div>${imgHTML}${info}${methodInfo}</div>`;
+    app.innerHTML = `<div class="space-y-2"><div class="flex gap-2"><button id="edit-c" class="btn btn-secondary flex-1">編集</button><button id="del-c" class="btn btn-danger flex-1">削除</button></div>${imgHTML}${info}${methodInfo}</div>`;
 
     document.getElementById('edit-c').onclick = () => showCatchEditForm(id, {});
     document.getElementById('del-c').onclick = async () => { if(confirm('削除しますか？')) { await db.catch_records.delete(id); showCatchListPage(); }};
@@ -1027,7 +988,6 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
     let r = { catch_date: new Date().toISOString().split('T')[0], species_name: '', gender: '不明', age: '不明', latitude: '', longitude: '', memo: '', image_blob: null };
     if (id) r = await db.catch_records.get(id);
     
-    // GPS継承
     if (!id && trapId) { const t = await db.trap.get(trapId); if(t) { r.latitude=t.latitude; r.longitude=t.longitude; } }
     if (!id && gunLogId) { const g = await db.gun_log.get(gunLogId); if(g) { r.latitude=g.latitude; r.longitude=g.longitude; r.catch_date=g.use_date; } }
 
@@ -1042,17 +1002,17 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
 
     app.innerHTML = `
         <div class="card bg-white">
-            <form id="catch-form" class="space-y-4">
-                <div class="form-group"><label class="form-label">日付:</label><input type="date" id="c-date" class="form-input" value="${r.catch_date}" required></div>
-                <div class="form-group"><label class="form-label">種名:</label><input id="c-spec" class="form-input" list="spec-list" value="${escapeHTML(r.species_name)}" required><datalist id="spec-list"></datalist></div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="form-group"><label class="form-label">性別:</label><select id="c-gen" class="form-select">${['不明','オス','メス'].map(v=>`<option ${v==r.gender?'selected':''}>${v}</option>`).join('')}</select></div>
-                    <div class="form-group"><label class="form-label">年齢:</label><select id="c-age" class="form-select">${['不明','成獣','幼獣'].map(v=>`<option ${v==r.age?'selected':''}>${v}</option>`).join('')}</select></div>
+            <form id="catch-form" class="space-y-3">
+                <div class="form-group"><label class="form-label">日付</label><input type="date" id="c-date" class="form-input" value="${r.catch_date}" required></div>
+                <div class="form-group"><label class="form-label">種名</label><input id="c-spec" class="form-input" list="spec-list" value="${escapeHTML(r.species_name)}" required><datalist id="spec-list"></datalist></div>
+                <div class="flex gap-2">
+                    <div class="form-group flex-1"><label class="form-label">性別</label><select id="c-gen" class="form-select">${['不明','オス','メス'].map(v=>`<option ${v==r.gender?'selected':''}>${v}</option>`).join('')}</select></div>
+                    <div class="form-group flex-1"><label class="form-label">年齢</label><select id="c-age" class="form-select">${['不明','成獣','幼獣'].map(v=>`<option ${v==r.age?'selected':''}>${v}</option>`).join('')}</select></div>
                 </div>
-                <div class="form-group"><span class="form-label">位置</span><div class="grid grid-cols-2 gap-4"><input type="number" step="any" id="c-lat" class="form-input" value="${escapeHTML(r.latitude)}"><input type="number" step="any" id="c-lon" class="form-input" value="${escapeHTML(r.longitude)}"></div></div>
+                <div class="form-group"><label class="form-label">位置</label><div class="flex gap-2"><input type="number" step="any" id="c-lat" class="form-input" value="${escapeHTML(r.latitude)}"><input type="number" step="any" id="c-lon" class="form-input" value="${escapeHTML(r.longitude)}"></div></div>
                 ${imgPreview}
-                <div class="form-group"><label class="form-label">写真:</label><input type="file" id="c-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
-                <div class="form-group"><label class="form-label">メモ:</label><textarea id="c-memo" class="form-input">${escapeHTML(r.memo)}</textarea></div>
+                <div class="form-group"><label class="form-label">写真</label><input type="file" id="c-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
+                <div class="form-group"><label class="form-label">メモ</label><textarea id="c-memo" class="form-input">${escapeHTML(r.memo)}</textarea></div>
                 <button class="btn btn-primary w-full">保存</button>
             </form>
         </div>
@@ -1091,7 +1051,7 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
 
 
 // ----------------------------------------------------------------------------
-// 6. チェックリスト機能 (元 checklist.js)
+// 6. チェックリスト機能 (UI改善)
 // ----------------------------------------------------------------------------
 
 function showChecklistPage() { navigateTo('checklist', renderChecklistSets, 'チェックリスト一覧'); }
@@ -1099,15 +1059,15 @@ function showChecklistPage() { navigateTo('checklist', renderChecklistSets, 'チ
 async function renderChecklistSets() {
     updateHeader('チェックリスト一覧', false);
     app.innerHTML = `
-        <div class="space-y-4">
+        <div class="space-y-2">
             <div class="card bg-white"><form id="add-set-form" class="flex gap-2"><input id="new-set-name" class="form-input" placeholder="例: 単独猟" required><button class="btn btn-primary">作成</button></form></div>
-            <div id="set-list" class="space-y-3"></div>
+            <div id="set-list" class="space-y-1"></div>
         </div>
     `;
     
     const sets = await db.checklist_sets.toArray();
     document.getElementById('set-list').innerHTML = sets.map(s => `
-        <div class="trap-card bg-white" data-id="${s.id}">
+        <div class="trap-card bg-white" onclick="showChecklistDetail(${s.id})">
             <h3 class="text-lg font-semibold">${escapeHTML(s.name)}</h3>
             <div class="flex items-center gap-2"><button class="btn btn-danger btn-sm del-set" data-id="${s.id}">削除</button><span>&gt;</span></div>
         </div>
@@ -1118,6 +1078,7 @@ async function renderChecklistSets() {
         d.onclick = (e) => { if(!e.target.classList.contains('del-set')) showChecklistDetail(parseInt(d.dataset.id)); };
     });
     document.querySelectorAll('.del-set').forEach(b => b.onclick = async (e) => {
+        e.stopPropagation();
         if(confirm('削除しますか？')) {
             const id = parseInt(e.target.dataset.id);
             await db.checklist_items.where('list_id').equals(id).delete();
@@ -1141,7 +1102,6 @@ async function showChecklistDetail(id) {
         backButton.onclick = showChecklistPage;
         const items = await db.checklist_items.where('list_id').equals(id).toArray();
         
-        // ★ 修正: サブタブ
         let html = `
             <div class="sub-tab-container">
                 <div id="tab-check" class="sub-tab-btn ${mode==='check'?'active':''}">チェック</div>
@@ -1186,11 +1146,14 @@ async function showChecklistDetail(id) {
     render();
 }
 
+
 // ----------------------------------------------------------------------------
-// 7. 情報 (図鑑・プロフィール) (元 info.js)
+// 7. 情報 (図鑑・プロフィール) (UI改善)
 // ----------------------------------------------------------------------------
 
-function showInfoPage() { navigateTo('info', renderInfoTopPage, '情報'); }
+function showInfoPage() {
+    navigateTo('info', renderInfoTopPage, '情報');
+}
 
 function renderInfoTopPage() {
     updateHeader('情報', false);
@@ -1218,24 +1181,46 @@ async function showGameAnimalListPage() {
     backButton.onclick = () => showInfoPage();
 
     app.innerHTML = `
-        <div class="space-y-4">
-            <div class="card bg-white">
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div class="form-group mb-0"><label class="form-label">並び替え:</label><select id="i-sort" class="form-select"><option value="default">標準</option><option value="name">あいうえお順</option></select></div>
-                    <div class="form-group mb-0"><label class="form-label">属性:</label><select id="i-filter" class="form-select"><option value="all">すべて</option><option value="game_animal">狩猟鳥獣</option><option value="invasive">外来種</option><option value="mammal">哺乳類</option><option value="bird">鳥類</option><option value="gun">銃猟</option><option value="trap">罠猟</option><option value="net">網猟</option></select></div>
+        <div class="space-y-2">
+            <div class="card bg-white p-2">
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="form-group mb-0">
+                        <label class="form-label">並び替え:</label>
+                        <select id="info-sort" class="form-select">
+                            <option value="default">標準 (CSV順)</option>
+                            <option value="name">あいうえお順</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label">属性:</label>
+                        <select id="info-filter-attribute" class="form-select">
+                            <option value="all">すべて表示</option>
+                            <option value="game_animal">狩猟鳥獣</option>
+                            <option value="invasive">外来種</option>
+                            <option value="mammal">哺乳類</option>
+                            <option value="bird">鳥類</option>
+                            <option value="gun">銃猟</option>
+                            <option value="trap">罠猟</option>
+                            <option value="net">網猟</option>
+                        </select>
+                    </div>
                 </div>
-                <div id="ga-list" class="space-y-3"><p class="text-center py-4">読み込み中...</p></div>
+                <div class="card p-2 flex gap-2"><input id="search" class="form-input" placeholder="名前で検索..."></div>
+                <div id="ga-list" class="space-y-1"><p class="text-center py-4">読み込み中...</p></div>
             </div>
         </div>`;
     
-    document.getElementById('i-sort').value = appState.infoSort;
-    document.getElementById('i-filter').value = appState.infoFilterAttribute;
-    document.getElementById('i-sort').onchange = (e) => { appState.infoSort = e.target.value; renderGAList(); };
-    document.getElementById('i-filter').onchange = (e) => { appState.infoFilterAttribute = e.target.value; renderGAList(); };
+    document.getElementById('info-sort').value = appState.infoSort;
+    document.getElementById('info-filter-attribute').value = appState.infoFilterAttribute;
+
+    document.getElementById('info-sort').addEventListener('change', (e) => { appState.infoSort = e.target.value; renderGAList(); });
+    document.getElementById('info-filter-attribute').addEventListener('change', (e) => { appState.infoFilterAttribute = e.target.value; renderGAList(); });
+    document.getElementById('search').oninput = (e) => { renderGAList(e.target.value); };
+
     renderGAList();
 }
 
-async function renderGAList() {
+async function renderGAList(searchTerm = '') {
     const listEl = document.getElementById('ga-list');
     let animals = await db.game_animal_list.toArray();
     const attr = appState.infoFilterAttribute;
@@ -1252,6 +1237,10 @@ async function renderGAList() {
             return true;
         });
     }
+    if (searchTerm) {
+        animals = animals.filter(a => a.species_name.includes(searchTerm));
+    }
+
     if (appState.infoSort === 'name') animals.sort((a, b) => a.species_name.localeCompare(b.species_name, 'ja'));
     else animals.sort((a, b) => a.id - b.id);
 
@@ -1259,180 +1248,156 @@ async function renderGAList() {
 
     listEl.innerHTML = animals.map(a => {
         let badges = '';
-        if (a.category === '哺乳類') badges += `<span class="badge badge-mammal">哺乳類</span>`;
-        if (a.category === '鳥類') badges += `<span class="badge badge-bird">鳥類</span>`;
-        if (a.is_game_animal === '〇') badges += `<span class="badge badge-game">狩猟鳥獣</span>`;
-        if (a.notes && a.notes.includes('外来')) badges += `<span class="badge badge-invasive">外来種</span>`;
+        if (a.category === '哺乳類') badges += `<span class="badge" style="background:#fef3c7;color:#92400e;">哺乳類</span>`;
+        if (a.category === '鳥類') badges += `<span class="badge" style="background:#e0f2fe;color:#075985;">鳥類</span>`;
+        if (a.is_game_animal === '〇') badges += `<span class="badge" style="background:#dcfce7;color:#166534;">狩猟鳥獣</span>`;
         
         const img = a.image_1 ? `<img src="./image/${escapeHTML(a.image_1)}" class="animal-thumb">` : `<div class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-300"><i class="fas fa-paw"></i></div>`;
         return `
-            <div class="animal-card bg-white" data-id="${a.id}">
-                <div class="animal-thumb-container">${img}</div>
-                <div class="animal-info"><div class="animal-header"><h3 class="animal-name">${escapeHTML(a.species_name)}</h3></div><div class="animal-badges">${badges}</div></div>
-                <div class="animal-arrow"><span>&gt;</span></div>
+            <div class="animal-card bg-white" onclick="showGameAnimalDetail(${a.id})">
+                <div class="flex items-center gap-2">
+                    <div class="w-12 h-12 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                        ${a.image_1 ? `<img src="./image/${escapeHTML(a.image_1)}" class="w-full h-full object-cover">` : '<i class="fas fa-paw text-gray-300 m-auto"></i>'}
+                    </div>
+                    <div>
+                        <h3 class="font-bold">${escapeHTML(a.species_name)}</h3>
+                        <div class="flex gap-1">${badges}</div>
+                    </div>
+                </div>
+                <i class="fas fa-chevron-right text-gray-300"></i>
             </div>`;
     }).join('');
-    listEl.querySelectorAll('.animal-card').forEach(d => d.onclick = () => showGameAnimalDetail(parseInt(d.dataset.id)));
 }
 
 async function showGameAnimalDetail(id) {
-    const animal = await db.game_animal_list.get(id);
-    if (!animal) return;
-    updateHeader(animal.species_name, true);
+    const a = await db.game_animal_list.get(id);
+    if (!a) return;
+    updateHeader(a.species_name, true);
     backButton.onclick = () => showGameAnimalListPage();
-
+    
     let imgs = '';
-    if(animal.image_1) imgs += `<img src="./image/${escapeHTML(animal.image_1)}" class="w-full h-auto rounded mb-2 border">`;
-    if(animal.image_2) imgs += `<img src="./image/${escapeHTML(animal.image_2)}" class="w-full h-auto rounded mb-2 border">`;
-    if(!imgs) imgs = '<p class="text-gray-400 text-sm">画像なし</p>';
+    if(a.image_1) imgs += `<img src="./image/${escapeHTML(a.image_1)}" class="w-full h-48 object-cover rounded mb-1">`;
+    if(a.image_2) imgs += `<img src="./image/${escapeHTML(a.image_2)}" class="w-full h-48 object-cover rounded">`;
 
+    // 区分ロジック
     let methods = [];
-    if(animal.is_game_animal === '〇') {
+    if(a.is_game_animal === '〇') {
         const s = ['○', '〇', '◎'];
-        if(s.includes(animal.method_gun)) methods.push('銃');
-        if(s.includes(animal.method_trap)) methods.push('罠');
-        if(s.includes(animal.method_net)) methods.push('網');
+        if(s.includes(a.method_gun)) methods.push('銃');
+        if(s.includes(a.method_trap)) methods.push('罠');
+        if(s.includes(a.method_net)) methods.push('網');
     }
-    const statusVal = methods.length > 0 ? methods.join('・') : (animal.is_game_animal === '〇' ? '狩猟鳥獣' : '非狩猟鳥獣');
-    const genderVal = (animal.gender && animal.gender.includes('オスのみ')) ? animal.gender : null;
-    let prohibitedVal = animal.prohibited_area;
+    const statusVal = methods.length > 0 ? methods.join('・') : (a.is_game_animal === '〇' ? '狩猟鳥獣' : '非狩猟鳥獣');
+    const genderVal = (a.gender && a.gender.includes('オスのみ')) ? a.gender : null;
+    let prohibitedVal = a.prohibited_area;
     if (!prohibitedVal || prohibitedVal === 'nan' || prohibitedVal === '-') prohibitedVal = null;
 
-    let rows = '';
-    [['狩猟', statusVal], ['性別制限', genderVal], ['捕獲数制限', animal.count], ['狩猟禁止区域', prohibitedVal], ['生息地', animal.habitat], ['備考', animal.notes]].forEach(r => {
-        if(r[1] && r[1]!=='nan') rows += `<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-2">${r[0]}</th><td class="p-2">${escapeHTML(r[1])}</td></tr>`;
-    });
-
     app.innerHTML = `
-        <div class="space-y-4">
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">写真</h2>${imgs}</div>
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">生態</h2><p class="text-sm leading-relaxed">${animal.ecology ? escapeHTML(animal.ecology).replace(/\n/g, '<br>') : '情報なし'}</p></div>
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-2">被害・特徴</h2><p class="text-sm leading-relaxed">${animal.damage ? escapeHTML(animal.damage).replace(/\n/g, '<br>') : '情報なし'}</p></div>
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-0">データ</h2><table class="w-full text-sm"><tbody>${rows}</tbody></table></div>
+        <div class="space-y-2">
+            ${imgs ? `<div class="card p-1">${imgs}</div>` : ''}
+            <div class="card"><h3 class="font-bold border-b mb-1">生態</h3><p class="text-sm">${a.ecology||'-'}</p></div>
+            <div class="card"><h3 class="font-bold border-b mb-1">被害・特徴</h3><p class="text-sm">${a.damage||'-'}</p></div>
+            <div class="card">
+                <h3 class="font-bold border-b mb-1">データ</h3>
+                <table class="w-full text-sm">
+                    <tr><th class="text-left w-1/3 text-gray-500">狩猟</th><td>${statusVal}</td></tr>
+                    ${genderVal ? `<tr><th class="text-left text-gray-500">性別制限</th><td>${genderVal}</td></tr>` : ''}
+                    <tr><th class="text-left text-gray-500">制限</th><td>${a.count||'-'}</td></tr>
+                    ${prohibitedVal ? `<tr><th class="text-left text-gray-500">狩猟禁止区域</th><td>${prohibitedVal}</td></tr>` : ''}
+                    <tr><th class="text-left text-gray-500">生息地</th><td>${a.habitat||'-'}</td></tr>
+                    <tr><th class="text-left text-gray-500">備考</th><td>${a.notes||'-'}</td></tr>
+                </table>
+            </div>
         </div>
     `;
 }
 
-// 捕獲者情報
+// プロフィール (項目別保存版)
 async function showHunterProfilePage() {
-    updateHeader('捕獲者情報', true);
+    updateHeader('登録情報', true);
     backButton.onclick = () => showInfoPage();
-    app.innerHTML = `
-        <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">登録情報</h2><div id="h-prof-con"><p>読み込み中...</p></div></div>
-    `;
-    const container = document.getElementById('h-prof-con');
-    const profile = await db.hunter_profile.get('main') || {};
-    const images = await db.profile_images.toArray();
     
-    const fields = [
-        {k:'name', l:'氏名'}, {k:'gun_license_renewal', l:'銃所持許可 期限'},
-        {k:'hunting_license_renewal', l:'狩猟免状 期限'}, {k:'registration_renewal', l:'狩猟者登録 期限'},
-        {k:'explosives_permit_renewal', l:'火薬類譲受許可 期限'}
-    ];
+    const p = await db.hunter_profile.get('main') || {};
+    const imgs = await db.profile_images.toArray();
+    const fields = [{k:'name',l:'氏名'},{k:'gun_license_renewal',l:'銃所持許可'},{k:'hunting_license_renewal',l:'狩猟免状'},{k:'registration_renewal',l:'登録証'},{k:'explosives_permit_renewal',l:'火薬許可'}];
 
-    let html = `<div class="text-right mb-2"><button id="edit-prof" class="text-blue-600 text-sm hover:underline"><i class="fas fa-edit"></i> 編集</button></div>`;
-    
-    fields.forEach(f => {
-        const val = profile[f.k] || '未設定';
-        const imgs = images.filter(i => i.type === f.k);
-        let imgHtml = '';
-        if(imgs.length>0) {
-            imgHtml = `<div class="flex gap-2 mt-2 overflow-x-auto pb-2">`;
-            imgs.forEach(i => { const u = URL.createObjectURL(i.image_blob); appState.activeBlobUrls.push(u); imgHtml+=`<img src="${u}" class="h-16 w-16 object-cover rounded border cursor-zoom-in" onclick="showImageModal(this.src)">`; });
-            imgHtml += `</div>`;
-        }
-        html += `<div class="mb-4 border-b pb-3 last:border-b-0"><div class="flex justify-between items-center"><span class="text-sm font-medium text-gray-500">${f.l}</span><span class="text-base font-bold">${escapeHTML(val)}</span></div>${imgHtml}</div>`;
-    });
-    container.innerHTML = html;
-    document.getElementById('edit-prof').onclick = () => showHunterProfileEdit();
+    app.innerHTML = `
+        <div class="space-y-2">
+            <div class="card text-right py-1"><button id="edit" class="text-blue-600 text-sm">編集モードへ</button></div>
+            ${fields.map(f => {
+                const myImgs = imgs.filter(i=>i.type===f.k);
+                let imgHTML = '';
+                if(myImgs.length) {
+                    imgHTML = `<div class="flex gap-1 mt-1 overflow-x-auto">` + myImgs.map(i=>{
+                        const u = URL.createObjectURL(i.image_blob); appState.activeBlobUrls.push(u);
+                        return `<img src="${u}" class="h-12 w-12 rounded border object-cover" onclick="showImageModal(this.src)">`;
+                    }).join('') + `</div>`;
+                }
+                return `<div class="card"><div class="flex justify-between"><span class="text-gray-500 text-sm">${f.l}</span><span class="font-bold">${escapeHTML(p[f.k]||'')}</span></div>${imgHTML}</div>`;
+            }).join('')}
+        </div>
+    `;
+    document.getElementById('edit').onclick = () => showHunterProfileEdit();
 }
 
 async function showHunterProfileEdit() {
-    const profile = await db.hunter_profile.get('main') || {};
-    const images = await db.profile_images.toArray();
-    updateHeader('捕獲者情報の編集', true);
+    updateHeader('情報編集', true);
     backButton.onclick = () => showHunterProfilePage();
+    
+    const p = await db.hunter_profile.get('main') || {key:'main'};
+    const imgs = await db.profile_images.toArray();
+    const fields = [{k:'name',l:'氏名'},{k:'gun_license_renewal',l:'銃所持許可'},{k:'hunting_license_renewal',l:'狩猟免状'},{k:'registration_renewal',l:'登録証'},{k:'explosives_permit_renewal',l:'火薬許可'}];
 
-    const fields = [
-        {k:'name', l:'氏名'}, {k:'gun_license_renewal', l:'銃所持許可 期限'},
-        {k:'hunting_license_renewal', l:'狩猟免状 期限'}, {k:'registration_renewal', l:'狩猟者登録 期限'},
-        {k:'explosives_permit_renewal', l:'火薬類譲受許可 期限'}
-    ];
-
-    app.innerHTML = `
-        <div class="card bg-white"><h3 class="text-md font-bold mb-4 border-b pb-2">項目別編集</h3><div id="edit-fields" class="space-y-6"></div></div>
-        <input type="file" id="h-img-in" accept="image/*" style="display: none;">
-    `;
-    const container = document.getElementById('edit-fields');
-    const fileInput = document.getElementById('h-img-in');
+    app.innerHTML = `<div id="editor" class="space-y-2"></div><input type="file" id="file" hidden>`;
+    const editor = document.getElementById('editor');
+    const fileIn = document.getElementById('file');
     let targetKey = null;
 
     fields.forEach(f => {
-        const div = document.createElement('div');
-        div.className = 'border-b pb-4 last:border-b-0';
-        const imgs = images.filter(i => i.type === f.k);
-        let imgHtml = '';
-        imgs.forEach(i => {
+        const myImgs = imgs.filter(i=>i.type===f.k);
+        let imgHTML = myImgs.map(i => {
             const u = URL.createObjectURL(i.image_blob); appState.activeBlobUrls.push(u);
-            imgHtml += `<div class="relative inline-block mr-2 mb-2"><img src="${u}" class="h-16 w-16 object-cover rounded border"><button class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-5 h-5 text-xs del-p-img" data-id="${i.id}">&times;</button></div>`;
-        });
+            return `<div class="relative inline-block mr-1"><img src="${u}" class="h-12 w-12 rounded object-cover"><button class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center del-img" data-id="${i.id}">×</button></div>`;
+        }).join('');
 
+        const div = document.createElement('div');
+        div.className = 'card';
         div.innerHTML = `
             <label class="form-label">${f.l}</label>
-            <div class="flex space-x-2 mb-2"><input type="text" id="in-${f.k}" class="form-input flex-1" value="${escapeHTML(profile[f.k]||'')}"><button class="btn btn-primary w-20 save-p" data-key="${f.k}">保存</button></div>
-            <div class="mt-2"><div class="flex flex-wrap items-center">${imgHtml}<button class="btn btn-secondary btn-sm h-16 w-16 flex flex-col items-center justify-center text-xs text-gray-500 border-dashed border-2 add-p-img" data-key="${f.k}"><i class="fas fa-camera text-lg mb-1"></i>追加</button></div></div>
+            <div class="flex gap-2 mb-2"><input id="in-${f.k}" class="form-input flex-1" value="${escapeHTML(p[f.k]||'')}"><button class="btn btn-primary w-16 save" data-key="${f.k}">保存</button></div>
+            <div class="flex items-center flex-wrap">${imgHTML}<button class="btn btn-secondary btn-sm h-12 w-12 flex flex-col items-center justify-center text-xs add-img" data-key="${f.k}"><i class="fas fa-camera"></i></button></div>
         `;
-        container.appendChild(div);
+        editor.appendChild(div);
     });
 
-    container.querySelectorAll('.save-p').forEach(b => b.onclick = async (e) => {
+    editor.querySelectorAll('.save').forEach(b => b.onclick = async (e) => {
         const k = e.target.dataset.key;
-        const v = document.getElementById(`in-${k}`).value;
-        const orgTxt = e.target.textContent;
-        try {
-            const p = await db.hunter_profile.get('main') || {key:'main'};
-            p[k] = v;
-            await db.hunter_profile.put(p);
-            e.target.textContent = 'OK'; e.target.classList.replace('btn-primary','btn-success');
-            setTimeout(()=>{e.target.textContent=orgTxt; e.target.classList.replace('btn-success','btn-primary');},1500);
-        } catch{alert('保存失敗');}
+        p[k] = document.getElementById(`in-${k}`).value;
+        await db.hunter_profile.put(p);
+        e.target.textContent='OK'; setTimeout(()=>e.target.textContent='保存',1000);
     });
+    editor.querySelectorAll('.add-img').forEach(b => b.onclick = (e) => { targetKey=e.currentTarget.dataset.key; fileIn.click(); });
+    editor.querySelectorAll('.del-img').forEach(b => b.onclick = async (e) => { await db.profile_images.delete(parseInt(e.target.dataset.id)); showHunterProfileEdit(); });
 
-    container.querySelectorAll('.add-p-img').forEach(b => b.onclick = (e) => { targetKey = e.currentTarget.dataset.key; fileInput.click(); });
-    container.querySelectorAll('.del-p-img').forEach(b => b.onclick = async (e) => {
-        if(confirm('削除しますか？')){ await db.profile_images.delete(parseInt(e.target.dataset.id)); showHunterProfileEdit(); }
-    });
-
-    fileInput.onchange = async (e) => {
-        if(!e.target.files[0] || !targetKey) return;
-        try {
-            const blob = await resizeImage(e.target.files[0], 800);
-            await db.profile_images.add({ type: targetKey, image_blob: blob });
+    fileIn.onchange = async (e) => {
+        if(e.target.files[0]) {
+            const b = await resizeImage(e.target.files[0]);
+            await db.profile_images.add({type:targetKey, image_blob:b});
             showHunterProfileEdit();
-        } catch { alert('画像保存失敗'); }
-        fileInput.value = '';
+        }
+        fileIn.value = '';
     };
 }
 
 
 // ----------------------------------------------------------------------------
-// 8. 設定機能 (元 settings.js)
+// 8. 設定機能
 // ----------------------------------------------------------------------------
 
-function showSettingsPage() { navigateTo('settings', renderSettingsMenu, '設定'); }
-
-async function renderSettingsMenu() {
-    let curTheme='light', curSize='medium';
-    try {
-        const t = await db.settings.get('theme'); if(t) curTheme=t.value;
-        const s = await db.settings.get('fontSize'); if(s) curSize=s.value;
-    } catch {}
-
-    const themeOpt = (v,l) => `<option value="${v}" ${curTheme===v?'selected':''}>${l}</option>`;
-    const sizeOpt = (v,l) => `<option value="${v}" ${curSize===v?'selected':''}>${l}</option>`;
-
+function showSettingsPage() {
+    updateHeader('設定', false);
     app.innerHTML = `
-        <div class="space-y-4">
+        <div class="space-y-2">
             <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">使用方法</h2>
                 <div class="space-y-2">
                     <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">⛓️ 罠タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">罠の設置・管理・捕獲記録を行います。</div></details>
@@ -1443,8 +1408,8 @@ async function renderSettingsMenu() {
                 </div>
             </div>
             <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">表示設定</h2>
-                <div class="form-group"><label class="form-label">背景色:</label><select id="st-theme" class="form-select">${themeOpt('light','ライト')}${themeOpt('sepia','セピア')}${themeOpt('lightgreen','グリーン')}${themeOpt('lightblue','ブルー')}</select></div>
-                <div class="form-group"><label class="form-label">文字サイズ:</label><select id="st-size" class="form-select">${sizeOpt('xsmall','極小')}${sizeOpt('small','小')}${sizeOpt('medium','中')}${sizeOpt('large','大')}${sizeOpt('xlarge','特大')}</select></div>
+                <div class="form-group"><label class="form-label">背景色:</label><select id="st-theme" class="form-select"><option value="light">ライト</option><option value="sepia">セピア</option><option value="lightgreen">緑</option><option value="lightblue">ブルー</option></select></div>
+                <div class="form-group"><label class="form-label">文字サイズ:</label><select id="st-size" class="form-select"><option value="xsmall">極小</option><option value="small">小</option><option value="medium">中</option><option value="large">大</option><option value="xlarge">特大</option></select></div>
             </div>
             <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-2 mb-4">データ管理</h2>
                 <button id="exp-btn" class="btn btn-primary w-full mb-2">バックアップ (保存)</button>
@@ -1488,13 +1453,12 @@ async function renderSettingsMenu() {
     };
 }
 
-// データ処理 (短縮版: ロジックは元のまま)
+// データ処理
 async function exportAllData() {
     const data = {};
     for (const t of ['hunter_profile','settings','trap','trap_type','gun','gun_log','catch_records','checklist_sets','checklist_items','game_animal_list','ammo_purchases','profile_images']) {
         data[t] = await db[t].toArray();
     }
-    // Blob変換
     for (const t of ['trap','catch_records','gun_log','profile_images']) {
         if(data[t]) data[t] = await Promise.all(data[t].map(async i => ({...i, image_blob: await blobToBase64(i.image_blob)})));
     }
