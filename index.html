@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BLNCR狩猟アプリ</title>
+    
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#ffffff">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#ffffff">
+
     <link rel="apple-touch-icon" href="icon-192x192.png">
     <link rel="icon" href="favicon.ico">
 
     <script src="libs/tailwindcss.js"></script>
     <link rel="stylesheet" href="style.css">
-
     <script src="libs/dexie.js"></script>
     <script src="libs/exif.min.js"></script>
     <link rel="stylesheet" href="libs/font-awesome/css/all.min.css">
-
 </head>
 <body class="bg-gray-100">
 
@@ -25,8 +25,7 @@
         <div class="container mx-auto px-4 py-3 flex items-center justify-between h-16">
             <button id="backButton" class="text-blue-600 hidden w-20 text-left">&lt; 戻る</button>
             <h1 id="headerTitle" class="text-xl font-bold text-gray-800 text-center flex-grow">罠</h1>
-            <div id="headerActions" class="w-20 text-right">
-                </div>
+            <div id="headerActions" class="w-20 text-right"></div>
         </div>
     </header>
 
@@ -43,15 +42,12 @@
         <button id="tab-gun" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
             <i class="fas fa-crosshairs text-lg mb-1"></i> 銃
         </button>
-        
         <button id="tab-catch" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
             <i class="fas fa-paw text-lg mb-1"></i> 捕獲
         </button>
-
         <button id="tab-checklist" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
             <i class="fas fa-list-check text-lg mb-1"></i> チェック 
         </button>  
- 
         <button id="tab-info" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
             <i class="fas fa-book-open text-lg mb-1"></i> 情報
         </button>
@@ -60,27 +56,18 @@
         </button>
     </nav>
 
-    <script src="db.js"></script>
-    <script src="trap.js"></script>
-    <script src="gun.js"></script>
-    <script src="info.js"></script>
-    <script src="settings.js"></script>
-    <script src="catch.js"></script>
-    <script src="checklist.js"></script>
-    <script src="main.js"></script>
+    <script src="app.js"></script>
 
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then((reg) => {
-                        console.log('ServiceWorker registration successful with scope: ', reg.scope);
-                    }, (err) => {
-                        console.log('ServiceWorker registration failed: ', err);
-                    });
+                navigator.serviceWorker.register('./sw.js').then((reg) => {
+                    console.log('ServiceWorker OK', reg.scope);
+                }, (err) => {
+                    console.log('ServiceWorker Fail', err);
+                });
             });
         }
     </script>
-
 </body>
 </html>
