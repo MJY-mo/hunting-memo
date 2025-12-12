@@ -263,3 +263,22 @@ input, select, textarea, button {
     cursor: pointer;
     z-index: 10000;
 }
+
+/* ----------------------------------------------------------------------------
+   ★追加: リスト内などの小型ボタン修正
+---------------------------------------------------------------------------- */
+.btn-sm {
+    width: auto !important;        /* 全幅(100%)を解除して中身に合わせる */
+    display: inline-flex !important; /* 横並び可能に */
+    padding: 4px 12px !important;  /* 余白を小さく */
+    font-size: 0.8rem !important;  /* 文字も少し小さく */
+    margin: 0 !important;          /* 周囲の余白を削除 */
+    height: auto !important;       /*高さ固定を解除 */
+    min-height: 0 !important;
+    line-height: 1.2 !important;
+}
+
+/* 削除ボタンのアイコン位置調整（もしあれば） */
+.btn-sm i {
+    margin-right: 4px;
+}
