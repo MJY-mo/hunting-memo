@@ -1,310 +1,212 @@
-/* style.css - v6.0 Compact & High Density */
+/* style.css - v8.0 Final Compact Layout */
 
 /* ----------------------------------------------------------------------------
-   1. テーマと基本設定 (コンパクト化)
+   1. テーマ設定
 ---------------------------------------------------------------------------- */
 :root {
-    /* 配色定義 */
-    --color-bg-primary: #f3f4f6;
-    --color-bg-secondary: #ffffff;
-    --color-text-primary: #111827;
-    --color-text-secondary: #4b5563;
+    --bg-primary: #f3f4f6;
+    --bg-secondary: #ffffff;
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+    --border-color: #9ca3af; 
+    --focus-color: #2563eb;
     
-    --color-border: #9ca3af; 
-    --color-border-focus: #2563eb;
-    
-    /* ボタン色 */
-    --btn-primary-bg: #2563eb;
-    --btn-primary-text: #ffffff;
-    --btn-secondary-bg: #e5e7eb;
-    --btn-secondary-text: #1f2937;
-    --btn-danger-bg: #dc2626;
-    --btn-danger-text: #ffffff;
-    --btn-success-bg: #16a34a;
-    --btn-success-text: #ffffff;
-    --btn-warning-bg: #f59e0b;
-    --btn-warning-text: #ffffff;
-
-    --header-height: 50px; /* ヘッダーも少し低く */
-    
-    /* ★基準フォントサイズを小さく設定 */
-    --font-size-base: 13px; 
+    /* ボタンカラー */
+    --btn-primary: #2563eb;
+    --btn-danger: #dc2626;
+    --btn-success: #16a34a;
 }
 
 /* ダークモード */
 :root.theme-dark {
-    --color-bg-primary: #111827;
-    --color-bg-secondary: #1f2937;
-    --color-text-primary: #f9fafb;
-    --color-text-secondary: #9ca3af;
-    --color-border: #4b5563;
-    --color-border-focus: #60a5fa;
-    --color-accent: #60a5fa;
+    --bg-primary: #111827; --bg-secondary: #1f2937;
+    --text-primary: #f9fafb; --text-secondary: #9ca3af;
+    --border-color: #4b5563; --focus-color: #60a5fa;
 }
-:root.theme-sepia { --color-bg-primary: #fbf0e4; --color-bg-secondary: #fffefb; --color-border: #a89f91; }
-:root.theme-light-green { --btn-primary-bg: #15803d; }
-:root.theme-light-blue { --btn-primary-bg: #0c4a6e; }
-
-/* ユーザー設定による文字サイズ調整 (ベース自体を控えめに) */
-:root.font-size-xsmall { --font-size-base: 11px; }
-:root.font-size-small { --font-size-base: 12px; }
-:root.font-size-medium { --font-size-base: 13.5px; }
-:root.font-size-large { --font-size-base: 15px; }
-:root.font-size-xlarge { --font-size-base: 17px; }
+/* セピア */
+:root.theme-sepia { --bg-primary: #fbf0e4; --bg-secondary: #fffefb; --border-color: #a89f91; --btn-primary: #8c6b4a; }
+/* カラーバリエーション */
+:root.theme-light-green { --btn-primary: #15803d; }
+:root.theme-light-blue { --btn-primary: #0c4a6e; }
 
 /* ----------------------------------------------------------------------------
-   2. 全体レイアウト & リセット
+   2. ベーススタイル & リセット対策
 ---------------------------------------------------------------------------- */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background-color: var(--color-bg-primary);
-    color: var(--color-text-primary);
-    font-size: var(--font-size-base);
-    line-height: 1.4;
-    margin: 0;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.3;
+    /* iOSでのセーフエリア対応 */
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* 要素の強制スタイル適用 (Tailwindリセット対策) */
-button, input, select, textarea {
+/* Tailwindによる入力欄リセットの修復 */
+input, select, textarea, button {
+    border: 1px solid var(--border-color) !important;
     font-family: inherit;
-    font-size: 100%;
-    margin: 0;
-    border: 1px solid var(--color-border) !important;
-    box-sizing: border-box;
 }
-
-/* タイトルサイズ調整 (あまり大きくしすぎない) */
-h1 { font-size: 1.2rem !important; }
-h2 { font-size: 1.1rem !important; font-weight: 700; margin: 0; }
-h3 { font-size: 1rem !important; font-weight: 700; }
 
 /* ----------------------------------------------------------------------------
-   3. 入力フォーム (スリム化)
+   3. コンポーネント: カード & リスト (高密度化)
 ---------------------------------------------------------------------------- */
+.card, .trap-card, .animal-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    /* ★余白を極限まで詰める */
+    padding: 8px !important; 
+    margin-bottom: 4px !important;
+}
+
+/* リストアイテムの行間調整 */
+.trap-card h3, .animal-name {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.2;
+}
+.trap-card p {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 2px 0 0 0;
+}
+
+/* ----------------------------------------------------------------------------
+   4. 入力フォーム (コンパクト)
+---------------------------------------------------------------------------- */
+.form-group { margin-bottom: 8px; }
+
+.form-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+}
+
 .form-input, .form-select, input[type="text"], input[type="number"], input[type="date"], textarea, select {
     display: block;
     width: 100%;
-    /* ★余白を削減して高さを抑える */
-    padding: 6px 8px !important; 
+    padding: 6px 8px !important; /* パディング縮小 */
+    font-size: 0.95rem;
     border-radius: 4px !important;
-    background-color: var(--color-bg-secondary) !important;
-    color: var(--color-text-primary) !important;
-    margin-bottom: 4px;
-    height: auto;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    box-shadow: none;
+    margin-bottom: 0; /* form-groupで制御 */
 }
 
-/* フォーカス時の強調 */
+/* フォーカス時 */
 .form-input:focus, select:focus, textarea:focus {
-    border-color: var(--color-border-focus) !important;
-    outline: 2px solid rgba(37,99,235,0.1);
+    outline: 2px solid var(--focus-color);
+    border-color: var(--focus-color) !important;
 }
-
-/* ラベルも詰める */
-.form-label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 2px;
-    font-size: 0.9em;
-    color: var(--color-text-secondary);
-}
-.form-group { margin-bottom: 8px; }
 
 /* ----------------------------------------------------------------------------
-   4. ボタン (コンパクト化)
+   5. ボタン (コンパクト)
 ---------------------------------------------------------------------------- */
 .btn {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    /* ★ボタンの上下幅を狭く */
-    padding: 6px 10px; 
-    text-align: center;
+    padding: 8px;
+    font-size: 0.9rem;
     font-weight: 600;
     border-radius: 4px;
     cursor: pointer;
     border: 1px solid transparent !important;
-    font-size: 0.95em;
-    margin-bottom: 4px;
+    transition: filter 0.2s;
 }
-.btn:active { filter: brightness(90%); transform: translateY(1px); }
+.btn:active { filter: brightness(90%); }
 
-/* ボタン色 */
-.btn-primary { background-color: var(--btn-primary-bg) !important; color: var(--btn-primary-text) !important; }
-.btn-secondary { background-color: var(--btn-secondary-bg) !important; color: var(--btn-secondary-text) !important; border-color: var(--color-border) !important; }
-.btn-danger { background-color: var(--btn-danger-bg) !important; color: var(--btn-danger-text) !important; }
-.btn-success { background-color: var(--btn-success-bg) !important; color: var(--btn-success-text) !important; }
-.btn-warning { background-color: var(--btn-warning-bg) !important; color: var(--btn-warning-text) !important; }
+.btn-primary { background-color: var(--btn-primary); color: white; }
+.btn-secondary { background-color: #e5e7eb; color: #1f2937; border-color: var(--border-color) !important; }
+.btn-danger { background-color: var(--btn-danger); color: white; }
+.btn-success { background-color: var(--btn-success); color: white; }
 
 /* ----------------------------------------------------------------------------
-   5. ヘッダー & ナビゲーション
+   6. サブタブ (設置中/過去 など)
 ---------------------------------------------------------------------------- */
-#header {
-    background-color: var(--color-bg-secondary);
-    border-bottom: 1px solid var(--color-border) !important;
-    height: var(--header-height);
-}
-#headerTitle { font-size: 1.1rem; }
-
-/* 戻るボタンを少し小さく */
-#backButton {
-    height: 32px;
-    padding: 0 10px;
-    font-size: 0.9em !important;
-    background-color: var(--color-bg-primary) !important;
-    color: var(--color-text-primary);
-    border-radius: 4px;
-}
-
-/* 下部タブバー (改行対策) */
-nav.bg-white {
-    height: 55px; /* 高さを固定 */
-    background-color: var(--color-bg-secondary);
-    border-top: 1px solid var(--color-border) !important;
-    padding-bottom: env(safe-area-inset-bottom);
-}
-.tab-button {
-    color: var(--color-text-secondary);
-    padding: 2px 0;
-    /* ★文字サイズを小さくして改行を防ぐ */
-    font-size: 10px !important; 
-    line-height: 1.1;
-}
-.tab-button i {
-    font-size: 18px; /* アイコンサイズ */
-    margin-bottom: 2px;
-}
-.tab-active {
-    color: var(--btn-primary-bg);
-    font-weight: bold;
-    background-color: rgba(0,0,0,0.03);
-}
-
-/* ----------------------------------------------------------------------------
-   6. カード・リスト・タイル (高密度表示)
----------------------------------------------------------------------------- */
-.card, .trap-card, .animal-card {
-    background-color: var(--color-bg-secondary);
-    border: 1px solid var(--color-border) !important;
-    border-radius: 4px; /* 角丸を小さく */
-    
-    /* ★余白を限界まで詰める */
-    padding: 6px 8px !important; 
-    margin-bottom: 4px !important;
-}
-
-/* カード内のテキスト間隔 */
-.trap-card h3, .animal-name {
-    margin: 0;
-    font-size: 1em !important;
-    line-height: 1.2;
-}
-.trap-card p {
-    margin: 0;
-    font-size: 0.9em;
-    color: var(--color-text-secondary);
-}
-
-/* ----------------------------------------------------------------------------
-   7. 図鑑リスト (コンパクトリスト形式へ)
----------------------------------------------------------------------------- */
-.animal-card {
-    display: flex;
-    align-items: center;
-    /* 高さを抑える */
-    min-height: 44px;
-}
-
-/* サムネイル画像を小さく */
-.animal-thumb-container {
-    width: 40px; height: 40px; /* 45px -> 40px */
-    margin-right: 8px;
-    flex-shrink: 0;
-    border-radius: 4px;
-    overflow: hidden;
-    background-color: #e5e7eb;
-    border: 1px solid var(--color-border);
-}
-.animal-thumb { width: 100%; height: 100%; object-fit: cover; }
-
-.animal-info {
-    flex-grow: 1;
-    min-width: 0; /* フレックス内での文字切れ防止 */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-.animal-header {
-    display: flex;
-    align-items: baseline;
-    margin-bottom: 1px;
-}
-.animal-name {
-    font-weight: 700;
-    font-size: 1rem;
-    margin-right: 6px;
-}
-
-/* バッジを小さく */
-.badge {
-    display: inline-block;
-    padding: 1px 4px;
-    font-size: 0.7em;
-    border-radius: 3px;
-    margin-right: 2px;
-    border: 1px solid rgba(0,0,0,0.1) !important;
-    line-height: 1;
-}
-
-/* 矢印 */
-.animal-arrow {
-    font-size: 0.9em;
-    color: #ccc;
-    margin-left: 4px;
-}
-
-/* ----------------------------------------------------------------------------
-   8. その他 (サブタブ・チェックリスト)
----------------------------------------------------------------------------- */
-/* サブタブ (設置中/過去 など) */
 .sub-tab-container {
     display: flex;
     background-color: #e5e7eb;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     padding: 2px;
-    border-radius: 4px;
-    border: 1px solid var(--color-border) !important;
     margin-bottom: 8px;
 }
 .sub-tab-button {
     flex: 1;
-    padding: 6px; /* 狭く */
-    border-radius: 3px;
-    border: none !important;
-    background: transparent;
-    color: #4b5563;
+    padding: 6px 0;
+    text-align: center;
+    border-radius: 4px;
+    font-size: 0.85rem;
     font-weight: 600;
-    font-size: 0.9em;
+    color: #4b5563;
+    background: transparent;
+    border: none !important;
 }
 .sub-tab-active {
-    background-color: white !important;
-    color: var(--btn-primary-bg) !important;
+    background-color: white;
+    color: var(--btn-primary);
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
-/* チェックリスト */
-.checklist-item-text {
-    font-size: 0.95em !important;
-    margin-left: 8px;
-}
-
-/* 写真プレビュー枠 */
-.photo-preview {
-    border: 1px dashed var(--color-border) !important;
-    background-color: var(--color-bg-primary);
-    height: 100px; /* 低くする */
-    border-radius: 4px;
+/* ----------------------------------------------------------------------------
+   7. 図鑑リスト (サムネイル小型化)
+---------------------------------------------------------------------------- */
+.animal-card {
     display: flex;
     align-items: center;
-    justify-content: center;
-    margin-bottom: 4px;
+    padding: 6px !important;
+    min-height: 50px;
+}
+.animal-thumb-container {
+    width: 40px; height: 40px; /* サムネイルを小さく */
+    flex-shrink: 0;
+    margin-right: 10px;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    background-color: #e5e7eb;
+}
+.animal-thumb {
+    width: 100%; height: 100%; object-fit: cover;
+}
+.animal-info {
+    flex-grow: 1;
+    min-width: 0;
+}
+.animal-badges {
+    margin-top: 2px;
+    line-height: 1;
+}
+.badge {
+    display: inline-block;
+    padding: 1px 4px;
+    font-size: 0.7rem;
+    border-radius: 3px;
+    margin-right: 3px;
+    border: 1px solid rgba(0,0,0,0.1) !important;
+}
+
+/* ----------------------------------------------------------------------------
+   8. その他パーツ
+---------------------------------------------------------------------------- */
+/* ナビゲーションのアクティブ状態 */
+.tab-active { color: var(--btn-primary); font-weight: bold; }
+.tab-inactive { color: #6b7280; }
+
+/* 写真プレビュー */
+.photo-preview {
+    height: 100px; /* 高さを抑える */
+    background-color: #f9fafb;
+    border: 1px dashed var(--border-color) !important;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px;
     position: relative;
     overflow: hidden;
 }
@@ -316,7 +218,8 @@ nav.bg-white {
     width: 24px !important; height: 24px !important;
     background: red !important; color: white;
     border: none !important;
-    font-size: 1rem;
-    line-height: 1;
     display: flex; align-items: center; justify-content: center;
 }
+
+/* チェックリスト */
+.checklist-item-text { font-size: 0.95rem; margin-left: 8px; }

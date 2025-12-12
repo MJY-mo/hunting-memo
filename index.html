@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BLNCR狩猟アプリ</title>
     
     <link rel="manifest" href="manifest.json">
@@ -19,40 +19,42 @@
     <script src="libs/exif.min.js"></script>
     <link rel="stylesheet" href="libs/font-awesome/css/all.min.css">
 </head>
-<body class="bg-gray-100">
-
-    <header id="header" class="bg-white shadow-md fixed top-0 z-20 w-full max-w-lg mx-auto">
-        <div class="container mx-auto px-4 py-3 flex items-center justify-between h-16">
-            <button id="backButton" class="text-blue-600 hidden w-20 text-left">&lt; 戻る</button>
-            <h1 id="headerTitle" class="text-xl font-bold text-gray-800 text-center flex-grow">罠</h1>
-            <div id="headerActions" class="w-20 text-right"></div>
-        </div>
+<body class="bg-gray-100 text-sm"> <header id="header" class="bg-white shadow-sm fixed top-0 z-50 w-full max-w-lg mx-auto h-12 flex items-center justify-center border-b border-gray-300">
+        <button id="backButton" class="hidden absolute left-1 h-10 px-3 flex items-center justify-center text-gray-600 font-bold rounded hover:bg-gray-100">
+            <i class="fas fa-chevron-left mr-1"></i> 戻る
+        </button>
+        
+        <h1 id="headerTitle" class="font-bold text-base text-gray-800 truncate px-12 pointer-events-none">
+            罠
+        </h1>
+        
+        <div id="headerActions" class="absolute right-2 flex gap-2"></div>
     </header>
 
-    <main id="app" class="container mx-auto max-w-lg p-4 pt-20 pb-24">
-        <p>読み込み中...</p>
+    <main id="app" class="container mx-auto max-w-lg p-1 pt-14 pb-20">
+        <p class="text-center text-gray-500 mt-4">読み込み中...</p>
     </main>
 
     <input type="file" id="import-file-input" accept=".json" style="display: none;">
 
-    <nav class="bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 max-w-lg mx-auto h-16 flex justify-around items-center z-30">
-        <button id="tab-trap" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-active">
-            <i class="fas fa-link text-lg mb-1"></i> 罠
+    <nav class="bg-white border-t border-gray-300 fixed bottom-0 left-0 right-0 max-w-lg mx-auto h-14 flex justify-around items-center z-50 pb-safe">
+        <button id="tab-trap" class="tab-button flex-1 flex flex-col items-center justify-center h-full tab-active">
+            <i class="fas fa-link mb-0.5 text-lg"></i> <span class="text-xs">罠</span>
         </button>
-        <button id="tab-gun" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
-            <i class="fas fa-crosshairs text-lg mb-1"></i> 銃
+        <button id="tab-gun" class="tab-button flex-1 flex flex-col items-center justify-center h-full tab-inactive">
+            <i class="fas fa-crosshairs mb-0.5 text-lg"></i> <span class="text-xs">銃</span>
         </button>
-        <button id="tab-catch" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
-            <i class="fas fa-paw text-lg mb-1"></i> 捕獲
+        <button id="tab-catch" class="tab-button flex-1 flex flex-col items-center justify-center h-full tab-inactive">
+            <i class="fas fa-paw mb-0.5 text-lg"></i> <span class="text-xs">捕獲</span>
         </button>
-        <button id="tab-checklist" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
-            <i class="fas fa-list-check text-lg mb-1"></i> チェック 
+        <button id="tab-checklist" class="tab-button flex-1 flex flex-col items-center justify-center h-full tab-inactive">
+            <i class="fas fa-list-check mb-0.5 text-lg"></i> <span class="text-xs">チェック</span> 
         </button>  
-        <button id="tab-info" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
-            <i class="fas fa-book-open text-lg mb-1"></i> 情報
+        <button id="tab-info" class="tab-button flex-1 flex flex-col items-center justify-center h-full tab-inactive">
+            <i class="fas fa-book-open mb-0.5 text-lg"></i> <span class="text-xs">情報</span>
         </button>
-        <button id="tab-settings" class="tab-button flex-1 flex flex-col items-center justify-center h-full text-sm font-medium tab-inactive">
-            <i class="fas fa-cog text-lg mb-1"></i> 設定
+        <button id="tab-settings" class="tab-button flex-1 flex flex-col items-center justify-center h-full tab-inactive">
+            <i class="fas fa-cog mb-0.5 text-lg"></i> <span class="text-xs">設定</span>
         </button>
     </nav>
 
