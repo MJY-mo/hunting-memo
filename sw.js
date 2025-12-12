@@ -1,12 +1,12 @@
 // このファイルは sw.js です
-const CACHE_NAME = 'hunting-app-v4'; // ★ バージョンアップ
+const CACHE_NAME = 'hunting-app-v5'; // ★ v5に更新
 
-// キャッシュするファイルリスト (app.js に統合)
+// キャッシュするファイルリスト
 const urlsToCache = [
     './',
     './index.html',
     './style.css',
-    './app.js', // ★ ここが重要
+    './app.js',
     './manifest.json',
     './favicon.ico',
     './icon-192x192.png',
@@ -38,9 +38,9 @@ self.addEventListener('activate', (event) => {
     return self.clients.claim();
 });
 
-// フェッチ処理 (画像・フォントの自動キャッシュ機能付き)
+// フェッチ処理
 self.addEventListener('fetch', (event) => {
-    if (event.request.url.includes('?t=')) return; // CSV更新用パラメータは無視
+    if (event.request.url.includes('?t=')) return; 
 
     event.respondWith(
         caches.match(event.request).then((cachedResponse) => {
@@ -51,7 +51,6 @@ self.addEventListener('fetch', (event) => {
                     return networkResponse;
                 }
                 const url = event.request.url;
-                // 画像やフォントならキャッシュに追加
                 const isImage = url.match(/\.(jpg|jpeg|png|gif|svg)$/i) || url.includes('/image/');
                 const isFont = url.match(/\.(woff|woff2|ttf|eot)$/i) || url.includes('/webfonts/');
 

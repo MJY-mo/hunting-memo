@@ -1,6 +1,8 @@
-/* style.css */
+/* style.css - v5 Compact & Enhanced UI */
 
-/* ★★★ 修正: フォントサイズ定義 (より小さく、細かく設定) ★★★ */
+/* ----------------------------------------------------------------------------
+   1. テーマとフォントサイズの定義
+---------------------------------------------------------------------------- */
 :root {
     /* デフォルト (ライトテーマ) */
     --color-bg-primary: #f3f4f6;
@@ -9,6 +11,10 @@
     --color-text-secondary: #4b5563;
     --color-border: #d1d5db;
     --color-border-focus: rgb(59 130 246);
+    --color-accent: rgb(37 99 235);
+    
+    /* ヘッダーの高さ */
+    --header-height: 60px;
 }
 
 :root.theme-dark {
@@ -18,6 +24,7 @@
     --color-text-secondary: #d1d5db;
     --color-border: #4b5563;
     --color-border-focus: rgb(96 165 250);
+    --color-accent: rgb(96 165 250);
 }
 
 :root.theme-sepia {
@@ -27,237 +34,228 @@
     --color-text-secondary: #7a5c3b;
     --color-border: #dcd0c0;
     --color-border-focus: #a98f71;
+    --color-accent: #8c6b4a;
 }
+:root.theme-light-green { --color-accent: #15803d; }
+:root.theme-light-blue { --color-accent: #0c4a6e; }
 
-/* 文字サイズの基準値を全体的に少し下げて調整 */
-:root.font-size-xsmall { --font-size-base: 11px; } /* 極小: 12px -> 11px */
-:root.font-size-small { --font-size-base: 13px; }  /* 小: 14px -> 13px */
-:root.font-size-medium { --font-size-base: 15px; } /* 中: 16px -> 15px */
+/* 文字サイズの基準値を設定 */
+:root.font-size-xsmall { --font-size-base: 12px; }
+:root.font-size-small { --font-size-base: 13px; }
+:root.font-size-medium { --font-size-base: 15px; } /* 標準 */
 :root.font-size-large { --font-size-base: 17px; }
-:root.font-size-xlarge { --font-size-base: 19px; }
+:root.font-size-xlarge { --font-size-base: 20px; }
 
 
-/* Base Styles */
+/* ----------------------------------------------------------------------------
+   2. 基本スタイル & フォント適用
+---------------------------------------------------------------------------- */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overscroll-behavior-y: none;
     max-width: 640px;
     margin: 0 auto;
-    
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
-    font-size: var(--font-size-base); /* ベースサイズを適用 */
+    
+    /* ★設定したベースサイズを適用 */
+    font-size: var(--font-size-base);
 }
 
-/* ★ 修正: ボタンやフォーム内の文字サイズもベースサイズに追従させる */
-button, input, select, textarea, .btn, .tab-button {
-    font-size: var(--font-size-base) !important; /* 強制適用 */
+/* フォーム要素やボタンもベースサイズに従う */
+button, input, select, textarea, .btn, .tab-button, .form-input, .form-select {
+    font-size: var(--font-size-base) !important;
 }
 
-#header, nav.bg-white {
+/* ★タイトルのサイズ比率調整 (本文より大きく) */
+h1 { font-size: calc(var(--font-size-base) * 1.4) !important; }
+h2 { font-size: calc(var(--font-size-base) * 1.25) !important; }
+h3 { font-size: calc(var(--font-size-base) * 1.15) !important; }
+
+/* ★チェックリストは少し小さく */
+.checklist-item-text {
+    font-size: calc(var(--font-size-base) * 0.95) !important;
+}
+
+/* ----------------------------------------------------------------------------
+   3. ヘッダー (修正: グリッドレイアウトで中央配置)
+---------------------------------------------------------------------------- */
+#header {
     background-color: var(--color-bg-secondary);
-    border-color: var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    height: var(--header-height);
 }
+
+/* コンテナを3カラムグリッドに変更して、真ん中を確実に中央にする */
+#header .container {
+    display: grid;
+    grid-template-columns: 80px 1fr 80px; /* 左ボタン幅 - 中央可変 - 右アクション幅 */
+    align-items: center;
+    height: 100%;
+    padding: 0 0.5rem;
+}
+
 #headerTitle {
     color: var(--color-text-primary);
-}
-
-/* Tabs */
-.tab-active {
-    color: #059669;
-    border-top: 2px solid #059669;
-    font-weight: 600;
-}
-.tab-inactive {
-    color: var(--color-text-secondary);
-    border-top: 2px solid transparent;
-}
-/* ★ 修正: タブの文字が折り返されないようにする */
-.tab-button {
+    font-weight: 800;
+    text-align: center;
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: clip; /* はみ出ても折り返さない */
+    text-overflow: ellipsis;
+    line-height: 1.2;
 }
 
-/* Forms */
-.card {
-    background-color: var(--color-bg-secondary);
-    border-radius: 0.5rem;
-    padding: 1rem;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-}
-.form-group { margin-bottom: 1rem; }
-.form-label {
-    display: block;
-    font-size: 0.9em; /* ベース比 */
-    font-weight: 500;
-    color: var(--color-text-primary);
-    margin-bottom: 0.25rem;
-    white-space: nowrap; /* ラベルも折り返さない */
-}
-.form-input, .form-select {
-    display: block;
-    width: 100%;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--color-border);
-    background-color: var(--color-bg-secondary);
-    color: var(--color-text-primary);
-    border-radius: 0.375rem;
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    /* font-size は body から継承 */
-}
-.form-input:focus, .form-select:focus {
-    outline: 2px solid transparent;
-    outline-offset: 2px;
-    border-color: var(--color-border-focus);
-    box-shadow: 0 0 0 2px var(--color-border-focus);
-}
-.form-input::placeholder {
-    color: var(--color-text-secondary);
-    opacity: 0.7;
-}
-
-/* Buttons */
-.btn {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    gap: 0.4rem; /* アイコン間隔を少し詰める */
-    
-    padding: 0.5rem 0.75rem; /* 横のパディングを少し減らす */
-    border: 1px solid transparent;
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    font-weight: 500;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    transition-property: background-color;
-    transition-duration: 150ms;
-    
-    /* ★ 修正: ボタン内の文字折り返しを禁止 */
-    white-space: nowrap;
-}
-.btn-primary { background-color: rgb(37 99 235); color: white; }
-.btn-primary:hover { background-color: rgb(29 78 216); }
-.btn-secondary {
-    background-color: var(--color-bg-primary);
-    color: var(--color-text-primary);
-    border-color: var(--color-border);
-}
-.btn-secondary:hover { opacity: 0.8; }
-.btn-danger { background-color: rgb(220 38 38); color: white; }
-.btn-danger:hover { background-color: rgb(185 28 28); }
-.btn-success { background-color: #10b981; color: white; }
-.btn-success:hover { background-color: #059669; }
-
-/* 無効化ボタン */
-.btn:disabled {
-    background-color: #9ca3af !important;
-    color: #e5e7eb !important;
-    cursor: not-allowed;
-    box-shadow: none;
-    opacity: 1;
-}
-
-/* Trap Card */
-.trap-card {
-    background-color: var(--color-bg-secondary);
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    border-radius: 0.5rem;
-    padding: 1rem;
+/* ★戻るボタン: 大きく分かりやすく */
+#backButton {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 38px;
+    background-color: var(--color-bg-primary); /* 背景色追加 */
+    color: var(--color-accent);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: calc(var(--font-size-base) * 0.9) !important;
     cursor: pointer;
-    transition: background-color 0.15s ease-out;
+    text-align: center;
+    padding: 0;
 }
-.trap-card:hover { opacity: 0.8; }
-.trap-card h3 { color: var(--color-text-primary); font-size: 1.1em; }
-.trap-card p { color: var(--color-text-secondary); font-size: 0.9em; }
+#backButton:active {
+    background-color: #e5e7eb;
+}
+#backButton i { margin-right: 4px; } /* アイコンがあれば */
 
-/* Error Box */
-.error-box {
-    background-color: #fee2e2;
-    border: 1px solid #f87171;
-    color: #b91c1c;
-    padding: 1rem;
-    border-radius: 0.5rem;
+/* ----------------------------------------------------------------------------
+   4. カード & タイル (修正: コンパクト化)
+---------------------------------------------------------------------------- */
+.card, .trap-card, .animal-card {
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border); /* 境界線を明確に */
+    border-radius: 6px; /* 丸みを少し減らす */
+    
+    /* ★余白を狭くする */
+    padding: 0.5rem 0.6rem !important; 
+    margin-bottom: 0.4rem !important; /* カード間の距離を詰める */
+    
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
-/* Image Modal & Preview */
-.image-modal-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background-color: rgba(0, 0, 0, 0.85); z-index: 999;
-    display: flex; align-items: center; justify-content: center;
-    padding: 1rem; cursor: zoom-out;
+/* カード内の行間も詰める */
+.trap-card h3, .animal-name {
+    margin-bottom: 0.1rem;
+    line-height: 1.3;
 }
-.image-modal-content img {
-    max-width: 100%; max-height: 95vh; object-fit: contain;
-    border-radius: 0.25rem;
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
+.trap-card p {
+    margin-bottom: 0;
+    line-height: 1.3;
 }
+
+/* 画像プレビュー */
 .photo-preview {
-    position: relative; width: 100%; height: 8rem;
-    cursor: zoom-in;
+    width: 100%; height: 7rem; /* 少し高さを抑える */
     border: 2px dashed var(--color-border);
     border-radius: 0.375rem;
     background-color: var(--color-bg-primary);
     display: flex; align-items: center; justify-content: center;
+    position: relative;
+    overflow: hidden;
 }
-.photo-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 0.375rem; }
-.photo-preview-btn-delete {
-    position: absolute; top: 0.25rem; right: 0.25rem;
-    background-color: rgba(220, 38, 38, 0.9); color: white;
-    border-radius: 9999px; width: 1.5rem; height: 1.5rem;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: bold; font-size: 0.875rem;
-    border: 1px solid white; cursor: pointer; z-index: 10;
+.photo-preview img { width: 100%; height: 100%; object-fit: contain; }
+
+/* ----------------------------------------------------------------------------
+   5. タブ & サブタブ (修正: 選択状態の可視化)
+---------------------------------------------------------------------------- */
+/* 下部固定ナビ */
+nav.bg-white {
+    background-color: var(--color-bg-secondary);
+    border-top: 1px solid var(--color-border);
+    padding-bottom: env(safe-area-inset-bottom); /* iPhone X等対応 */
+    height: 60px;
+}
+.tab-button {
+    color: var(--color-text-secondary);
+}
+.tab-active {
+    color: var(--color-accent);
+    font-weight: 700;
+    background-color: rgba(0,0,0,0.03); /* アクティブ時に薄い背景 */
 }
 
-/* Theme Override Selectors */
-html.theme-light body { background-color: #f3f4f6; color: #111827; }
-html.theme-sepia body { background-color: #f7f3e8; color: #1f2937; }
-html.theme-light-green body { background-color: #f0fdf4; color: #15803d; }
-html.theme-light-blue body { background-color: #f0f9ff; color: #0c4a6e; }
-
-html.theme-sepia #header, html.theme-sepia #app .card, html.theme-sepia #app .trap-card, html.theme-sepia nav,
-html.theme-light-green #header, html.theme-light-green #app .card, html.theme-light-green #app .trap-card, html.theme-light-green nav,
-html.theme-light-blue #header, html.theme-light-blue #app .card, html.theme-light-blue #app .trap-card, html.theme-light-blue nav {
-    color: #111827;
+/* ★ページ内サブタブ（設置中/過去、チェック/編集など）のデザイン改善 */
+.sub-tab-container {
+    display: flex;
+    background-color: var(--color-border); /* 背景を枠線の色に */
+    padding: 2px;
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
 }
-html.theme-sepia .page-title,
-html.theme-light-green .page-title,
-html.theme-light-blue .page-title {
-    color: inherit;
+.sub-tab-button {
+    flex: 1;
+    padding: 6px 4px;
+    text-align: center;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: calc(var(--font-size-base) * 0.95);
+    cursor: pointer;
+    border: none;
+}
+/* アクティブなサブタブ */
+.sub-tab-active {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-accent);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+/* 非アクティブなサブタブ */
+.sub-tab-inactive {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+    opacity: 0.8;
 }
 
-/* Animal List Styles */
+/* ----------------------------------------------------------------------------
+   6. 動物リスト (修正: コンパクト化)
+---------------------------------------------------------------------------- */
 .animal-card {
-    display: flex; align-items: center; padding: 0.75rem;
-    border: 1px solid #e5e7eb; border-radius: 0.5rem;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    cursor: pointer; transition: background-color 0.2s;
+    display: flex; align-items: center;
+    padding: 0.4rem !important; /* 狭く */
 }
-.animal-card:active { background-color: #f3f4f6; }
 .animal-thumb-container {
-    flex-shrink: 0; width: 60px; height: 60px;
-    border-radius: 0.375rem; overflow: hidden; margin-right: 1rem;
-    border: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: center;
+    width: 45px; height: 45px; /* サムネイルを小さく */
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: #e5e7eb;
 }
 .animal-thumb { width: 100%; height: 100%; object-fit: cover; }
 .animal-info { flex-grow: 1; min-width: 0; }
-.animal-header { display: flex; align-items: center; margin-bottom: 0.25rem; }
-.animal-name {
-    font-size: 1.1em; /* ベースサイズ比 */
-    font-weight: 700; color: #1f2937;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.animal-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.animal-header { display: flex; align-items: center; margin-bottom: 2px; }
+
+/* バッジ類も小さく */
 .badge {
-    display: inline-block; padding: 0.125rem 0.375rem;
-    font-size: 0.8em; font-weight: 600; border-radius: 0.25rem; white-space: nowrap;
+    padding: 1px 4px;
+    font-size: 0.75em;
+    border-radius: 3px;
+    margin-right: 2px;
 }
-.badge-mammal { background-color: #fef3c7; color: #92400e; }
-.badge-bird { background-color: #e0f2fe; color: #075985; }
-.badge-game { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
-.badge-invasive { background-color: #fae8ff; color: #86198f; border: 1px solid #f0abfc; }
-.animal-arrow { flex-shrink: 0; margin-left: 0.5rem; color: #9ca3af; font-weight: bold; }
+
+/* ----------------------------------------------------------------------------
+   7. フォーム
+---------------------------------------------------------------------------- */
+.form-group { margin-bottom: 0.75rem; }
+.form-label { margin-bottom: 0.2rem; font-weight: 600; color: var(--color-text-secondary); }
+.form-input, .form-select, textarea {
+    padding: 0.4rem 0.5rem; /* 内側を少し狭く */
+}
+.btn {
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    border-radius: 6px;
+}
+
+/* テーマオーバーライド用 */
+html.theme-sepia .sub-tab-container, html.theme-light-green .sub-tab-container, html.theme-light-blue .sub-tab-container {
+    background-color: rgba(0,0,0,0.1);
+}
