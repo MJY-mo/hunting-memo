@@ -1,20 +1,19 @@
-/* style.css - v5.2 High Visibility Fix */
+/* style.css - v6.0 Compact & High Density */
 
 /* ----------------------------------------------------------------------------
-   1. テーマと色の定義 (コントラスト強化)
+   1. テーマと基本設定 (コンパクト化)
 ---------------------------------------------------------------------------- */
 :root {
-    /* ベース色 */
+    /* 配色定義 */
     --color-bg-primary: #f3f4f6;
     --color-bg-secondary: #ffffff;
-    --color-text-primary: #111827; /* より黒く */
+    --color-text-primary: #111827;
     --color-text-secondary: #4b5563;
     
-    /* ★枠線の色を濃く変更 */
-    --color-border: #6b7280; 
+    --color-border: #9ca3af; 
     --color-border-focus: #2563eb;
     
-    /* ボタン色定義 */
+    /* ボタン色 */
     --btn-primary-bg: #2563eb;
     --btn-primary-text: #ffffff;
     --btn-secondary-bg: #e5e7eb;
@@ -23,216 +22,266 @@
     --btn-danger-text: #ffffff;
     --btn-success-bg: #16a34a;
     --btn-success-text: #ffffff;
+    --btn-warning-bg: #f59e0b;
+    --btn-warning-text: #ffffff;
 
-    --header-height: 60px;
+    --header-height: 50px; /* ヘッダーも少し低く */
     
-    /* フォントサイズ基準 */
-    --font-size-base: 15px;
+    /* ★基準フォントサイズを小さく設定 */
+    --font-size-base: 13px; 
 }
 
-/* ダークテーマ */
+/* ダークモード */
 :root.theme-dark {
-    --color-bg-primary: #1f2937;
-    --color-bg-secondary: #374151;
+    --color-bg-primary: #111827;
+    --color-bg-secondary: #1f2937;
     --color-text-primary: #f9fafb;
-    --color-text-secondary: #d1d5db;
-    --color-border: #9ca3af; /* ダーク時は少し明るく */
+    --color-text-secondary: #9ca3af;
+    --color-border: #4b5563;
     --color-border-focus: #60a5fa;
     --color-accent: #60a5fa;
 }
-
-/* 他テーマ */
 :root.theme-sepia { --color-bg-primary: #fbf0e4; --color-bg-secondary: #fffefb; --color-border: #a89f91; }
 :root.theme-light-green { --btn-primary-bg: #15803d; }
 :root.theme-light-blue { --btn-primary-bg: #0c4a6e; }
 
-/* 文字サイズ設定 */
-:root.font-size-xsmall { --font-size-base: 12px; }
-:root.font-size-small { --font-size-base: 13px; }
-:root.font-size-medium { --font-size-base: 15px; }
-:root.font-size-large { --font-size-base: 17px; }
-:root.font-size-xlarge { --font-size-base: 20px; }
+/* ユーザー設定による文字サイズ調整 (ベース自体を控えめに) */
+:root.font-size-xsmall { --font-size-base: 11px; }
+:root.font-size-small { --font-size-base: 12px; }
+:root.font-size-medium { --font-size-base: 13.5px; }
+:root.font-size-large { --font-size-base: 15px; }
+:root.font-size-xlarge { --font-size-base: 17px; }
 
 /* ----------------------------------------------------------------------------
-   2. 基本リセット対策 (★ここが重要)
+   2. 全体レイアウト & リセット
 ---------------------------------------------------------------------------- */
 body {
-    font-family: sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: var(--color-bg-primary);
     color: var(--color-text-primary);
     font-size: var(--font-size-base);
+    line-height: 1.4;
     margin: 0;
 }
 
-/* Tailwindによるスタイルの消失を防ぐための強制指定 */
+/* 要素の強制スタイル適用 (Tailwindリセット対策) */
 button, input, select, textarea {
     font-family: inherit;
     font-size: 100%;
     margin: 0;
-    /* 枠線を強制的に表示 */
-    border-width: 1px !important;
-    border-style: solid !important;
-    border-color: var(--color-border) !important;
+    border: 1px solid var(--color-border) !important;
+    box-sizing: border-box;
 }
 
+/* タイトルサイズ調整 (あまり大きくしすぎない) */
+h1 { font-size: 1.2rem !important; }
+h2 { font-size: 1.1rem !important; font-weight: 700; margin: 0; }
+h3 { font-size: 1rem !important; font-weight: 700; }
+
 /* ----------------------------------------------------------------------------
-   3. 入力フォームのスタイル (視認性重視)
+   3. 入力フォーム (スリム化)
 ---------------------------------------------------------------------------- */
-.form-input, 
-.form-select, 
-input[type="text"], 
-input[type="number"], 
-input[type="date"], 
-textarea,
-select {
+.form-input, .form-select, input[type="text"], input[type="number"], input[type="date"], textarea, select {
     display: block;
     width: 100%;
-    padding: 0.6rem 0.8rem;
-    border-radius: 6px !important;
+    /* ★余白を削減して高さを抑える */
+    padding: 6px 8px !important; 
+    border-radius: 4px !important;
     background-color: var(--color-bg-secondary) !important;
     color: var(--color-text-primary) !important;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    margin-bottom: 0.5rem;
-    
-    /* ブラウザ標準の見た目を消して自前で描画 */
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
+    margin-bottom: 4px;
+    height: auto;
 }
 
-/* 入力欄のフォーカス時（入力中） */
-.form-input:focus, .form-select:focus, input:focus, select:focus, textarea:focus {
-    outline: 2px solid var(--color-border-focus) !important;
-    outline-offset: -1px;
+/* フォーカス時の強調 */
+.form-input:focus, select:focus, textarea:focus {
     border-color: var(--color-border-focus) !important;
+    outline: 2px solid rgba(37,99,235,0.1);
 }
 
-/* Selectボックスの矢印アイコンを復活させる */
-select, .form-select {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-    background-position: right 0.5rem center;
-    background-repeat: no-repeat;
-    background-size: 1.5em 1.5em;
-    padding-right: 2.5rem !important;
-}
-
-/* ラベル */
+/* ラベルも詰める */
 .form-label {
     display: block;
-    font-weight: 700;
-    margin-bottom: 0.3rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+    font-size: 0.9em;
     color: var(--color-text-secondary);
 }
-.form-group { margin-bottom: 1rem; }
+.form-group { margin-bottom: 8px; }
 
 /* ----------------------------------------------------------------------------
-   4. ボタンのスタイル (立体感と色)
+   4. ボタン (コンパクト化)
 ---------------------------------------------------------------------------- */
 .btn {
     display: block;
     width: 100%;
-    padding: 0.7rem 1rem;
+    /* ★ボタンの上下幅を狭く */
+    padding: 6px 10px; 
     text-align: center;
-    font-weight: 700;
-    border-radius: 6px;
+    font-weight: 600;
+    border-radius: 4px;
     cursor: pointer;
-    border: 1px solid transparent !important; /* ボタン独自の枠線 */
-    transition: background-color 0.2s;
-    margin-bottom: 0.5rem;
+    border: 1px solid transparent !important;
+    font-size: 0.95em;
+    margin-bottom: 4px;
 }
+.btn:active { filter: brightness(90%); transform: translateY(1px); }
 
-/* 色指定 (Tailwindクラスを上書き) */
-.btn-primary {
-    background-color: var(--btn-primary-bg) !important;
-    color: var(--btn-primary-text) !important;
-    border-color: var(--btn-primary-bg) !important;
-}
-.btn-secondary {
-    background-color: var(--btn-secondary-bg) !important;
-    color: var(--btn-secondary-text) !important;
-    border-color: var(--color-border) !important; /* グレーの枠線 */
-}
-.btn-danger {
-    background-color: var(--btn-danger-bg) !important;
-    color: var(--btn-danger-text) !important;
-}
-.btn-success {
-    background-color: var(--btn-success-bg) !important;
-    color: var(--btn-success-text) !important;
-}
-.btn-warning {
-    background-color: #f59e0b !important;
-    color: #ffffff !important;
-}
-
-/* ボタンを押したときの凹み効果 */
-.btn:active {
-    transform: translateY(1px);
-    filter: brightness(90%);
-}
+/* ボタン色 */
+.btn-primary { background-color: var(--btn-primary-bg) !important; color: var(--btn-primary-text) !important; }
+.btn-secondary { background-color: var(--btn-secondary-bg) !important; color: var(--btn-secondary-text) !important; border-color: var(--color-border) !important; }
+.btn-danger { background-color: var(--btn-danger-bg) !important; color: var(--btn-danger-text) !important; }
+.btn-success { background-color: var(--btn-success-bg) !important; color: var(--btn-success-text) !important; }
+.btn-warning { background-color: var(--btn-warning-bg) !important; color: var(--btn-warning-text) !important; }
 
 /* ----------------------------------------------------------------------------
-   5. ヘッダー・ナビゲーション
+   5. ヘッダー & ナビゲーション
 ---------------------------------------------------------------------------- */
 #header {
     background-color: var(--color-bg-secondary);
     border-bottom: 1px solid var(--color-border) !important;
     height: var(--header-height);
 }
-#headerTitle { font-weight: 800; font-size: 1.2rem; }
+#headerTitle { font-size: 1.1rem; }
 
-/* 戻るボタン */
+/* 戻るボタンを少し小さく */
 #backButton {
-    height: 40px;
-    line-height: 1;
+    height: 32px;
+    padding: 0 10px;
+    font-size: 0.9em !important;
     background-color: var(--color-bg-primary) !important;
-    border: 1px solid var(--color-border) !important;
     color: var(--color-text-primary);
-    border-radius: 6px;
-    padding: 0 1rem;
+    border-radius: 4px;
 }
 
-/* 下部タブバー */
+/* 下部タブバー (改行対策) */
 nav.bg-white {
+    height: 55px; /* 高さを固定 */
     background-color: var(--color-bg-secondary);
     border-top: 1px solid var(--color-border) !important;
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.tab-button {
+    color: var(--color-text-secondary);
+    padding: 2px 0;
+    /* ★文字サイズを小さくして改行を防ぐ */
+    font-size: 10px !important; 
+    line-height: 1.1;
+}
+.tab-button i {
+    font-size: 18px; /* アイコンサイズ */
+    margin-bottom: 2px;
 }
 .tab-active {
     color: var(--btn-primary-bg);
     font-weight: bold;
-    background-color: rgba(0,0,0,0.05);
+    background-color: rgba(0,0,0,0.03);
 }
-.tab-inactive { color: #6b7280; }
 
 /* ----------------------------------------------------------------------------
-   6. カード・リスト・サブタブ
+   6. カード・リスト・タイル (高密度表示)
 ---------------------------------------------------------------------------- */
 .card, .trap-card, .animal-card {
     background-color: var(--color-bg-secondary);
-    border: 1px solid var(--color-border) !important; /* 枠線を強制 */
-    border-radius: 8px;
-    padding: 0.8rem;
-    margin-bottom: 0.5rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border: 1px solid var(--color-border) !important;
+    border-radius: 4px; /* 角丸を小さく */
+    
+    /* ★余白を限界まで詰める */
+    padding: 6px 8px !important; 
+    margin-bottom: 4px !important;
 }
 
-/* サブタブ（設置中/過去など） */
+/* カード内のテキスト間隔 */
+.trap-card h3, .animal-name {
+    margin: 0;
+    font-size: 1em !important;
+    line-height: 1.2;
+}
+.trap-card p {
+    margin: 0;
+    font-size: 0.9em;
+    color: var(--color-text-secondary);
+}
+
+/* ----------------------------------------------------------------------------
+   7. 図鑑リスト (コンパクトリスト形式へ)
+---------------------------------------------------------------------------- */
+.animal-card {
+    display: flex;
+    align-items: center;
+    /* 高さを抑える */
+    min-height: 44px;
+}
+
+/* サムネイル画像を小さく */
+.animal-thumb-container {
+    width: 40px; height: 40px; /* 45px -> 40px */
+    margin-right: 8px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: #e5e7eb;
+    border: 1px solid var(--color-border);
+}
+.animal-thumb { width: 100%; height: 100%; object-fit: cover; }
+
+.animal-info {
+    flex-grow: 1;
+    min-width: 0; /* フレックス内での文字切れ防止 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.animal-header {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 1px;
+}
+.animal-name {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-right: 6px;
+}
+
+/* バッジを小さく */
+.badge {
+    display: inline-block;
+    padding: 1px 4px;
+    font-size: 0.7em;
+    border-radius: 3px;
+    margin-right: 2px;
+    border: 1px solid rgba(0,0,0,0.1) !important;
+    line-height: 1;
+}
+
+/* 矢印 */
+.animal-arrow {
+    font-size: 0.9em;
+    color: #ccc;
+    margin-left: 4px;
+}
+
+/* ----------------------------------------------------------------------------
+   8. その他 (サブタブ・チェックリスト)
+---------------------------------------------------------------------------- */
+/* サブタブ (設置中/過去 など) */
 .sub-tab-container {
     display: flex;
     background-color: #e5e7eb;
-    padding: 4px;
-    border-radius: 8px;
+    padding: 2px;
+    border-radius: 4px;
     border: 1px solid var(--color-border) !important;
-    margin-bottom: 1rem;
+    margin-bottom: 8px;
 }
 .sub-tab-button {
     flex: 1;
-    padding: 8px;
-    border-radius: 6px;
-    border: none !important; /* 内部ボタンは枠線なし */
+    padding: 6px; /* 狭く */
+    border-radius: 3px;
+    border: none !important;
     background: transparent;
     color: #4b5563;
     font-weight: 600;
+    font-size: 0.9em;
 }
 .sub-tab-active {
     background-color: white !important;
@@ -240,16 +289,22 @@ nav.bg-white {
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
+/* チェックリスト */
+.checklist-item-text {
+    font-size: 0.95em !important;
+    margin-left: 8px;
+}
+
 /* 写真プレビュー枠 */
 .photo-preview {
-    border: 2px dashed var(--color-border) !important;
+    border: 1px dashed var(--color-border) !important;
     background-color: var(--color-bg-primary);
-    height: 120px;
-    border-radius: 6px;
+    height: 100px; /* 低くする */
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 0.5rem;
+    margin-bottom: 4px;
     position: relative;
     overflow: hidden;
 }
@@ -258,19 +313,10 @@ nav.bg-white {
 /* 削除ボタン */
 .photo-preview-btn-delete {
     position: absolute; top: 0; right: 0;
-    width: 30px !important; height: 30px !important;
+    width: 24px !important; height: 24px !important;
     background: red !important; color: white;
     border: none !important;
-    font-size: 1.2rem;
+    font-size: 1rem;
     line-height: 1;
-}
-
-/* バッジ */
-.badge {
-    display: inline-block;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.8em;
-    font-weight: bold;
-    border: 1px solid rgba(0,0,0,0.1) !important;
+    display: flex; align-items: center; justify-content: center;
 }
