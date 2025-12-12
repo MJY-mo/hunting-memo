@@ -264,19 +264,133 @@ function resizeImage(file, maxSize = 800) {
         reader.readAsDataURL(file);
     });
 }
+// ==========================================
+// ★ ピンチズーム対応 画像モーダル関数
+// ==========================================
 function showImageModal(blobUrl) {
-    closeImageModal();
-    const ol = document.createElement('div'); ol.id = 'image-modal-overlay'; ol.className = 'image-modal-overlay';
-    const ct = document.createElement('div'); ct.className = 'image-modal-content';
-    const img = document.createElement('img'); img.src = blobUrl;
-    ct.appendChild(img); ol.appendChild(ct); document.body.appendChild(ol);
-    ol.onclick = closeImageModal;
+    closeImageModal(); // 既存があれば閉じる
+
+    // オーバーレイ作成
+    const ol = document.createElement('div');
+    ol.id = 'image-modal-overlay';
+    ol.className = 'image-modal-overlay';
+
+    // 閉じるボタン作成
+    const closeBtn = document.createElement('div');
+    closeBtn.className = 'modal-close-btn';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.onclick = (e) => {
+        e.stopPropagation(); // 親への伝播を止める
+        closeImageModal();
+    };
+    ol.appendChild(closeBtn);
+
+    // 画像コンテナ
+    const ct = document.createElement('div');
+    ct.className = 'image-modal-content';
+
+    // 画像要素
+    const img = document.createElement('img');
+    img.src = blobUrl;
+    ct.appendChild(img);
+    ol.appendChild(ct);
+    document.body.appendChild(ol);
+
+    // --- ズーム & ドラッグ ロジック ---
+    let scale = 1;
+    let pointX = 0;
+    let pointY = 0;
+    let startX = 0;
+    let startY = 0;
+    let initialDistance = 0;
+    let isDragging = false;
+
+    // スタイル適用
+    const updateTransform = () => {
+        img.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+    };
+
+    // タッチ開始
+    ol.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            // 2本指: ピンチ開始
+            e.preventDefault();
+            initialDistance = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+        } else if (e.touches.length === 1) {
+            // 1本指: ドラッグ開始（拡大中のみ）
+            if (scale > 1) {
+                isDragging = true;
+                startX = e.touches[0].pageX - pointX;
+                startY = e.touches[0].pageY - pointY;
+            }
+        }
+    }, { passive: false });
+
+    // タッチ移動
+    ol.addEventListener('touchmove', (e) => {
+        e.preventDefault(); // 画面スクロール防止
+
+        if (e.touches.length === 2) {
+            // ピンチ中
+            const currentDistance = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+            
+            if (initialDistance > 0) {
+                // 距離の変化率でスケールを変更
+                const diff = currentDistance - initialDistance;
+                // 感度調整（急激な変化を防ぐ）
+                const newScale = scale + (diff * 0.005);
+                
+                // 制限（1倍〜5倍）
+                scale = Math.min(Math.max(1, newScale), 5);
+                
+                // 1倍に戻ったら位置もリセット
+                if (scale === 1) {
+                    pointX = 0;
+                    pointY = 0;
+                }
+                
+                updateTransform();
+                initialDistance = currentDistance; // 基準距離を更新
+            }
+        } else if (e.touches.length === 1 && isDragging && scale > 1) {
+            // ドラッグ中
+            pointX = e.touches[0].pageX - startX;
+            pointY = e.touches[0].pageY - startY;
+            updateTransform();
+        }
+    }, { passive: false });
+
+    // タッチ終了
+    ol.addEventListener('touchend', (e) => {
+        isDragging = false;
+        if (e.touches.length < 2) {
+            initialDistance = 0;
+        }
+        // 指を離した時に拡大していなければ位置リセット
+        if (scale <= 1) {
+            scale = 1;
+            pointX = 0;
+            pointY = 0;
+            updateTransform();
+        }
+    });
+
+    // クリックで閉じる（拡大していない時のみ）
+    ct.onclick = (e) => {
+        if (scale <= 1.1) closeImageModal(); // ほぼ等倍なら閉じる
+    };
 }
+
 function closeImageModal() {
     const ol = document.getElementById('image-modal-overlay');
     if (ol) ol.remove();
 }
-
 // ★新規追加: Googleマップボタン生成
 function generateMapButton(lat, lon) {
     if (!lat || !lon) return '';

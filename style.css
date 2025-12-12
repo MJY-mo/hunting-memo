@@ -209,28 +209,23 @@ input, select, textarea, button {
 .checklist-item-text { font-size: 0.95rem; margin-left: 8px; }
 
 /* ----------------------------------------------------------------------------
-   9. ★画像モーダル (ポップアップ修正)
-   ここが追加されました。これで画像がページ下部ではなく前面に浮いて表示されます。
+   9. 画像モーダル (ピンチズーム対応版)
 ---------------------------------------------------------------------------- */
 .image-modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.9); /* 背景を濃い黒に */
-    z-index: 9999; /* 最前面に配置 */
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.95); /* より暗く */
+    z-index: 9999;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px;
-    box-sizing: border-box;
-    backdrop-filter: blur(2px); /* 背景を少しぼかす */
+    overflow: hidden; /* はみ出し防止 */
+    touch-action: none; /* ブラウザ標準のズーム/スクロールを無効化 */
 }
 
 .image-modal-content {
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -239,8 +234,32 @@ input, select, textarea, button {
 
 .image-modal-content img {
     max-width: 100%;
-    max-height: 90vh; /* 画面からはみ出さないように */
-    border-radius: 4px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    max-height: 100%;
     object-fit: contain;
+    /* 拡大縮小の基準点を中心に */
+    transform-origin: center center;
+    /* ドラッグ禁止 */
+    user-select: none;
+    -webkit-user-drag: none;
+    /* GPU加速を有効にしてカクつき防止 */
+    will-change: transform;
+}
+
+/* 閉じるボタン（右上に配置） */
+.modal-close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border-radius: 50%;
+    border: 1px solid white;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10000;
 }
