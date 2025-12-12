@@ -1,5 +1,5 @@
 // このファイルは sw.js です
-const CACHE_NAME = 'hunting-app-v5'; // ★ v5に更新
+const CACHE_NAME = 'hunting-app-v6'; // ★ v5に更新
 
 // キャッシュするファイルリスト
 const urlsToCache = [
