@@ -1587,38 +1587,93 @@ async function renderSettingsMenu() {
     const themeOpt = (v,l) => `<option value="${v}" ${curTheme===v?'selected':''}>${l}</option>`;
     const sizeOpt = (v,l) => `<option value="${v}" ${curSize===v?'selected':''}>${l}</option>`;
 
+    // ヘルプ用HTML生成ヘルパー
+    const helpItem = (icon, title, content) => `
+        <details class="text-sm group">
+            <summary class="font-bold cursor-pointer select-none py-2 text-blue-800 hover:text-blue-600 flex items-center">
+                <span class="mr-2">${icon}</span> ${title}
+            </summary>
+            <div class="pb-3 pl-4 border-b border-gray-200 text-gray-700 leading-relaxed">
+                <ul class="list-disc pl-4 space-y-1">
+                    ${content}
+                </ul>
+            </div>
+        </details>
+    `;
+
     app.innerHTML = `
         <div class="space-y-2">
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-4">使用方法</h2>
-                <div class="space-y-2">
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">⛓️ 罠タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">罠の設置・管理・捕獲記録を行います。</div></details>
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">🔫 銃タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">銃と弾の管理、発砲履歴の記録を行います。</div></details>
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">🦌 捕獲タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">全ての捕獲記録を一覧表示・検索します。</div></details>
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">✅ チェックタブ</summary><div class="mt-2 pt-2 border-t text-gray-700">持ち物リストなどを作成し、出猟前にチェックできます。</div></details>
-                    <details class="text-sm"><summary class="text-md font-semibold cursor-pointer select-none">📖 情報タブ</summary><div class="mt-2 pt-2 border-t text-gray-700">鳥獣図鑑（生態・被害）の閲覧や、許可証期限・写真の管理ができます。</div></details>
+            <div class="card bg-white">
+                <h2 class="text-lg font-semibold border-b pb-1 mb-2">使用方法・機能ガイド</h2>
+                <div class="space-y-0 divide-y divide-gray-100">
+                    ${helpItem('📱', '基本操作・オフライン', `
+                        <li><b>オフライン対応:</b> 電波の届かない山奥でも全機能（記録・編集・閲覧）が使用可能です。</li>
+                        <li><b>マップ連携:</b> 詳細画面のボタンでGoogleマップを開きます。<br><span class="text-xs text-gray-500">※山奥ではGoogleマップの「オフラインマップ」事前DLを推奨。</span></li>
+                        <li><b>画像ズーム:</b> 写真をタップで拡大。2本指ピンチでズーム、ドラッグで移動できます。</li>
+                    `)}
+                    ${helpItem('⛓️', '罠の管理フロー', `
+                        <li><b>設置:</b> 「新規設置」で場所・種類を登録。GPSボタンで位置を自動入力。</li>
+                        <li><b>記録:</b> 設置中の罠一覧から対象を選び、「捕獲記録を追加」で獲物を記録します。罠と紐付きます。</li>
+                        <li><b>撤去:</b> 撤去・空弾きの際は、詳細画面下の「罠の撤去」を実行してください。「過去の罠」へ移動します。</li>
+                    `)}
+                    ${helpItem('🔫', '銃・弾の管理', `
+                        <li><b>銃の登録:</b> 「所持銃の管理」から手持ちの銃を登録します。</li>
+                        <li><b>使用履歴:</b> 出猟や射撃の記録をつけます。「消費弾数」を入力すると残弾計算に反映されます。</li>
+                        <li><b>弾の在庫:</b> 「所持銃の管理」＞(銃選択)＞「弾の管理」で弾の購入数を入力すると、現在の残弾数が自動計算されます。</li>
+                    `)}
+                    ${helpItem('🦌', '捕獲記録・分析', `
+                        <li><b>記録項目:</b> 写真、種名、性別、年齢に加え、個体重量(kg)も記録可能です。</li>
+                        <li><b>紐付け:</b> 罠タブや銃タブから記録を作成すると、使用した道具が自動的に記録に紐付きます。</li>
+                        <li><b>CSV出力:</b> 下記「データ管理」から、全記録をExcel等で扱えるCSV形式で出力できます。</li>
+                    `)}
+                    ${helpItem('✅', 'チェックリスト', `
+                        <li><b>モード切替:</b> タブで「チェック(実行用)」と「項目管理(編集用)」を切り替えます。</li>
+                        <li><b>活用:</b> 「単独猟」「グループ猟」などシーン別のリストを作成し、出猟前の忘れ物防止に役立ててください。</li>
+                    `)}
+                    ${helpItem('📖', '情報・図鑑', `
+                        <li><b>狩猟鳥獣図鑑:</b> 特徴・生態・被害対策を閲覧可能。検索や猟法別フィルターも備えています。</li>
+                        <li><b>捕獲者情報:</b> 免許や許可証の期限メモ、写真登録が可能です。手元にない時の確認に便利です。</li>
+                    `)}
+                    ${helpItem('💾', 'バックアップ', `
+                        <li><b>保存:</b> 「バックアップ」で全データ(写真含む)を1ファイルに保存します。定期的な保存を推奨します。</li>
+                        <li><b>復元:</b> 機種変更時などは、保存したファイルを読み込むことでデータを完全に引き継げます。</li>
+                    `)}
                 </div>
             </div>
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-4">表示設定</h2>
-                <div class="form-group"><label class="form-label">背景色:</label><select id="st-theme" class="form-select">${themeOpt('light','ライト')}${themeOpt('sepia','セピア')}${themeOpt('lightgreen','グリーン')}${themeOpt('lightblue','ブルー')}</select></div>
+
+            <div class="card bg-white">
+                <h2 class="text-lg font-semibold border-b pb-1 mb-2">表示設定</h2>
+                <div class="form-group mb-2"><label class="form-label">背景色:</label><select id="st-theme" class="form-select">${themeOpt('light','ライト')}${themeOpt('sepia','セピア')}${themeOpt('lightgreen','グリーン')}${themeOpt('lightblue','ブルー')}</select></div>
                 <div class="form-group"><label class="form-label">文字サイズ:</label><select id="st-size" class="form-select">${sizeOpt('xsmall','極小')}${sizeOpt('small','小')}${sizeOpt('medium','中')}${sizeOpt('large','大')}${sizeOpt('xlarge','特大')}</select></div>
             </div>
-            <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-4">データ管理</h2>
-                <button id="exp-btn" class="btn btn-primary w-full mb-2">バックアップ (保存)</button>
-                <button id="imp-btn" class="btn btn-danger w-full">復元 (読込)</button>
+
+            <div class="card bg-white">
+                <h2 class="text-lg font-semibold border-b pb-1 mb-2">データ管理</h2>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <button id="exp-btn" class="btn btn-primary mb-0">バックアップ(保存)</button>
+                    <button id="imp-btn" class="btn btn-danger mb-0">復元(読込)</button>
+                </div>
                 <input type="file" id="imp-file" style="display:none">
-                <hr class="my-4">
-                <button id="csv-gun" class="btn btn-secondary w-full mb-2">銃履歴CSV出力</button>
-                <button id="csv-catch" class="btn btn-secondary w-full mb-2">捕獲記録CSV出力</button>
-                <hr class="my-2">
+                
+                <h3 class="text-sm font-bold text-gray-500 mb-1">CSV出力</h3>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <button id="csv-gun" class="btn btn-secondary mb-0">銃履歴CSV</button>
+                    <button id="csv-catch" class="btn btn-secondary mb-0">捕獲記録CSV</button>
+                </div>
+                
+                <hr class="border-gray-300 my-2">
                 <button id="upd-dic" class="btn btn-secondary w-full">図鑑データをCSVから更新</button>
-                <p id="csv-st" class="text-sm text-center text-gray-500 h-4"></p>
+                <p id="csv-st" class="text-xs text-center text-gray-500 h-4 mt-1"></p>
             </div>
-            <div class="card bg-white border border-yellow-300"><h2 class="text-lg font-semibold border-b pb-1 mb-4 text-yellow-700">システム</h2>
-                <button id="sys-upd" class="btn btn-warning w-full font-bold">アプリを最新に更新</button>
+
+            <div class="card bg-white border-orange-200">
+                <h2 class="text-lg font-semibold border-b pb-1 mb-2 text-orange-700">システム</h2>
+                <button id="sys-upd" class="btn btn-warning w-full font-bold">アプリを最新にリロード</button>
             </div>
         </div>
     `;
 
+    // --- イベントリスナー (変更なし) ---
     document.getElementById('st-theme').onchange = async (e) => { await db.settings.put({key:'theme',value:e.target.value}); applyTheme(e.target.value); };
     document.getElementById('st-size').onchange = async (e) => { await db.settings.put({key:'fontSize',value:e.target.value}); applyFontSize(e.target.value); };
     
@@ -1629,14 +1684,14 @@ async function renderSettingsMenu() {
     document.getElementById('csv-gun').onclick = exportGunLogsAsCSV;
     document.getElementById('csv-catch').onclick = exportCatchesAsCSV;
     document.getElementById('upd-dic').onclick = async () => {
-        if(confirm('図鑑を更新しますか？')) {
-            document.getElementById('csv-st').textContent = '更新中...';
+        if(confirm('図鑑データをサーバー(GitHub)から取得して更新しますか？')) {
+            document.getElementById('csv-st').textContent = '通信中...';
             try { await populateGameAnimalListIfNeeded(true); document.getElementById('csv-st').textContent = '完了'; } catch { document.getElementById('csv-st').textContent = '失敗'; }
         }
     };
     
     document.getElementById('sys-upd').onclick = async () => {
-        if(confirm('キャッシュを削除してリロードしますか？')) {
+        if(confirm('キャッシュを削除してリロードしますか？\n(表示がおかしい場合に有効です)')) {
             if('serviceWorker' in navigator) (await navigator.serviceWorker.getRegistrations()).forEach(r=>r.unregister());
             if('caches' in window) (await caches.keys()).forEach(k=>caches.delete(k));
             location.reload(true);
