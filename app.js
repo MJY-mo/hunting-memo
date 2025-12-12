@@ -1,20 +1,18 @@
 // ============================================================================
-// app.js - 狩猟アプリ 統合JavaScriptファイル (Style.css対応版)
+// app.js - 狩猟アプリ 統合JavaScriptファイル (v15: 重量追加 & マップ連携版)
 // ============================================================================
-
-// ★ 修正: 不要になった addCustomStyles 関数を削除しました。
-// すべてのデザインは style.css で管理されます。
 
 // ----------------------------------------------------------------------------
 // 1. データベース定義
 // ----------------------------------------------------------------------------
 const db = new Dexie('HuntingAppDB');
 
-// スキーマ定義 (v14)
-db.version(14).stores({
+// スキーマ定義 (v15: catch_recordsにweightを追加)
+db.version(15).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose, [is_open+trap_number], [is_open+setup_date], [is_open+close_date]',
     trap_type: '++id, &name',
-    catch_records: '++id, trap_id, gun_log_id, catch_date, species_name, gender, age, memo, image_blob, latitude, longitude, [gender+catch_date], [age+catch_date], [trap_id+catch_date], [gun_log_id+catch_date], [gender+species_name], [age+species_name], [trap_id+species_name], [gun_log_id+species_name]',
+    // ↓ weight を追加
+    catch_records: '++id, trap_id, gun_log_id, catch_date, species_name, weight, gender, age, memo, image_blob, latitude, longitude, [gender+catch_date], [age+catch_date], [trap_id+catch_date], [gun_log_id+catch_date], [gender+species_name], [age+species_name], [trap_id+species_name], [gun_log_id+species_name]',
     gun: '++id, &name, type, caliber',
     gun_log: '++id, use_date, gun_id, purpose, location, memo, image_blob, latitude, longitude, ammo_count, companion, [gun_id+use_date], [purpose+use_date]',
     ammo_purchases: '++id, gun_id, purchase_date',
@@ -68,7 +66,6 @@ const appState = {
 // --- アプリ初期化 ---
 window.addEventListener('load', () => {
     console.log("Window loaded. Initializing app...");
-    // addCustomStyles(); // ★削除: style.cssを使用するため不要
     db.open().then(async () => {
         console.log("Database opened successfully.");
         await loadAndApplySettings();
@@ -280,6 +277,18 @@ function closeImageModal() {
     if (ol) ol.remove();
 }
 
+// ★新規追加: Googleマップボタン生成
+function generateMapButton(lat, lon) {
+    if (!lat || !lon) return '';
+    // Googleマップアプリを検索モードで開く (オフラインマップ対応)
+    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+    return `
+        <a href="${url}" target="_blank" class="btn btn-secondary flex items-center justify-center gap-2 mt-2" style="text-decoration:none; color: #2563eb; font-weight:bold;">
+            <i class="fas fa-map-marked-alt"></i> Googleマップで確認
+        </a>
+    `;
+}
+
 
 // ----------------------------------------------------------------------------
 // 3. 罠管理機能 (元 trap.js)
@@ -293,7 +302,6 @@ async function showTrapPage() {
     const typeOptions = trapTypes.map(type => `<option value="${escapeHTML(type.name)}" ${filters.type === type.name ? 'selected' : ''}>${escapeHTML(type.name)}</option>`).join('');
     const isNewDisabled = view === 'closed';
 
-    // ★ 修正: style.css のクラス名 (sub-tab-active / sub-tab-inactive) を使用
     const tabOpenClass = view === 'open' ? 'sub-tab-active' : 'sub-tab-inactive';
     const tabClosedClass = view === 'closed' ? 'sub-tab-active' : 'sub-tab-inactive';
 
@@ -438,6 +446,9 @@ async function showTrapDetailPage(id) {
             </div>`;
     }
 
+    // ★ マップボタン生成
+    const mapBtn = generateMapButton(trap.latitude, trap.longitude);
+
     // 基本情報
     let infoHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">基本情報</h2><table class="w-full text-sm"><tbody>`;
     const rows = [
@@ -446,7 +457,7 @@ async function showTrapDetailPage(id) {
         ['緯度', trap.latitude], ['経度', trap.longitude]
     ];
     rows.forEach(r => infoHTML += `<tr class="border-b"><th class="w-1/3 text-left p-1 bg-gray-50">${r[0]}</th><td class="p-1">${escapeHTML(r[1])}</td></tr>`);
-    infoHTML += `</tbody></table></div>`;
+    infoHTML += `</tbody></table>${mapBtn}</div>`;
 
     // 画像
     let imageHTML = '';
@@ -801,10 +812,13 @@ async function showGunLogDetailPage(id) {
         imgHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
     }
 
+    // ★ マップボタン生成
+    const mapBtn = generateMapButton(log.latitude, log.longitude);
+
     // 情報
     let info = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">記録</h2><table class="w-full text-sm"><tbody>`;
     [['日付', formatDate(log.use_date)], ['銃', gun?gun.name:'-'], ['目的', log.purpose], ['場所', log.location], ['弾数', log.ammo_count+'発'], ['同行', log.companion]].forEach(r=> info+=`<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-1">${r[0]}</th><td class="p-1">${escapeHTML(r[1])}</td></tr>`);
-    info += `</tbody></table></div>`;
+    info += `</tbody></table>${mapBtn}</div>`;
 
     app.innerHTML = `
         <div class="space-y-2">
@@ -1006,9 +1020,19 @@ async function showCatchDetailPage(id) {
         imgHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${u}" onclick="showImageModal(this.src)"></div></div>`;
     }
 
+    // ★ マップボタン生成
+    const mapBtn = generateMapButton(r.latitude, r.longitude);
+
     let info = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">データ</h2><table class="w-full text-sm"><tbody>`;
-    [['種名', r.species_name], ['日付', formatDate(r.catch_date)], ['性別', r.gender], ['年齢', r.age], ['緯度', r.latitude], ['経度', r.longitude], ['メモ', r.memo]].forEach(row => info += `<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-1">${row[0]}</th><td class="p-1">${escapeHTML(row[1])}</td></tr>`);
-    info += '</tbody></table></div>';
+    [
+        ['種名', r.species_name], 
+        ['重量', r.weight ? r.weight + ' kg' : '-'], // ★重量表示追加
+        ['日付', formatDate(r.catch_date)], 
+        ['性別', r.gender], ['年齢', r.age], 
+        ['緯度', r.latitude], ['経度', r.longitude], 
+        ['メモ', r.memo]
+    ].forEach(row => info += `<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-1">${row[0]}</th><td class="p-1">${escapeHTML(row[1])}</td></tr>`);
+    info += `</tbody></table>${mapBtn}</div>`;
 
     app.innerHTML = `<div class="space-y-2"><div class="card bg-white"><div class="flex space-x-2"><button id="edit-c" class="btn btn-secondary flex-1">編集</button><button id="del-c" class="btn btn-danger flex-1">削除</button></div></div>${imgHTML}${info}${methodInfo}</div>`;
 
@@ -1017,7 +1041,7 @@ async function showCatchDetailPage(id) {
 }
 
 async function showCatchEditForm(id, { trapId, gunLogId }) {
-    let r = { catch_date: new Date().toISOString().split('T')[0], species_name: '', gender: '不明', age: '不明', latitude: '', longitude: '', memo: '', image_blob: null };
+    let r = { catch_date: new Date().toISOString().split('T')[0], species_name: '', weight: '', gender: '不明', age: '不明', latitude: '', longitude: '', memo: '', image_blob: null };
     if (id) r = await db.catch_records.get(id);
     
     // GPS継承
@@ -1038,6 +1062,9 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
             <form id="catch-form" class="space-y-2">
                 <div class="form-group"><label class="form-label">日付:</label><input type="date" id="c-date" class="form-input" value="${r.catch_date}" required></div>
                 <div class="form-group"><label class="form-label">種名:</label><input id="c-spec" class="form-input" list="spec-list" value="${escapeHTML(r.species_name)}" required><datalist id="spec-list"></datalist></div>
+                
+                <div class="form-group"><label class="form-label">個体重量 (kg):</label><input type="number" step="0.1" id="c-weight" class="form-input" value="${escapeHTML(r.weight)}" placeholder="例: 45.5"></div>
+
                 <div class="grid grid-cols-2 gap-2">
                     <div class="form-group"><label class="form-label">性別:</label><select id="c-gen" class="form-select">${['不明','オス','メス'].map(v=>`<option ${v==r.gender?'selected':''}>${v}</option>`).join('')}</select></div>
                     <div class="form-group"><label class="form-label">年齢:</label><select id="c-age" class="form-select">${['不明','成獣','幼獣'].map(v=>`<option ${v==r.age?'selected':''}>${v}</option>`).join('')}</select></div>
@@ -1066,6 +1093,7 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
         const d = {
             catch_date: document.getElementById('c-date').value,
             species_name: document.getElementById('c-spec').value,
+            weight: document.getElementById('c-weight').value, // ★保存
             gender: document.getElementById('c-gen').value,
             age: document.getElementById('c-age').value,
             latitude: document.getElementById('c-lat').value,
@@ -1131,7 +1159,6 @@ async function showChecklistDetail(listId) {
     updateHeader(set.name, true);
     backButton.onclick = () => renderChecklistSets();
 
-    // ★ 修正: sub-tab クラスを使用
     app.innerHTML = `
         <div class="space-y-2">
             <div class="sub-tab-container">
