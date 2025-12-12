@@ -1,106 +1,16 @@
 // ============================================================================
-// app.js - 狩猟アプリ 統合JavaScriptファイル (修正版)
+// app.js - 狩猟アプリ 統合JavaScriptファイル (Style.css対応版)
 // ============================================================================
 
-// ----------------------------------------------------------------------------
-// 0. UIスタイル定義 (新規追加: UI改善のためのCSS注入)
-// ----------------------------------------------------------------------------
-function addCustomStyles() {
-    const style = document.createElement('style');
-    style.innerHTML = `
-        /* ① 全体的な余白の削減 */
-        .card, .trap-card, .animal-card {
-            padding: 8px 12px !important; /* 内側の余白を狭く */
-            margin-bottom: 4px !important; /* 下の隙間を狭く */
-            border-radius: 6px !important;
-        }
-        .space-y-4 > :not([hidden]) ~ :not([hidden]) {
-            margin-top: 0.5rem !important; /* space-y-4の隙間を半分にする */
-        }
-        .space-y-3 > :not([hidden]) ~ :not([hidden]) {
-            margin-top: 0.25rem !important; /* space-y-3の隙間を極小にする */
-        }
-        
-        /* ② 上部バーの調整 */
-        header {
-            justify-content: center !important;
-            position: relative;
-        }
-        #headerTitle {
-            text-align: center;
-            width: 100%;
-            font-weight: bold;
-        }
-
-        /* ⑤ 戻るボタンを大きく */
-        #backButton {
-            min-width: 60px;
-            min-height: 44px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: #f3f4f6;
-            border-radius: 8px;
-            position: absolute; /* 左端に固定 */
-            left: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 10;
-        }
-        
-        /* ⑥ タブの視認性向上（アクティブなタブ） */
-        .tab-active-btn {
-            background-color: #2563EB !important; /* 濃い青 */
-            color: white !important;
-            border: none !important;
-            font-weight: bold !important;
-        }
-        .tab-inactive-btn {
-            background-color: #E5E7EB !important; /* 薄いグレー */
-            color: #4B5563 !important;
-            border: none !important;
-        }
-
-        /* ④ 文字サイズ設定の適用範囲拡大 */
-        /* htmlのクラス(font-size-large等)に合わせて中身のサイズを変える */
-        html.font-size-xsmall body, html.font-size-xsmall input, html.font-size-xsmall select, html.font-size-xsmall table { font-size: 10px !important; }
-        html.font-size-small body, html.font-size-small input, html.font-size-small select, html.font-size-small table { font-size: 12px !important; }
-        html.font-size-medium body, html.font-size-medium input, html.font-size-medium select, html.font-size-medium table { font-size: 14px !important; }
-        html.font-size-large body, html.font-size-large input, html.font-size-large select, html.font-size-large table { font-size: 18px !important; }
-        html.font-size-xlarge body, html.font-size-xlarge input, html.font-size-xlarge select, html.font-size-xlarge table { font-size: 22px !important; }
-
-        /* タイトルは本文より大きく保つ */
-        h2, h3, .text-lg {
-            font-size: 1.3em !important;
-            font-weight: bold !important;
-        }
-        
-        /* ③ チェックリストの文字を小さく */
-        .checklist-item-text {
-            font-size: 0.9em !important; 
-        }
-
-        /* フォーム要素の間隔を詰める */
-        .form-group {
-            margin-bottom: 0.5rem !important;
-        }
-        label.form-label {
-            margin-bottom: 0.1rem !important;
-            font-size: 0.9em !important;
-            color: #666;
-        }
-    `;
-    document.head.appendChild(style);
-}
+// ★ 修正: 不要になった addCustomStyles 関数を削除しました。
+// すべてのデザインは style.css で管理されます。
 
 // ----------------------------------------------------------------------------
-// 1. データベース定義 (元 db.js)
+// 1. データベース定義
 // ----------------------------------------------------------------------------
 const db = new Dexie('HuntingAppDB');
 
-// スキーマ定義 (最新版 v14)
+// スキーマ定義 (v14)
 db.version(14).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose, [is_open+trap_number], [is_open+setup_date], [is_open+close_date]',
     trap_type: '++id, &name',
@@ -115,14 +25,11 @@ db.version(14).stores({
     settings: '&key',
     hunter_profile: '&key'
 });
-console.log("Database schema defined (app.js integrated)");
-
 
 // ----------------------------------------------------------------------------
-// 2. メインロジック & 共通関数 (元 main.js)
+// 2. メインロジック & 共通関数
 // ----------------------------------------------------------------------------
 
-// グローバル変数・DOM要素
 const app = document.getElementById('app');
 const headerTitle = document.getElementById('headerTitle');
 const backButton = document.getElementById('backButton');
@@ -137,7 +44,6 @@ const tabs = {
     settings: document.getElementById('tab-settings'),
 };
 
-// アプリケーションの状態管理
 const appState = {
     currentPage: 'trap',
     currentTrapId: null,
@@ -156,13 +62,13 @@ const appState = {
     infoSort: 'default',
     infoFilterAttribute: 'all',
     activeBlobUrls: [],
-    isEditing: false // 汎用フラグ
+    isEditing: false
 };
 
 // --- アプリ初期化 ---
 window.addEventListener('load', () => {
     console.log("Window loaded. Initializing app...");
-    addCustomStyles(); // ★ここに追加：スタイルの適用
+    // addCustomStyles(); // ★削除: style.cssを使用するため不要
     db.open().then(async () => {
         console.log("Database opened successfully.");
         await loadAndApplySettings();
@@ -170,7 +76,6 @@ window.addEventListener('load', () => {
         await populateDefaultHunterProfile();
         await populateGameAnimalListIfNeeded(false);
         setupTabs();
-        // 初期タブ
         navigateTo('trap', showTrapPage, '罠');
     }).catch(err => {
         console.error("Failed to open database:", err);
@@ -186,23 +91,19 @@ async function populateDefaultHunterProfile() {
     try { await db.hunter_profile.add({ key: 'main', name: '', gun_license_renewal: '', hunting_license_renewal: '', registration_renewal: '', explosives_permit_renewal: '' }); } catch (err) { /* ignore */ }
 }
 
-// CSV読み込み (最新版: 生態・被害対応)
+// CSV読み込み
 async function populateGameAnimalListIfNeeded(forceUpdate = false) {
     try {
         const count = await db.game_animal_list.count();
-        if (count > 0 && !forceUpdate) {
-            console.log(`Game animal list is already populated (${count} items). Skipping.`);
-            return;
-        }
-        console.log(forceUpdate ? "Forcing update..." : "Populating from GitHub...");
+        if (count > 0 && !forceUpdate) return;
+        
         const CSV_URL = 'https://raw.githubusercontent.com/MJY-mo/hunting-memo/refs/heads/main/%E7%8B%A9%E7%8C%9F%E9%B3%A5%E7%8D%A3.csv'; 
         const fetchUrl = `${CSV_URL}?t=${Date.now()}`;
         const response = await fetch(fetchUrl);
         if (!response.ok) throw new Error(`Failed to fetch CSV: ${response.statusText}`);
         const csvText = await response.text();
         const records = parseCSV(csvText);
-        if (records.length < 1) throw new Error('CSVデータが空か、正しい形式ではありません。');
-
+        
         let startIndex = 0;
         if (records[0][0] && records[0][0].includes('分類')) startIndex = 1;
         
@@ -210,15 +111,14 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
         for (let i = startIndex; i < records.length; i++) {
             const row = records[i];
             if (row.length < 3) continue;
-            const animal = {
+            animals.push({
                 category: row[0] || '', is_game_animal: row[1] || '', species_name: row[2] || '',
                 method_gun: row[3] || '', method_trap: row[4] || '', method_net: row[5] || '',
                 gender: row[6] || '', count: row[7] || '', prohibited_area: row[8] || '',
                 habitat: row[9] || '', notes: row[10] || '',
                 ecology: row[11] || '', damage: row[12] || '',
                 image_1: row[13] || '', image_2: row[14] || ''
-            };
-            animals.push(animal);
+            });
         }
         if (animals.length === 0) throw new Error('有効なデータが見つかりませんでした。');
 
@@ -226,9 +126,7 @@ async function populateGameAnimalListIfNeeded(forceUpdate = false) {
             await db.game_animal_list.clear();
             await db.game_animal_list.bulkAdd(animals);
         });
-        console.log(`Game animal list populated successfully (${animals.length} items).`);
     } catch (err) {
-        console.error("Failed to populate game animal list:", err);
         const statusEl = document.getElementById('csv-status');
         if (statusEl) statusEl.textContent = '更新失敗: ' + err.message;
     }
@@ -278,12 +176,9 @@ function navigateTo(pageId, pageFunction, title) {
 }
 function updateHeader(title, showBack = false) {
     headerTitle.textContent = title;
-    // ⑤ 戻るボタンの表示切替。CSSでサイズと位置は調整済み
     backButton.classList.toggle('hidden', !showBack);
-    
     if (showBack) {
         backButton.onclick = () => {
-            // 基本的には各画面のトップに戻る
             if (appState.currentPage === 'trap') navigateTo('trap', showTrapPage, '罠');
             else if (appState.currentPage === 'gun') navigateTo('gun', showGunPage, '銃');
             else if (appState.currentPage === 'catch') navigateTo('catch', showCatchPage, '捕獲');
@@ -398,13 +293,15 @@ async function showTrapPage() {
     const typeOptions = trapTypes.map(type => `<option value="${escapeHTML(type.name)}" ${filters.type === type.name ? 'selected' : ''}>${escapeHTML(type.name)}</option>`).join('');
     const isNewDisabled = view === 'closed';
 
-    // ⑥ タブの選択状態を分かりやすく（背景色変更）
-    const tabOpenClass = view === 'open' ? 'tab-active-btn' : 'tab-inactive-btn';
-    const tabClosedClass = view === 'closed' ? 'tab-active-btn' : 'tab-inactive-btn';
+    // ★ 修正: style.css のクラス名 (sub-tab-active / sub-tab-inactive) を使用
+    const tabOpenClass = view === 'open' ? 'sub-tab-active' : 'sub-tab-inactive';
+    const tabClosedClass = view === 'closed' ? 'sub-tab-active' : 'sub-tab-inactive';
 
     let html = `
-        <div class="space-y-2"> <div class="flex gap-2"> <button id="trap-tab-open" class="flex-1 py-3 rounded text-center ${tabOpenClass}">設置中</button>
-                <button id="trap-tab-closed" class="flex-1 py-3 rounded text-center ${tabClosedClass}">過去の罠</button>
+        <div class="space-y-2">
+            <div class="sub-tab-container">
+                <button id="trap-tab-open" class="sub-tab-button ${tabOpenClass}">設置中</button>
+                <button id="trap-tab-closed" class="sub-tab-button ${tabClosedClass}">過去の罠</button>
             </div>
             <div class="flex space-x-2">
                 <button id="new-trap-btn" class="btn btn-primary flex-1" ${isNewDisabled ? 'disabled' : ''}><i class="fas fa-plus"></i> 新規設置</button>
@@ -478,12 +375,11 @@ async function renderTrapList() {
 
         const catchCounts = await Promise.all(traps.map(t => db.catch_records.where('trap_id').equals(t.id).count()));
 
-        // ① タイル上下幅を狭く
         listEl.innerHTML = traps.map((trap, index) => {
             const count = catchCounts[index];
-            const badge = count > 0 ? `<span class="text-xs font-semibold py-0.5 px-2 rounded text-emerald-600 bg-emerald-200">${count}件</span>` : '';
+            const badge = count > 0 ? `<span class="badge bg-emerald-100 text-emerald-800">${count}件</span>` : '';
             return `
-                <div class="trap-card bg-white flex items-center" data-id="${trap.id}">
+                <div class="trap-card flex items-center" data-id="${trap.id}">
                     <div class="flex-grow">
                         <div class="flex items-center">
                             <h3 class="text-lg font-semibold text-blue-600 mr-2">No. ${escapeHTML(trap.trap_number)}</h3>
@@ -740,9 +636,9 @@ async function renderGunLogList() {
 
     listEl.innerHTML = logs.map((log, i) => {
         const count = catchCounts[i];
-        const badge = count > 0 ? `<span class="text-xs font-semibold py-0.5 px-2 rounded text-emerald-600 bg-emerald-200">${count}件</span>` : '';
+        const badge = count > 0 ? `<span class="badge bg-emerald-100 text-emerald-800">${count}件</span>` : '';
         return `
-            <div class="trap-card bg-white flex items-center" data-id="${log.id}">
+            <div class="trap-card flex items-center" data-id="${log.id}">
                 <div class="flex-grow">
                     <div class="flex items-center">
                         <h3 class="text-lg font-semibold text-blue-600 mr-2">${formatDate(log.use_date)}</h3>
@@ -792,7 +688,7 @@ async function showGunDetailPage(id) {
     // 履歴ボタン
     const histBtn = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">使用履歴</h2><button id="show-hist" class="btn btn-secondary w-full text-left"><span class="w-6"><i class="fas fa-history"></i></span> この銃の履歴を見る</button></div>`;
 
-    // 弾管理 (重複登録バグ修正版)
+    // 弾管理
     const today = new Date().toISOString().split('T')[0];
     const ammoHTML = `
         <div class="card bg-white">
@@ -818,7 +714,7 @@ async function showGunDetailPage(id) {
     document.getElementById('del-gun').onclick = async () => { if(confirm('削除しますか？')) { await db.gun.delete(id); showGunListManagementPage(); }};
     document.getElementById('show-hist').onclick = () => { appState.gunLogFilters.gun_id = id; showGunPage(); };
 
-    // 弾購入イベント (1回だけ登録)
+    // 弾購入イベント
     document.getElementById('ammo-purchase-form').onsubmit = async (e) => {
         e.preventDefault();
         try {
@@ -1018,7 +914,6 @@ async function showCatchListPage() {
         Object.assign(filters, { method: 'all', species: '', gender: 'all', age: 'all' });
     }
     
-    // UI生成 (フィルター部) - 簡略化して記述
     let filterHTML = '';
     if (appState.currentCatchMethod === 'all') {
         filterHTML = `
@@ -1076,9 +971,9 @@ async function renderCatchList() {
     if (records.length === 0) { listEl.innerHTML = '<p class="text-center text-gray-500">記録なし</p>'; return; }
 
     listEl.innerHTML = records.map(r => {
-        const methodBadge = r.trap_id ? '<span class="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded">罠</span>' : '<span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">銃</span>';
+        const methodBadge = r.trap_id ? '<span class="badge bg-orange-100 text-orange-800">罠</span>' : '<span class="badge bg-blue-100 text-blue-800">銃</span>';
         return `
-            <div class="trap-card bg-white flex items-center justify-between" data-id="${r.id}">
+            <div class="trap-card flex items-center justify-between" data-id="${r.id}">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-800">${escapeHTML(r.species_name)}</h3>
                     <p class="text-sm text-gray-600">${formatDate(r.catch_date)} ${r.gender||''} ${r.age||''}</p>
@@ -1205,7 +1100,7 @@ async function renderChecklistSets() {
     
     const sets = await db.checklist_sets.toArray();
     document.getElementById('set-list').innerHTML = sets.map(s => `
-        <div class="trap-card bg-white flex justify-between items-center" data-id="${s.id}">
+        <div class="trap-card flex justify-between items-center" data-id="${s.id}">
             <h3 class="text-lg font-semibold">${escapeHTML(s.name)}</h3>
             <div class="flex items-center gap-2"><button class="btn btn-danger btn-sm del-set" data-id="${s.id}">削除</button><span>&gt;</span></div>
         </div>
@@ -1236,11 +1131,12 @@ async function showChecklistDetail(listId) {
     updateHeader(set.name, true);
     backButton.onclick = () => renderChecklistSets();
 
+    // ★ 修正: sub-tab クラスを使用
     app.innerHTML = `
         <div class="space-y-2">
-            <div class="flex gap-2">
-                <button id="mode-check" class="flex-1 py-3 rounded tab-active-btn">チェック</button>
-                <button id="mode-edit" class="flex-1 py-3 rounded tab-inactive-btn">項目管理</button>
+            <div class="sub-tab-container">
+                <button id="mode-check" class="sub-tab-button sub-tab-active">チェック</button>
+                <button id="mode-edit" class="sub-tab-button sub-tab-inactive">項目管理</button>
             </div>
             <div id="check-content"></div>
         </div>
@@ -1293,13 +1189,13 @@ async function showChecklistDetail(listId) {
 
     renderCheck(); // 初期表示
     document.getElementById('mode-check').onclick = () => { 
-        document.getElementById('mode-check').className = "flex-1 py-3 rounded tab-active-btn";
-        document.getElementById('mode-edit').className = "flex-1 py-3 rounded tab-inactive-btn";
+        document.getElementById('mode-check').className = "sub-tab-button sub-tab-active";
+        document.getElementById('mode-edit').className = "sub-tab-button sub-tab-inactive";
         renderCheck();
     };
     document.getElementById('mode-edit').onclick = () => { 
-        document.getElementById('mode-edit').className = "flex-1 py-3 rounded tab-active-btn";
-        document.getElementById('mode-check').className = "flex-1 py-3 rounded tab-inactive-btn";
+        document.getElementById('mode-edit').className = "sub-tab-button sub-tab-active";
+        document.getElementById('mode-check').className = "sub-tab-button sub-tab-inactive";
         renderEdit();
     };
 }
@@ -1378,10 +1274,10 @@ async function renderGAList() {
 
     listEl.innerHTML = animals.map(a => {
         let badges = '';
-        if (a.category === '哺乳類') badges += `<span class="badge badge-mammal">哺乳類</span>`;
-        if (a.category === '鳥類') badges += `<span class="badge badge-bird">鳥類</span>`;
-        if (a.is_game_animal === '〇') badges += `<span class="badge badge-game">狩猟鳥獣</span>`;
-        if (a.notes && a.notes.includes('外来')) badges += `<span class="badge badge-invasive">外来種</span>`;
+        if (a.category === '哺乳類') badges += `<span class="badge bg-amber-100 text-amber-800">哺乳類</span>`;
+        if (a.category === '鳥類') badges += `<span class="badge bg-sky-100 text-sky-800">鳥類</span>`;
+        if (a.is_game_animal === '〇') badges += `<span class="badge bg-green-100 text-green-800">狩猟鳥獣</span>`;
+        if (a.notes && a.notes.includes('外来')) badges += `<span class="badge bg-red-100 text-red-800">外来種</span>`;
         
         const img = a.image_1 ? `<img src="./image/${escapeHTML(a.image_1)}" class="animal-thumb">` : `<div class="w-full h-full bg-gray-100 flex items-center justify-center text-gray-300"><i class="fas fa-paw"></i></div>`;
         return `
@@ -1607,13 +1503,12 @@ async function renderSettingsMenu() {
     };
 }
 
-// データ処理 (短縮版: ロジックは元のまま)
+// データ処理
 async function exportAllData() {
     const data = {};
     for (const t of ['hunter_profile','settings','trap','trap_type','gun','gun_log','catch_records','checklist_sets','checklist_items','game_animal_list','ammo_purchases','profile_images']) {
         data[t] = await db[t].toArray();
     }
-    // Blob変換
     for (const t of ['trap','catch_records','gun_log','profile_images']) {
         if(data[t]) data[t] = await Promise.all(data[t].map(async i => ({...i, image_blob: await blobToBase64(i.image_blob)})));
     }
