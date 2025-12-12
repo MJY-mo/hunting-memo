@@ -1,5 +1,5 @@
 // ============================================================================
-// app.js - 狩猟アプリ 統合JavaScriptファイル (UI改善版)
+// app.js - 狩猟アプリ 統合JavaScriptファイル (修正版)
 // ============================================================================
 
 // ----------------------------------------------------------------------------
@@ -259,11 +259,11 @@ function applyFontSize(sizeValue) {
 // ナビゲーション
 function setupTabs() {
     tabs.trap.addEventListener('click', () => { appState.trapView = 'open'; navigateTo('trap', showTrapPage, '罠'); });
-    tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'););
-    tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲'););
-    tabs.checklist.addEventListener('click', () => navigateTo('checklist', showChecklistPage, 'チェック'););
-    tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'););
-    tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'););
+    tabs.gun.addEventListener('click', () => navigateTo('gun', showGunPage, '銃'));
+    tabs.catch.addEventListener('click', () => navigateTo('catch', showCatchPage, '捕獲'));
+    tabs.checklist.addEventListener('click', () => navigateTo('checklist', showChecklistPage, 'チェック'));
+    tabs.info.addEventListener('click', () => navigateTo('info', showInfoPage, '情報'));
+    tabs.settings.addEventListener('click', () => navigateTo('settings', showSettingsPage, '設定'));
 }
 function navigateTo(pageId, pageFunction, title) {
     if (appState.activeBlobUrls && appState.activeBlobUrls.length > 0) {
