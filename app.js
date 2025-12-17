@@ -65,6 +65,16 @@ const appState = {
 
 // --- アプリ初期化 ---
 window.addEventListener('load', () => {
+    // ★ 追加開始: 背景用DIVの初期化
+    let bgDiv = document.getElementById('global-bg');
+    if (!bgDiv) {
+        bgDiv = document.createElement('div');
+        bgDiv.id = 'global-bg';
+        // 画面いっぱいに固定、最背面(z-index:-1)、画像カバー
+        bgDiv.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1; background-size:cover; background-position:center; pointer-events:none; transition: opacity 0.3s;';
+        document.body.prepend(bgDiv);
+    }
+    // ★ 追加終了
     console.log("Window loaded. Initializing app...");
     db.open().then(async () => {
         console.log("Database opened successfully.");
@@ -138,8 +148,31 @@ async function loadAndApplySettings() {
         let fontSizeSetting = await db.settings.get('fontSize');
         if (!fontSizeSetting) { fontSizeSetting = { key: 'fontSize', value: 'medium' }; await db.settings.put(fontSizeSetting); }
         applyFontSize(fontSizeSetting.value);
+        await applyBackgroundImage();
     } catch (err) { console.error("Failed to load settings:", err); }
 }
+
+async function applyBackgroundImage() {
+    const bgDiv = document.getElementById('global-bg');
+    if(!bgDiv) return;
+
+    const imgRec = await db.settings.get('backgroundImage');
+    const opRec = await db.settings.get('backgroundOpacity');
+    
+    // 不透明度 (デフォルト0.3)
+    const opacity = opRec ? parseFloat(opRec.value) : 0.3;
+    bgDiv.style.opacity = opacity;
+
+    if (imgRec && imgRec.value) {
+        // 画像がある場合
+        const url = URL.createObjectURL(imgRec.value);
+        bgDiv.style.backgroundImage = `url(${url})`;
+    } else {
+        // 画像がない場合
+        bgDiv.style.backgroundImage = 'none';
+    }
+}
+
 function applyTheme(themeValue) {
     const root = document.documentElement;
     root.classList.remove('theme-light', 'theme-dark', 'theme-sepia', 'theme-light-green', 'theme-light-blue');
@@ -1645,7 +1678,21 @@ async function renderSettingsMenu() {
                 <h2 class="text-lg font-semibold border-b pb-1 mb-2">表示設定</h2>
                 <div class="form-group mb-2"><label class="form-label">背景色:</label><select id="st-theme" class="form-select">${themeOpt('light','ライト')}${themeOpt('sepia','セピア')}${themeOpt('lightgreen','グリーン')}${themeOpt('lightblue','ブルー')}</select></div>
                 <div class="form-group"><label class="form-label">文字サイズ:</label><select id="st-size" class="form-select">${sizeOpt('xsmall','極小')}${sizeOpt('small','小')}${sizeOpt('medium','中')}${sizeOpt('large','大')}${sizeOpt('xlarge','特大')}</select></div>
-            </div>
+                
+                <div class="border-t pt-2 mt-2">
+                    <label class="form-label">背景画像 (アプリ壁紙)</label>
+                    <div class="flex gap-2 mb-2">
+                        <input type="file" id="bg-file" class="form-input flex-1" accept="image/*">
+                        <button id="bg-del" class="btn btn-danger w-16">削除</button>
+                    </div>
+                    <label class="form-label">画像の濃さ (透明度)</label>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs">薄</span>
+                        <input type="range" id="bg-opacity" class="flex-1" min="0.1" max="1.0" step="0.1" value="0.3">
+                        <span class="text-xs">濃</span>
+                    </div>
+                </div>
+                </div>
 
             <div class="card bg-white">
                 <h2 class="text-lg font-semibold border-b pb-1 mb-2">データ管理</h2>
@@ -1673,10 +1720,43 @@ async function renderSettingsMenu() {
         </div>
     `;
 
-    // --- イベントリスナー (変更なし) ---
+    // --- イベントリスナー ---
     document.getElementById('st-theme').onchange = async (e) => { await db.settings.put({key:'theme',value:e.target.value}); applyTheme(e.target.value); };
     document.getElementById('st-size').onchange = async (e) => { await db.settings.put({key:'fontSize',value:e.target.value}); applyFontSize(e.target.value); };
     
+    // ▼ 追加: 背景画像のイベントリスナー ▼
+    const bgFile = document.getElementById('bg-file');
+    bgFile.onchange = async (e) => {
+        if(e.target.files[0]) {
+            try {
+                // 背景ようなので少し大きめ(1200px)で保存
+                const b = await resizeImage(e.target.files[0], 1200); 
+                await db.settings.put({ key: 'backgroundImage', value: b });
+                await applyBackgroundImage();
+                alert('背景を設定しました');
+            } catch(err) {
+                alert('画像の保存に失敗しました');
+            }
+        }
+        bgFile.value = '';
+    };
+    
+    document.getElementById('bg-del').onclick = async () => {
+        if(confirm('背景画像を削除しますか？')) {
+            await db.settings.delete('backgroundImage');
+            await applyBackgroundImage();
+        }
+    };
+    
+    const bgOp = document.getElementById('bg-opacity');
+    // 現在値を反映
+    db.settings.get('backgroundOpacity').then(r => { if(r) bgOp.value = r.value; });
+    bgOp.onchange = async (e) => {
+        await db.settings.put({ key: 'backgroundOpacity', value: e.target.value });
+        await applyBackgroundImage();
+    };
+    // ▲ 追加ここまで ▲
+
     document.getElementById('exp-btn').onclick = exportAllData;
     document.getElementById('imp-btn').onclick = () => document.getElementById('imp-file').click();
     document.getElementById('imp-file').onchange = (e) => { if(e.target.files.length>0) importAllData(e.target.files[0]); };
@@ -1698,7 +1778,6 @@ async function renderSettingsMenu() {
         }
     };
 }
-
 // データ処理
 async function exportAllData() {
     const data = {};
