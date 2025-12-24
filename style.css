@@ -296,3 +296,42 @@ input, select, textarea, button {
     vertical-align: middle;
     margin-top: -2px; /* 少しだけ上にずらして文字と中心を合わせる */
 }
+
+/* ----------------------------------------------------------------------------
+   ★追加: トースト通知 (showToast用)
+---------------------------------------------------------------------------- */
+#toast-container {
+    position: fixed;
+    bottom: 80px; /* タブバーの上 */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none; /* 下のボタンを押せるように */
+    width: 90%;
+    max-width: 400px;
+}
+
+.toast-message {
+    background: rgba(30, 30, 30, 0.9);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+.toast-message.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-success { border-left: 4px solid #22c55e; }
+.toast-error   { border-left: 4px solid #ef4444; }
+.toast-info    { border-left: 4px solid #3b82f6; }
