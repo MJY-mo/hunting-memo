@@ -134,6 +134,20 @@ async function showTrapDetailPage(id) {
     const trap = await db.trap.get(id);
     if (!trap) return;
     
+    // ネイティブアプリなら追加写真を取得・表示
+    let subPhotosHTML = '';
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        const subPhotos = await db.additional_photos.where('[parent_type+parent_id]').equals(['trap', id]).toArray();
+        if (subPhotos.length > 0) {
+            const list = subPhotos.map(p => {
+                const u = URL.createObjectURL(p.image_blob);
+                appState.activeBlobUrls.push(u);
+                return `<img src="${u}" class="w-16 h-16 object-cover rounded border cursor-zoom-in" onclick="showImageModal(this.src)">`;
+            }).join('');
+            subPhotosHTML = `<div class="card bg-white"><h2 class="text-sm font-bold text-gray-500 mb-2">追加写真</h2><div class="flex flex-wrap gap-2">${list}</div></div>`;
+        }
+    }
+
     updateHeader(`罠 No.${trap.trap_number}`, true);
     backButton.onclick = () => showTrapPage();
 
@@ -184,7 +198,7 @@ async function showTrapDetailPage(id) {
         imageHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">写真</h2><div class="photo-preview cursor-zoom-in"><img src="${url}" id="detail-image"></div></div>`;
     }
 
-    app.innerHTML = `<div class="space-y-2">${actionButtons}${imageHTML}${infoHTML}${trap.memo ? `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">メモ</h2><p class="text-sm">${escapeHTML(trap.memo)}</p></div>` : ''}${catchSection}${closeSection}</div>`;
+    app.innerHTML = `<div class="space-y-2">${actionButtons}${imageHTML}${subPhotosHTML}${infoHTML}${trap.memo ? `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">メモ</h2><p class="text-sm">${escapeHTML(trap.memo)}</p></div>` : ''}${catchSection}${closeSection}</div>`;
 
     document.getElementById('edit-trap-btn').onclick = () => showTrapEditForm(id);
     document.getElementById('delete-trap-btn').onclick = () => deleteTrap(id);
@@ -208,16 +222,57 @@ async function showTrapDetailPage(id) {
 async function showTrapEditForm(id) {
     let trap = { trap_number: '', type: '', setup_date: new Date().toISOString().split('T')[0], memo: '', latitude: '', longitude: '', image_blob: null };
     const types = await db.trap_type.toArray();
+    
+    // ★追加写真用の変数
+    let additionalPhotos = [];
+    
     if (id) {
         const existing = await db.trap.get(id);
         if (existing) trap = existing;
+        
+        // ★ネイティブアプリなら追加写真を取得
+        if (typeof isNativeApp === 'function' && isNativeApp()) {
+            additionalPhotos = await db.additional_photos
+                .where('[parent_type+parent_id]')
+                .equals(['trap', parseInt(id)])
+                .toArray();
+        }
     }
     
+    // メイン写真のプレビュー生成
     let imgPreview = '';
     if (trap.image_blob) {
         const url = URL.createObjectURL(trap.image_blob);
         appState.activeBlobUrls.push(url);
         imgPreview = `<div class="form-group"><label class="form-label">現在の写真:</label><div class="photo-preview"><img src="${url}"><button type="button" id="remove-image-btn" class="photo-preview-btn-delete">×</button></div></div>`;
+    }
+
+    // ★追加写真エリアのHTML生成 (ネイティブアプリ判定時のみ)
+    let additionalPhotosHTML = '';
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        const photosList = await Promise.all(additionalPhotos.map(async (p) => {
+            const url = URL.createObjectURL(p.image_blob);
+            appState.activeBlobUrls.push(url);
+            return `
+                <div class="relative inline-block m-1">
+                    <img src="${url}" class="w-20 h-20 object-cover rounded border">
+                    <button type="button" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs btn-del-sub" data-id="${p.id}">×</button>
+                </div>
+            `;
+        }));
+
+        additionalPhotosHTML = `
+            <div class="card bg-gray-50 border-dashed border-2 border-gray-300 mt-2 p-2">
+                <h4 class="text-sm font-bold text-gray-500 mb-2">追加写真 (枚数無制限)</h4>
+                <div id="sub-photos-container" class="flex flex-wrap mb-2">
+                    ${photosList.join('')}
+                </div>
+                <input type="file" id="trap-sub-image" class="hidden" accept="image/*" multiple>
+                <button type="button" id="add-sub-photo-btn" class="btn btn-secondary btn-sm w-full">
+                    <i class="fas fa-plus mr-1"></i> 写真を追加
+                </button>
+            </div>
+        `;
     }
 
     app.innerHTML = `
@@ -232,7 +287,10 @@ async function showTrapEditForm(id) {
                     <button type="button" id="get-gps-btn" class="btn btn-secondary w-full mt-2">現在地を取得</button>
                 </div>
                 ${imgPreview}
-                <div class="form-group"><label class="form-label">写真を追加/変更:</label><input type="file" id="trap-image" class="form-input" accept="image/*"><div id="image-preview-container" class="mt-2"></div></div>
+                <div class="form-group"><label class="form-label">写真(メイン):</label><input type="file" id="trap-image" class="form-input" accept="image/*"><div id="image-preview-container" class="mt-2"></div></div>
+                
+                ${additionalPhotosHTML}
+
                 <div class="form-group"><label class="form-label">メモ:</label><textarea id="trap-memo" class="form-input">${escapeHTML(trap.memo)}</textarea></div>
                 <button type="submit" class="btn btn-primary w-full py-3">保存</button>
             </form>
@@ -241,29 +299,23 @@ async function showTrapEditForm(id) {
     updateHeader(id ? '罠の編集' : '新規設置', true);
     backButton.onclick = () => id ? showTrapDetailPage(id) : showTrapPage();
 
-    // ★追加: GPS取得時のリアクション
+    // GPSボタン
     document.getElementById('get-gps-btn').onclick = async function() {
-        const btn = this;
-        const orgText = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = '取得中...';
+        const btn = this; const orgText = btn.textContent;
+        btn.disabled = true; btn.textContent = '取得中...';
         try { 
             const loc = await getCurrentLocation(); 
             document.getElementById('trap-lat').value = loc.latitude; 
             document.getElementById('trap-lon').value = loc.longitude;
             showToast('位置情報を取得しました', 'success');
-        } catch(e) { 
-            showToast(e.message, 'error'); 
-        } finally {
-            btn.disabled = false;
-            btn.textContent = orgText;
-        }
+        } catch(e) { showToast(e.message, 'error'); } 
+        finally { btn.disabled = false; btn.textContent = orgText; }
     };
     
+    // メイン写真処理
     let resizedImageBlob = null;
     document.getElementById('trap-image').onchange = async (e) => {
-        const file = e.target.files[0];
-        if(!file) return;
+        const file = e.target.files[0]; if(!file) return;
         try {
             resizedImageBlob = await resizeImage(file, 800);
             const url = URL.createObjectURL(resizedImageBlob);
@@ -275,6 +327,43 @@ async function showTrapEditForm(id) {
         document.getElementById('remove-image-btn').onclick = function() { this.closest('.form-group').remove(); trap.image_blob = null; };
     }
 
+    // ★追加写真イベント処理 (ネイティブアプリ判定時のみ)
+    let tempSubBlobs = []; // 新規追加分を一時保存
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        // 追加ボタン
+        document.getElementById('add-sub-photo-btn').onclick = () => document.getElementById('trap-sub-image').click();
+
+        // ファイル選択時
+        document.getElementById('trap-sub-image').onchange = async (e) => {
+            if (!e.target.files.length) return;
+            for (let file of e.target.files) {
+                try {
+                    const blob = await resizeImage(file, 800);
+                    const url = URL.createObjectURL(blob);
+                    appState.activeBlobUrls.push(url);
+                    
+                    const div = document.createElement('div');
+                    div.className = 'relative inline-block m-1 new-sub-photo';
+                    div.innerHTML = `<img src="${url}" class="w-20 h-20 object-cover rounded border">`;
+                    document.getElementById('sub-photos-container').appendChild(div);
+                    
+                    tempSubBlobs.push(blob); // 保存待ちリストに追加
+                } catch (err) { console.error(err); }
+            }
+        };
+
+        // 既存写真の削除ボタン
+        document.querySelectorAll('.btn-del-sub').forEach(btn => {
+            btn.onclick = async (e) => {
+                if(confirm('この追加写真を削除しますか？')) {
+                    await db.additional_photos.delete(parseInt(e.target.dataset.id));
+                    e.target.closest('div').remove();
+                }
+            };
+        });
+    }
+
+    // 保存処理
     document.getElementById('trap-form').onsubmit = async (e) => {
         e.preventDefault();
         const data = {
@@ -289,15 +378,35 @@ async function showTrapEditForm(id) {
         };
         if (resizedImageBlob) data.image_blob = resizedImageBlob;
         
-        if (id) { await db.trap.update(id, data); showToast('更新しました', 'success'); showTrapDetailPage(id); }
-        else { const newId = await db.trap.add(data); showToast('設置しました', 'success'); showTrapDetailPage(newId); }
+        let savedId = id;
+        if (id) { 
+            await db.trap.update(id, data); 
+        } else { 
+            savedId = await db.trap.add(data); 
+        }
+
+        // ★追加写真の一括保存 (ネイティブアプリ判定時のみ)
+        if (typeof isNativeApp === 'function' && isNativeApp() && tempSubBlobs.length > 0) {
+            const subPhotosData = tempSubBlobs.map(blob => ({
+                parent_type: 'trap',
+                parent_id: savedId, 
+                image_blob: blob
+            }));
+            await db.additional_photos.bulkAdd(subPhotosData);
+        }
+
+        showToast(id ? '更新しました' : '設置しました', 'success');
+        showTrapDetailPage(savedId);
     };
 }
 
 async function deleteTrap(id) {
     if(!confirm('本当に削除しますか？\n紐付いた捕獲記録も削除されます。')) return;
-    await db.transaction('rw', db.trap, db.catch_records, async()=>{
+    // トランザクションに additional_photos を追加
+    await db.transaction('rw', db.trap, db.catch_records, db.additional_photos, async()=>{
         await db.catch_records.where('trap_id').equals(id).delete();
+        // 罠に紐付く追加写真も削除
+        await db.additional_photos.where('[parent_type+parent_id]').equals(['trap', id]).delete();
         await db.trap.delete(id);
     });
     showToast('削除しました', 'success');
@@ -344,7 +453,7 @@ async function showGunPage() {
             </div>
             <div class="card bg-white">
                 <div class="grid grid-cols-2 gap-2">
-                    <div class="form-group mb-0"><label class="form-label">目的:</label><select id="gun-filter-purpose" class="form-select"><option value="all">すべて</option><option value="狩猟">狩猟</option><option value="射撃">射撃</option><option value="有害駆除">有害駆除</option><option value="その他">その他</option></select></div>
+                    <div class="form-group mb-0"><label class="form-label">目的:</label><select id="gun-filter-purpose" class="form-select"><option value="all">すべて</option><option value="狩猟">狩猟</option><option value="射撃">射撃</option><option value="教習射撃">教習射撃</option><option value="有害駆除">有害駆除</option><option value="その他">その他</option></select></div>
                     <div class="form-group mb-0"><label class="form-label">銃:</label><select id="gun-filter-id" class="form-select"><option value="all">すべて</option>${gunOptions}</select></div>
                 </div>
             </div>
@@ -529,6 +638,20 @@ async function showGunLogDetailPage(id) {
     if (!log) return;
     const gun = await db.gun.get(log.gun_id);
     
+    // ネイティブアプリなら追加写真を取得・表示
+    let subPhotosHTML = '';
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        const subPhotos = await db.additional_photos.where('[parent_type+parent_id]').equals(['gun', id]).toArray();
+        if (subPhotos.length > 0) {
+            const list = subPhotos.map(p => {
+                const u = URL.createObjectURL(p.image_blob);
+                appState.activeBlobUrls.push(u);
+                return `<img src="${u}" class="w-16 h-16 object-cover rounded border cursor-zoom-in" onclick="showImageModal(this.src)">`;
+            }).join('');
+            subPhotosHTML = `<div class="card bg-white"><h2 class="text-sm font-bold text-gray-500 mb-2">追加写真</h2><div class="flex flex-wrap gap-2">${list}</div></div>`;
+        }
+    }
+
     updateHeader('使用履歴詳細', true);
     backButton.onclick = () => showGunPage();
 
@@ -549,7 +672,9 @@ async function showGunLogDetailPage(id) {
     app.innerHTML = `
         <div class="space-y-2">
             <div class="card bg-white"><div class="flex space-x-2"><button id="edit-log" class="btn btn-secondary flex-1">編集</button><button id="del-log" class="btn btn-danger flex-1">削除</button></div></div>
-            ${imgHTML}${info}
+            ${imgHTML}
+            ${subPhotosHTML}
+            ${info}
             <div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">捕獲記録 (${catchCount})</h2><div class="space-y-2">
                 <button id="view-catch" class="btn btn-secondary w-full text-left"><span class="w-6"><i class="fas fa-paw"></i></span> 捕獲記録を見る</button>
                 <button id="add-catch" class="btn btn-primary w-full text-left"><span class="w-6"><i class="fas fa-plus"></i></span> 捕獲記録を追加</button>
@@ -568,6 +693,15 @@ async function showGunLogEditForm(id) {
     if (id) log = await db.gun_log.get(id);
     const guns = await db.gun.toArray();
 
+    // ★追加写真用の変数
+    let additionalPhotos = [];
+    if (id && typeof isNativeApp === 'function' && isNativeApp()) {
+        additionalPhotos = await db.additional_photos
+            .where('[parent_type+parent_id]')
+            .equals(['gun', parseInt(id)])
+            .toArray();
+    }
+
     updateHeader(id?'使用履歴 編集':'新規使用履歴', true);
     backButton.onclick = () => id ? showGunLogDetailPage(id) : showGunPage();
 
@@ -577,44 +711,78 @@ async function showGunLogEditForm(id) {
         imgPreview = `<div class="form-group"><label class="form-label">現在の写真:</label><div class="photo-preview"><img src="${u}"><button type="button" id="rm-img" class="photo-preview-btn-delete">×</button></div></div>`;
     }
 
+    // ★追加写真エリアのHTML生成
+    let additionalPhotosHTML = '';
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        const photosList = await Promise.all(additionalPhotos.map(async (p) => {
+            const url = URL.createObjectURL(p.image_blob);
+            appState.activeBlobUrls.push(url);
+            return `
+                <div class="relative inline-block m-1">
+                    <img src="${url}" class="w-20 h-20 object-cover rounded border">
+                    <button type="button" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs btn-del-sub" data-id="${p.id}">×</button>
+                </div>
+            `;
+        }));
+
+        additionalPhotosHTML = `
+            <div class="card bg-gray-50 border-dashed border-2 border-gray-300 mt-2 p-2">
+                <h4 class="text-sm font-bold text-gray-500 mb-2">追加写真 (枚数無制限)</h4>
+                <div id="sub-photos-container" class="flex flex-wrap mb-2">
+                    ${photosList.join('')}
+                </div>
+                <input type="file" id="gun-sub-image" class="hidden" accept="image/*" multiple>
+                <button type="button" id="add-sub-photo-btn" class="btn btn-secondary btn-sm w-full">
+                    <i class="fas fa-plus mr-1"></i> 写真を追加
+                </button>
+            </div>
+        `;
+    }
+
     app.innerHTML = `
         <div class="card bg-white">
             <form id="log-form" class="space-y-2">
                 <div class="form-group"><label class="form-label">日付:</label><input type="date" id="l-date" class="form-input" value="${log.use_date}" required></div>
                 <div class="form-group"><label class="form-label">銃:</label><select id="l-gun" class="form-select" required><option value="">選択</option>${guns.map(g=>`<option value="${g.id}" ${g.id==log.gun_id?'selected':''}>${g.name}</option>`).join('')}</select></div>
-                <div class="form-group"><label class="form-label">目的:</label><select id="l-purpose" class="form-select">${['狩猟','射撃','有害駆除','その他'].map(p=>`<option value="${p}" ${p==log.purpose?'selected':''}>${p}</option>`).join('')}</select></div>
+                
+                <div class="form-group">
+                    <label class="form-label">目的:</label>
+                    <select id="l-purpose" class="form-select">
+                        ${['狩猟','射撃','教習射撃','有害駆除','その他'].map(p=>`<option value="${p}" ${p==log.purpose?'selected':''}>${p}</option>`).join('')}
+                    </select>
+                </div>
+                
                 <div class="form-group"><label class="form-label">消費弾数:</label><input type="number" id="l-ammo" class="form-input" value="${log.ammo_count}"></div>
                 <div class="form-group"><label class="form-label">場所:</label><input id="l-loc" class="form-input" value="${escapeHTML(log.location)}"></div>
                 <div class="form-group"><label class="form-label">同行者:</label><input id="l-comp" class="form-input" value="${escapeHTML(log.companion)}"></div>
                 <div class="form-group"><span class="form-label">位置</span><div class="grid grid-cols-2 gap-2"><input type="number" step="any" id="l-lat" class="form-input" value="${escapeHTML(log.latitude)}" placeholder="緯度"><input type="number" step="any" id="l-lon" class="form-input" value="${escapeHTML(log.longitude)}" placeholder="経度"></div><button type="button" id="gps-btn" class="btn btn-secondary w-full mt-2">GPS取得</button></div>
+                
                 ${imgPreview}
-                <div class="form-group"><label class="form-label">写真:</label><input type="file" id="l-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
+                <div class="form-group"><label class="form-label">写真(メイン):</label><input type="file" id="l-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
+                
+                ${additionalPhotosHTML}
+
                 <div class="form-group"><label class="form-label">メモ:</label><textarea id="l-memo" class="form-input">${escapeHTML(log.memo)}</textarea></div>
                 <button class="btn btn-primary w-full py-3">保存</button>
             </form>
         </div>
     `;
 
-    // ★追加: GPS取得時のリアクション
+    // GPS取得
     document.getElementById('gps-btn').onclick = async function() {
-        const btn = this;
-        const orgText = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = '取得中...';
+        const btn = this; const orgText = btn.textContent;
+        btn.disabled = true; btn.textContent = '取得中...';
         try { 
             const l = await getCurrentLocation(); 
             document.getElementById('l-lat').value=l.latitude; 
             document.getElementById('l-lon').value=l.longitude;
             showToast('位置情報を取得しました', 'success');
-        } catch(e) { 
-            showToast(e.message, 'error'); 
-        } finally {
-            btn.disabled = false;
-            btn.textContent = orgText;
-        }
+        } catch(e) { showToast(e.message, 'error'); }
+        finally { btn.disabled = false; btn.textContent = orgText; }
     };
     if(document.getElementById('rm-img')) document.getElementById('rm-img').onclick = function(){ this.closest('.form-group').remove(); log.image_blob = null; };
     
+    // メイン写真
     let resizedBlob = null;
     document.getElementById('l-img').onchange = async (e) => {
         if(!e.target.files[0]) return;
@@ -622,6 +790,37 @@ async function showGunLogEditForm(id) {
         const u = URL.createObjectURL(resizedBlob); appState.activeBlobUrls.push(u);
         document.getElementById('preview').innerHTML = `<div class="photo-preview"><img src="${u}"></div>`;
     };
+
+    // ★追加写真イベント処理
+    let tempSubBlobs = [];
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        document.getElementById('add-sub-photo-btn').onclick = () => document.getElementById('gun-sub-image').click();
+
+        document.getElementById('gun-sub-image').onchange = async (e) => {
+            if (!e.target.files.length) return;
+            for (let file of e.target.files) {
+                try {
+                    const blob = await resizeImage(file, 800);
+                    const url = URL.createObjectURL(blob);
+                    appState.activeBlobUrls.push(url);
+                    const div = document.createElement('div');
+                    div.className = 'relative inline-block m-1 new-sub-photo';
+                    div.innerHTML = `<img src="${url}" class="w-20 h-20 object-cover rounded border">`;
+                    document.getElementById('sub-photos-container').appendChild(div);
+                    tempSubBlobs.push(blob);
+                } catch (err) { console.error(err); }
+            }
+        };
+
+        document.querySelectorAll('.btn-del-sub').forEach(btn => {
+            btn.onclick = async (e) => {
+                if(confirm('この追加写真を削除しますか？')) {
+                    await db.additional_photos.delete(parseInt(e.target.dataset.id));
+                    e.target.closest('div').remove();
+                }
+            };
+        });
+    }
 
     document.getElementById('log-form').onsubmit = async (e) => {
         e.preventDefault();
@@ -639,22 +838,41 @@ async function showGunLogEditForm(id) {
         };
         if(resizedBlob) d.image_blob = resizedBlob;
         
-        if(id) { await db.gun_log.update(id, d); showToast('更新しました', 'success'); showGunLogDetailPage(id); }
-        else { const nid = await db.gun_log.add(d); showToast('登録しました', 'success'); showGunLogDetailPage(nid); }
+        let savedId = id;
+        if(id) { 
+            await db.gun_log.update(id, d); 
+        } else { 
+            savedId = await db.gun_log.add(d); 
+        }
+
+        // ★追加写真の一括保存
+        if (typeof isNativeApp === 'function' && isNativeApp() && tempSubBlobs.length > 0) {
+            const subPhotosData = tempSubBlobs.map(blob => ({
+                parent_type: 'gun',
+                parent_id: savedId, 
+                image_blob: blob
+            }));
+            await db.additional_photos.bulkAdd(subPhotosData);
+        }
+
+        showToast(id ? '更新しました' : '登録しました', 'success');
+        showGunLogDetailPage(savedId);
     };
 }
 
 async function deleteGunLog(id) {
     if(confirm('削除しますか？\n捕獲記録も削除されます。')) {
-        await db.transaction('rw', db.gun_log, db.catch_records, async()=>{
+        // トランザクションに additional_photos を追加
+        await db.transaction('rw', db.gun_log, db.catch_records, db.additional_photos, async()=>{
             await db.catch_records.where('gun_log_id').equals(id).delete();
+            // 銃履歴に紐付く追加写真も削除
+            await db.additional_photos.where('[parent_type+parent_id]').equals(['gun', id]).delete();
             await db.gun_log.delete(id);
         });
         showToast('削除しました', 'success');
         showGunPage();
     }
 }
-
 
 // ----------------------------------------------------------------------------
 // 3. 捕獲記録 (Catch)
@@ -745,6 +963,21 @@ async function renderCatchList() {
 async function showCatchDetailPage(id) {
     const r = await db.catch_records.get(id);
     if (!r) return;
+
+    // ネイティブアプリなら追加写真を取得・表示
+    let subPhotosHTML = '';
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        const subPhotos = await db.additional_photos.where('[parent_type+parent_id]').equals(['catch', id]).toArray();
+        if (subPhotos.length > 0) {
+            const list = subPhotos.map(p => {
+                const u = URL.createObjectURL(p.image_blob);
+                appState.activeBlobUrls.push(u);
+                return `<img src="${u}" class="w-16 h-16 object-cover rounded border cursor-zoom-in" onclick="showImageModal(this.src)">`;
+            }).join('');
+            subPhotosHTML = `<div class="card bg-white"><h2 class="text-sm font-bold text-gray-500 mb-2">追加写真</h2><div class="flex flex-wrap gap-2">${list}</div></div>`;
+        }
+    }
+
     updateHeader('捕獲詳細', true);
     backButton.onclick = () => showCatchListPage();
 
@@ -776,10 +1009,20 @@ async function showCatchDetailPage(id) {
     ].forEach(row => info += `<tr class="border-b"><th class="w-1/3 text-left bg-gray-50 p-1">${row[0]}</th><td class="p-1">${escapeHTML(row[1])}</td></tr>`);
     info += `</tbody></table>${mapBtn}</div>`;
 
-    app.innerHTML = `<div class="space-y-2"><div class="card bg-white"><div class="flex space-x-2"><button id="edit-c" class="btn btn-secondary flex-1">編集</button><button id="del-c" class="btn btn-danger flex-1">削除</button></div></div>${imgHTML}${info}${methodInfo}</div>`;
+    app.innerHTML = `<div class="space-y-2"><div class="card bg-white"><div class="flex space-x-2"><button id="edit-c" class="btn btn-secondary flex-1">編集</button><button id="del-c" class="btn btn-danger flex-1">削除</button></div></div>${imgHTML}${subPhotosHTML}${info}${methodInfo}</div>`;
 
     document.getElementById('edit-c').onclick = () => showCatchEditForm(id, {});
-    document.getElementById('del-c').onclick = async () => { if(confirm('削除しますか？')) { await db.catch_records.delete(id); showToast('削除しました', 'success'); showCatchListPage(); }};
+    document.getElementById('del-c').onclick = async () => { 
+        if(confirm('削除しますか？')) { 
+            // 捕獲記録とそれに関連する追加写真を削除
+            await db.transaction('rw', db.catch_records, db.additional_photos, async () => {
+                await db.additional_photos.where('[parent_type+parent_id]').equals(['catch', id]).delete();
+                await db.catch_records.delete(id);
+            });
+            showToast('削除しました', 'success'); 
+            showCatchListPage(); 
+        }
+    };
 }
 
 async function showCatchEditForm(id, { trapId, gunLogId }) {
@@ -790,6 +1033,15 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
     if (!id && trapId) { r.trap_id = trapId; const t = await db.trap.get(trapId); if(t) { r.latitude=t.latitude; r.longitude=t.longitude; } }
     if (!id && gunLogId) { r.gun_log_id = gunLogId; const g = await db.gun_log.get(gunLogId); if(g) { r.latitude=g.latitude; r.longitude=g.longitude; r.catch_date=g.use_date; } }
 
+    // ★追加写真用の変数
+    let additionalPhotos = [];
+    if (id && typeof isNativeApp === 'function' && isNativeApp()) {
+        additionalPhotos = await db.additional_photos
+            .where('[parent_type+parent_id]')
+            .equals(['catch', parseInt(id)])
+            .toArray();
+    }
+
     updateHeader(id?'捕獲記録 編集':'新規捕獲記録', true);
     backButton.onclick = () => id ? showCatchDetailPage(id) : (trapId ? showTrapDetailPage(trapId) : (gunLogId ? showGunLogDetailPage(gunLogId) : showCatchListPage()));
 
@@ -799,7 +1051,35 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
         imgPreview = `<div class="form-group"><label class="form-label">現在の写真:</label><div class="photo-preview"><img src="${u}"><button type="button" id="rm-img" class="photo-preview-btn-delete">×</button></div></div>`;
     }
 
-    // ★追加: 紐付け解除UI
+    // ★追加写真エリアのHTML生成 (ネイティブアプリ判定時のみ)
+    let additionalPhotosHTML = '';
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        const photosList = await Promise.all(additionalPhotos.map(async (p) => {
+            const url = URL.createObjectURL(p.image_blob);
+            appState.activeBlobUrls.push(url);
+            return `
+                <div class="relative inline-block m-1">
+                    <img src="${url}" class="w-20 h-20 object-cover rounded border">
+                    <button type="button" class="absolute -top-2 -right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs btn-del-sub" data-id="${p.id}">×</button>
+                </div>
+            `;
+        }));
+
+        additionalPhotosHTML = `
+            <div class="card bg-gray-50 border-dashed border-2 border-gray-300 mt-2 p-2">
+                <h4 class="text-sm font-bold text-gray-500 mb-2">追加写真 (枚数無制限)</h4>
+                <div id="sub-photos-container" class="flex flex-wrap mb-2">
+                    ${photosList.join('')}
+                </div>
+                <input type="file" id="catch-sub-image" class="hidden" accept="image/*" multiple>
+                <button type="button" id="add-sub-photo-btn" class="btn btn-secondary btn-sm w-full">
+                    <i class="fas fa-plus mr-1"></i> 写真を追加
+                </button>
+            </div>
+        `;
+    }
+
+    // 紐付け解除UI
     let relationInfo = '';
     if(r.trap_id) relationInfo = `<div class="card bg-orange-50 mb-2 border-l-4 border-orange-400 p-2 flex justify-between items-center"><span><i class="fas fa-link"></i> 罠(ID:${r.trap_id})に紐付中</span><button type="button" id="unlink-btn" class="btn btn-sm btn-secondary bg-white">解除</button></div>`;
     if(r.gun_log_id) relationInfo = `<div class="card bg-blue-50 mb-2 border-l-4 border-blue-400 p-2 flex justify-between items-center"><span><i class="fas fa-link"></i> 銃履歴(ID:${r.gun_log_id})に紐付中</span><button type="button" id="unlink-btn" class="btn btn-sm btn-secondary bg-white">解除</button></div>`;
@@ -818,13 +1098,18 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
                     <div class="form-group"><label class="form-label">年齢:</label><select id="c-age" class="form-select">${['不明','成獣','幼獣'].map(v=>`<option ${v==r.age?'selected':''}>${v}</option>`).join('')}</select></div>
                 </div>
                 <div class="form-group"><span class="form-label">位置</span><div class="grid grid-cols-2 gap-2"><input type="number" step="any" id="c-lat" class="form-input" value="${escapeHTML(r.latitude)}"><input type="number" step="any" id="c-lon" class="form-input" value="${escapeHTML(r.longitude)}"></div></div>
+                
                 ${imgPreview}
-                <div class="form-group"><label class="form-label">写真:</label><input type="file" id="c-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
+                <div class="form-group"><label class="form-label">写真(メイン):</label><input type="file" id="c-img" class="form-input" accept="image/*"><div id="preview" class="mt-2"></div></div>
+                
+                ${additionalPhotosHTML}
+
                 <div class="form-group"><label class="form-label">メモ:</label><textarea id="c-memo" class="form-input">${escapeHTML(r.memo)}</textarea></div>
                 <button class="btn btn-primary w-full py-3">保存</button>
             </form>
         </div>
     `;
+    
     loadSpeciesDataList();
     if(document.getElementById('rm-img')) document.getElementById('rm-img').onclick = function(){ this.closest('.form-group').remove(); r.image_blob = null; };
     if(document.getElementById('unlink-btn')) document.getElementById('unlink-btn').onclick = function() {
@@ -834,6 +1119,7 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
         }
     };
     
+    // メイン写真処理
     let resizedBlob = null;
     document.getElementById('c-img').onchange = async (e) => {
         if(!e.target.files[0]) return;
@@ -841,6 +1127,37 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
         const u = URL.createObjectURL(resizedBlob); appState.activeBlobUrls.push(u);
         document.getElementById('preview').innerHTML = `<div class="photo-preview"><img src="${u}"></div>`;
     };
+
+    // ★追加写真イベント処理
+    let tempSubBlobs = [];
+    if (typeof isNativeApp === 'function' && isNativeApp()) {
+        document.getElementById('add-sub-photo-btn').onclick = () => document.getElementById('catch-sub-image').click();
+
+        document.getElementById('catch-sub-image').onchange = async (e) => {
+            if (!e.target.files.length) return;
+            for (let file of e.target.files) {
+                try {
+                    const blob = await resizeImage(file, 800);
+                    const url = URL.createObjectURL(blob);
+                    appState.activeBlobUrls.push(url);
+                    const div = document.createElement('div');
+                    div.className = 'relative inline-block m-1 new-sub-photo';
+                    div.innerHTML = `<img src="${url}" class="w-20 h-20 object-cover rounded border">`;
+                    document.getElementById('sub-photos-container').appendChild(div);
+                    tempSubBlobs.push(blob);
+                } catch (err) { console.error(err); }
+            }
+        };
+
+        document.querySelectorAll('.btn-del-sub').forEach(btn => {
+            btn.onclick = async (e) => {
+                if(confirm('この追加写真を削除しますか？')) {
+                    await db.additional_photos.delete(parseInt(e.target.dataset.id));
+                    e.target.closest('div').remove();
+                }
+            };
+        });
+    }
 
     document.getElementById('catch-form').onsubmit = async (e) => {
         e.preventDefault();
@@ -854,16 +1171,32 @@ async function showCatchEditForm(id, { trapId, gunLogId }) {
             longitude: document.getElementById('c-lon').value,
             memo: document.getElementById('c-memo').value,
             image_blob: r.image_blob,
-            trap_id: r.trap_id,      // メモリ上の値を参照(解除済ならnull)
-            gun_log_id: r.gun_log_id // 同上
+            trap_id: r.trap_id,
+            gun_log_id: r.gun_log_id
         };
         if(resizedBlob) d.image_blob = resizedBlob;
         
-        if(id) { await db.catch_records.update(id, d); showToast('更新しました', 'success'); showCatchDetailPage(id); }
-        else { const nid = await db.catch_records.add(d); showToast('登録しました', 'success'); showCatchDetailPage(nid); }
+        let savedId = id;
+        if(id) { 
+            await db.catch_records.update(id, d); 
+        } else { 
+            savedId = await db.catch_records.add(d); 
+        }
+
+        // ★追加写真の一括保存
+        if (typeof isNativeApp === 'function' && isNativeApp() && tempSubBlobs.length > 0) {
+            const subPhotosData = tempSubBlobs.map(blob => ({
+                parent_type: 'catch',
+                parent_id: savedId, 
+                image_blob: blob
+            }));
+            await db.additional_photos.bulkAdd(subPhotosData);
+        }
+
+        showToast(id ? '更新しました' : '登録しました', 'success');
+        showCatchDetailPage(savedId);
     };
 }
-
 
 // ----------------------------------------------------------------------------
 // 4. チェックリスト (Checklist)
@@ -1162,7 +1495,7 @@ async function showHunterProfilePage() {
     
     const fields = [
         {k:'name', l:'氏名'}, {k:'gun_license_renewal', l:'銃所持許可 期限'},
-        {k:'hunting_license_renewal', l:'狩猟免状 期限'}, {k:'registration_renewal', l:'狩猟者登録 期限'},
+        {k:'hunting_license_renewal', l:'狩猟免状 期限'}, {k:'registration_renewal', l:'捕獲許可 期限'},
         {k:'explosives_permit_renewal', l:'火薬類譲受許可 期限'}
     ];
 
@@ -1191,7 +1524,7 @@ async function showHunterProfileEdit() {
 
     const fields = [
         {k:'name', l:'氏名'}, {k:'gun_license_renewal', l:'銃所持許可 期限'},
-        {k:'hunting_license_renewal', l:'狩猟免状 期限'}, {k:'registration_renewal', l:'狩猟者登録 期限'},
+        {k:'hunting_license_renewal', l:'狩猟免状 期限'}, {k:'registration_renewal', l:'捕獲許可 期限'},
         {k:'explosives_permit_renewal', l:'火薬類譲受許可 期限'}
     ];
 

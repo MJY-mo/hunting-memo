@@ -48,7 +48,7 @@ const appState = {
 // ----------------------------------------------------------------------------
 const db = new Dexie('HuntingAppDB');
 
-db.version(15).stores({
+db.version(16).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose, [is_open+trap_number], [is_open+setup_date], [is_open+close_date]',
     trap_type: '++id, &name',
     catch_records: '++id, trap_id, gun_log_id, catch_date, species_name, weight, gender, age, memo, image_blob, latitude, longitude, [gender+catch_date], [age+catch_date], [trap_id+catch_date], [gun_log_id+catch_date], [gender+species_name], [age+species_name], [trap_id+species_name], [gun_log_id+species_name]',
@@ -60,8 +60,23 @@ db.version(15).stores({
     checklist_items: '++id, list_id, name, is_checked, &[list_id+name]',
     profile_images: '++id, type',
     settings: '&key',
-    hunter_profile: '&key'
+    hunter_profile: '&key', // ★ここにカンマを追加
+    additional_photos: '++id, parent_type, parent_id, [parent_type+parent_id]'
 });
+
+// ----------------------------------------------------------------------------
+// ★追加: 環境判定フラグ
+// ----------------------------------------------------------------------------
+function isNativeApp() {
+    // ここでネイティブアプリかどうかを判定します。
+    // 例: CapacitorやCordovaなどが注入するオブジェクトの有無、
+    // あるいはURLスキーム、UserAgentなどで判定します。
+    
+    // 【仮実装】現在は常に false (PWAモード) を返す設定です。
+    // ネイティブ化する際はここを true にするか、自動判定ロジックを入れてください。
+    // return !!window.Capacitor; // 例
+    return false; 
+}
 
 // ----------------------------------------------------------------------------
 // 3. 共通ヘルパー関数
@@ -272,12 +287,28 @@ function closeImageModal() {
 
 async function exportAllData() {
     const data = {};
-    for (const t of ['hunter_profile','settings','trap','trap_type','gun','gun_log','catch_records','checklist_sets','checklist_items','game_animal_list','ammo_purchases','profile_images']) {
+    // additional_photos を追加
+    const tables = [
+        'hunter_profile', 'settings', 'trap', 'trap_type', 'gun', 'gun_log', 
+        'catch_records', 'checklist_sets', 'checklist_items', 'game_animal_list', 
+        'ammo_purchases', 'profile_images', 'additional_photos'
+    ];
+
+    for (const t of tables) {
         data[t] = await db[t].toArray();
     }
-    for (const t of ['trap','catch_records','gun_log','profile_images']) {
-        if(data[t]) data[t] = await Promise.all(data[t].map(async i => ({...i, image_blob: await blobToBase64(i.image_blob)})));
+
+    // Blobを持つテーブルはBase64に変換 (additional_photos も追加)
+    const blobTables = ['trap', 'catch_records', 'gun_log', 'profile_images', 'additional_photos'];
+    for (const t of blobTables) {
+        if(data[t]) {
+            data[t] = await Promise.all(data[t].map(async i => ({
+                ...i, 
+                image_blob: await blobToBase64(i.image_blob)
+            })));
+        }
     }
+    
     const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `backup_${new Date().toISOString().slice(0,10)}.json`;
@@ -294,19 +325,26 @@ async function importAllData(file) {
         await db.transaction('rw', db.tables, async () => {
             await Promise.all(db.tables.map(t=>t.clear()));
             await Promise.all([
-                db.hunter_profile.bulkAdd(tabs.hunter_profile||[]), db.settings.bulkAdd(tabs.settings||[]),
-                db.trap_type.bulkAdd(tabs.trap_type||[]), db.gun.bulkAdd(tabs.gun||[]),
-                db.ammo_purchases.bulkAdd(tabs.ammo_purchases||[]), db.game_animal_list.bulkAdd(tabs.game_animal_list||[]),
-                db.checklist_sets.bulkAdd(tabs.checklist_sets||[]), db.checklist_items.bulkAdd(tabs.checklist_items||[]),
-                db.trap.bulkAdd(await conv('trap')), db.catch_records.bulkAdd(await conv('catch_records')),
-                db.gun_log.bulkAdd(await conv('gun_log')), db.profile_images.bulkAdd(await conv('profile_images'))
+                db.hunter_profile.bulkAdd(tabs.hunter_profile||[]), 
+                db.settings.bulkAdd(tabs.settings||[]),
+                db.trap_type.bulkAdd(tabs.trap_type||[]), 
+                db.gun.bulkAdd(tabs.gun||[]),
+                db.ammo_purchases.bulkAdd(tabs.ammo_purchases||[]), 
+                db.game_animal_list.bulkAdd(tabs.game_animal_list||[]),
+                db.checklist_sets.bulkAdd(tabs.checklist_sets||[]), 
+                db.checklist_items.bulkAdd(tabs.checklist_items||[]),
+                db.trap.bulkAdd(await conv('trap')), 
+                db.catch_records.bulkAdd(await conv('catch_records')),
+                db.gun_log.bulkAdd(await conv('gun_log')), 
+                db.profile_images.bulkAdd(await conv('profile_images')),
+                // additional_photos を追加
+                db.additional_photos.bulkAdd(await conv('additional_photos'))
             ]);
         });
         showToast('データの復元が完了しました', 'success');
         setTimeout(() => location.reload(), 1500);
     } catch { showToast('データの読み込みに失敗しました', 'error'); }
 }
-
 async function exportGunLogsAsCSV() {
     const guns = await db.gun.toArray();
     const logs = await db.gun_log.toArray();
@@ -454,7 +492,28 @@ function downloadCSV(csv, name) {
 }
 
 function blobToBase64(b) { return new Promise((res,rej)=>{ if(!b){res(null);return;} const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(b); }); }
-async function base64ToBlob(d) { if(!d)return null; return (await fetch(d)).blob(); }
+function base64ToBlob(base64) {
+    if (!base64) return null;
+    try {
+        // データURI形式 (data:image/jpeg;base64,...) か確認
+        const arr = base64.split(',');
+        if (arr.length < 2) return null; // データが壊れている場合は無視
+        
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        
+        return new Blob([u8arr], { type: mime });
+    } catch (e) {
+        console.error('画像の復元に失敗しました:', e);
+        return null; // エラー時は画像なしとしてデータを救済する
+    }
+}
 
 // ----------------------------------------------------------------------------
 // 5. 初期データ投入ロジック
