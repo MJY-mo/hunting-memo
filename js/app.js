@@ -1,5 +1,5 @@
 // ============================================================================
-// js/app.js - アプリ初期化、ナビゲーション、設定適用 (戻るボタン対応版)
+// js/app.js - アプリ初期化、ナビゲーション、設定適用 (戻るボタン連動版)
 // ============================================================================
 
 // ----------------------------------------------------------------------------
@@ -17,7 +17,6 @@ window.addEventListener('load', () => {
 
     // 戻るボタン制御用の変数を初期化
     appState.isDetailView = false;   // 現在詳細ページにいるか
-    appState.onBackAction = null;    // 戻る時に実行する関数
 
     console.log("Window loaded. Initializing app...");
     
@@ -29,149 +28,115 @@ window.addEventListener('load', () => {
         await populateDefaultHunterProfile();
         await populateGameAnimalListIfNeeded(false);
         
-        setupTabs();
+        setupNavigation();
         
-        // 初期状態を履歴にセット
-        history.replaceState({ page: 'home' }, null, '');
-
-        navigateTo('trap', showTrapPage, '罠');
+        // 初期表示
+        showTrapPage();
         
-    }).catch(err => {
-        console.error("Failed to open database:", err);
-        app.innerHTML = `<div class="error-box">データベースの起動に失敗しました。<br>${err.message}</div>`;
+    }).catch(e => {
+        console.error("Database open failed:", e);
+        alert('データベースの起動に失敗しました。アプリを再読み込みしてください。');
     });
 });
 
 // ----------------------------------------------------------------------------
-// 2. ナビゲーション & 戻るボタン管理 (Router & History)
+// 2. ナビゲーション & ヘッダー制御 (戻るボタン連動)
 // ----------------------------------------------------------------------------
 
-// ▼ スマホの「戻るボタン」が押された時の処理 ▼
-window.addEventListener('popstate', (event) => {
-    // 詳細モードで、戻るアクションが登録されている場合
-    if (appState.onBackAction) {
-        // 保存しておいた「戻る時の処理（一覧に戻るなど）」を実行
-        const action = appState.onBackAction;
-        
-        // フラグ類をリセット
-        appState.onBackAction = null;
-        appState.isDetailView = false;
-        
-        // 実行
-        action();
-    } else {
-        // 戻るアクションがない（トップページなど）場合は、
-        // アプリを終了させるかブラウザの挙動に任せる
-        // (PWAの場合はここでアプリが最小化される等の挙動になる)
-    }
-});
+function setupNavigation() {
+    // タブ切り替えイベント
+    tabs.trap.onclick = () => navigateTo('trap', showTrapPage, '罠管理');
+    tabs.gun.onclick = () => navigateTo('gun', showGunPage, '銃・使用履歴');
+    tabs.catch.onclick = () => navigateTo('catch', showCatchPage, '捕獲記録');
+    tabs.checklist.onclick = () => navigateTo('checklist', showChecklistPage, 'チェックリスト');
+    tabs.info.onclick = () => navigateTo('info', showInfoPage, '情報');
+    tabs.settings.onclick = () => navigateTo('settings', showSettingsPage, '設定');
 
-function setupTabs() {
-    // タブ切り替え時は履歴スタックをリセットするような挙動にする
-    const handleTabClick = (pageId, func, title) => {
-        // 詳細ビューにいる時にタブを押した場合、フラグをリセット
-        appState.isDetailView = false;
-        appState.onBackAction = null;
-        navigateTo(pageId, func, title);
-    };
-
-    if(tabs.trap) tabs.trap.addEventListener('click', () => handleTabClick('trap', showTrapPage, '罠'));
-    if(tabs.gun) tabs.gun.addEventListener('click', () => handleTabClick('gun', showGunPage, '銃'));
-    if(tabs.catch) tabs.catch.addEventListener('click', () => handleTabClick('catch', showCatchPage, '捕獲'));
-    if(tabs.checklist) tabs.checklist.addEventListener('click', () => handleTabClick('checklist', showChecklistPage, 'チェック'));
-    if(tabs.info) tabs.info.addEventListener('click', () => handleTabClick('info', showInfoPage, '情報'));
-    if(tabs.settings) tabs.settings.addEventListener('click', () => handleTabClick('settings', showSettingsPage, '設定'));
-}
-
-function navigateTo(pageId, pageFunction, title) {
-    if (appState.activeBlobUrls && appState.activeBlobUrls.length > 0) {
-        appState.activeBlobUrls.forEach(url => URL.revokeObjectURL(url));
-        appState.activeBlobUrls = [];
-    }
-    
-    appState.currentPage = pageId;
-    
-    Object.values(tabs).forEach(tab => { 
-        if(tab) tab.classList.replace('tab-active', 'tab-inactive'); 
-    });
-    if (tabs[pageId]) tabs[pageId].classList.replace('tab-inactive', 'tab-active');
-    
-    updateHeader(title, false);
-    
-    try { 
-        pageFunction(); 
-    } catch (err) { 
-        console.error(`Failed to render page: ${pageId}`, err); 
-        app.innerHTML = `<div class="error-box">エラー: ${err.message}</div>`; 
-    }
-}
-
-// ▼ ヘッダー更新関数（ここが戻るボタン連携の肝） ▼
-function updateHeader(title, showBack = false, onBackClick = null) {
-    if(headerTitle) headerTitle.textContent = title;
-    
-    if(backButton) {
-        backButton.classList.toggle('hidden', !showBack);
-
-        if (showBack) {
-            // --- 詳細画面（戻るボタンあり）に来た時 ---
-
-            // まだ詳細モードでなければ、履歴に「詳細」を追加する
-            if (!appState.isDetailView) {
-                history.pushState({ mode: 'detail' }, null, '');
-                appState.isDetailView = true;
+    // ★追加: スマホの物理戻るボタン(popstate)の監視
+    window.addEventListener('popstate', (event) => {
+        // 詳細画面が表示されている状態で戻るボタンが押された場合
+        if (appState.isDetailView) {
+            // 画面上の「戻るボタン」に設定されている関数を実行する
+            if (backButton && typeof backButton.onclick === 'function') {
+                backButton.onclick(); 
+                // 注意: onclick内で updateHeader(..., false) が呼ばれ、isDetailViewがfalseになります
+            } else {
+                // 万が一設定がない場合は罠一覧へ戻す
+                showTrapPage();
             }
+        }
+    });
+}
 
-            // 「戻る」を実行した時の処理を保存しておく
-            // (指定がなければ、現在のタブのトップに戻るデフォルト動作)
-            appState.onBackAction = onBackClick || (() => {
-                const defaultActions = {
-                    trap: showTrapPage,
-                    gun: showGunPage,
-                    catch: showCatchPage,
-                    checklist: showChecklistPage,
-                    info: showInfoPage,
-                    settings: showSettingsPage
-                };
-                const action = defaultActions[appState.currentPage];
-                if (action) navigateTo(appState.currentPage, action, title); // タイトルは仮
-            });
-
-            // アプリ内の「戻るボタン」を押した時は、
-            // 直接関数を呼ばず、ブラウザの履歴を戻す（→ popstateが発火 → onBackActionが実行される）
-            backButton.onclick = () => {
-                history.back();
-            };
-
+// タブ移動処理
+function navigateTo(pageKey, pageFunc, title) {
+    appState.currentPage = pageKey;
+    
+    // タブの見た目を更新
+    Object.keys(tabs).forEach(key => {
+        const btn = tabs[key];
+        if (key === pageKey) {
+            btn.classList.replace('tab-inactive', 'tab-active');
+            btn.classList.add('text-blue-600');
+            btn.querySelector('i').classList.add('text-blue-600');
         } else {
-            // --- トップ画面（戻るボタンなし）に来た時 ---
+            btn.classList.replace('tab-active', 'tab-inactive');
+            btn.classList.remove('text-blue-600');
+            btn.querySelector('i').classList.remove('text-blue-600');
+        }
+    });
+
+    // ページ描画実行
+    pageFunc();
+}
+
+// ヘッダー更新 (★ここでHistory APIを操作します)
+function updateHeader(title, showBack = false) {
+    // タイトル設定
+    if (headerTitle) headerTitle.textContent = title;
+    
+    // 戻るボタンの表示制御
+    if (backButton) {
+        if (showBack) {
+            backButton.classList.remove('hidden');
+            
+            // ★詳細画面に入った時、履歴を追加する
+            // (まだ詳細モードでない場合のみpushStateする)
+            if (!appState.isDetailView) {
+                appState.isDetailView = true;
+                history.pushState({ mode: 'detail' }, null, '');
+            }
+            
+        } else {
+            backButton.classList.add('hidden');
+            
+            // ★一覧画面に戻った時
             appState.isDetailView = false;
-            appState.onBackAction = null;
+            // ここで history.back() は呼びません（無限ループ防止のため）。
+            // ユーザーがボタンを押した場合は履歴が1つ進んだ状態になりますが、
+            // 次に物理戻るボタンを押したときに popstate が発火し、この関数が再度呼ばれて整合性が保たれます。
+            
+            backButton.onclick = null; // イベントリスナー解除
         }
     }
-    
-    if(headerActions) headerActions.innerHTML = '';
 }
 
 // ----------------------------------------------------------------------------
-// 3. 設定適用ロジック
+// 3. 設定読み込み関連
 // ----------------------------------------------------------------------------
 
 async function loadAndApplySettings() {
     try {
-        let themeSetting = await db.settings.get('theme');
-        if (!themeSetting) { 
-            themeSetting = { key: 'theme', value: 'light' }; 
-            await db.settings.put(themeSetting); 
-        }
-        applyTheme(themeSetting.value);
+        const theme = await db.settings.get('theme');
+        if (theme) applyTheme(theme.value);
         
-        let fontSizeSetting = await db.settings.get('fontSize');
-        if (!fontSizeSetting) { 
-            fontSizeSetting = { key: 'fontSize', value: 'medium' }; 
-            await db.settings.put(fontSizeSetting); 
+        const fontSizeSetting = await db.settings.get('fontSize');
+        if (!fontSizeSetting) {
+            // デフォルト設定
+            await db.settings.put({ key: 'fontSize', value: 'medium' });
+        } else {
+            applyFontSize(fontSizeSetting.value);
         }
-        applyFontSize(fontSizeSetting.value);
         
         await applyBackgroundImage();
     } catch (err) { console.error("Settings load failed:", err); }
@@ -181,16 +146,32 @@ async function applyBackgroundImage() {
     const bgDiv = document.getElementById('global-bg');
     if(!bgDiv) return;
 
-    const imgRec = await db.settings.get('backgroundImage');
-    const opRec = await db.settings.get('backgroundOpacity');
-    const opacity = opRec ? parseFloat(opRec.value) : 0.3;
-    bgDiv.style.opacity = opacity;
+    try {
+        const imgRec = await db.settings.get('backgroundImage');
+        const opRec = await db.settings.get('backgroundOpacity');
+        const opacity = opRec ? parseFloat(opRec.value) : 0.3;
+        bgDiv.style.opacity = opacity;
 
-    if (imgRec && imgRec.value) {
-        const url = URL.createObjectURL(imgRec.value);
-        bgDiv.style.backgroundImage = `url(${url})`;
-    } else {
-        bgDiv.style.backgroundImage = 'none';
+        if (imgRec && imgRec.value) {
+            // 画像データ(Blob)をURLに変換
+            // common.js で定義した base64ToBlob は import/export時用なので、
+            // ここではDBから取得したBlobを直接使うか、古い形式(Base64文字列)なら変換する
+            let blob = imgRec.value;
+            // もし古いデータでBase64文字列のまま保存されていた場合の互換処理
+            if (typeof blob === 'string') {
+                 // base64ToBlobがcommon.jsにある前提
+                 blob = base64ToBlob(blob);
+            }
+
+            if (blob) {
+                const url = URL.createObjectURL(blob);
+                bgDiv.style.backgroundImage = `url(${url})`;
+            }
+        } else {
+            bgDiv.style.backgroundImage = 'none';
+        }
+    } catch (e) {
+        console.error('背景設定の適用に失敗:', e);
     }
 }
 
@@ -201,12 +182,23 @@ function applyTheme(themeValue) {
         themeValue === 'sepia' ? 'theme-sepia' : 
         themeValue === 'lightgreen' ? 'theme-light-green' : 
         themeValue === 'lightblue' ? 'theme-light-blue' : 
+        themeValue === 'dark' ? 'theme-dark' :
         'theme-light'
     );
 }
 
-function applyFontSize(sizeValue) {
+function applyFontSize(size) {
     const root = document.documentElement;
-    root.classList.remove('font-size-xsmall', 'font-size-small', 'font-size-medium', 'font-size-large', 'font-size-xlarge');
-    root.classList.add(`font-size-${sizeValue}`);
+    // Tailwindの基本文字サイズ(rem)を操作する代わりに、bodyのクラス等で調整
+    // ここでは簡易的にhtmlのfont-sizeを変更してremの基準を変える手法をとります
+    // default 14px (0.875rem) based on Tailwind 'text-sm' in body
+    
+    let scale = 100;
+    if (size === 'xsmall') scale = 85;
+    if (size === 'small') scale = 92;
+    if (size === 'medium') scale = 100;
+    if (size === 'large') scale = 110;
+    if (size === 'xlarge') scale = 125;
+
+    root.style.fontSize = `${scale}%`;
 }
