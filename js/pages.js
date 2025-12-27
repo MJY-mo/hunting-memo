@@ -184,9 +184,14 @@ async function showTrapDetailPage(id) {
 
     let infoHTML = `<div class="card bg-white"><h2 class="text-lg font-semibold border-b pb-1 mb-2">基本情報</h2><table class="w-full text-sm"><tbody>`;
     const rows = [
-        ['番号', trap.trap_number], ['種類', trap.type], ['設置日', formatDate(trap.setup_date)],
-        ['状態', trap.is_open ? '設置中' : '撤去済'], ['撤去日', trap.close_date ? formatDate(trap.close_date) : '-'],
-        ['緯度', trap.latitude], ['経度', trap.longitude]
+        ['番号', trap.trap_number],
+        ['目的', trap.purpose || '-'], // ← 追加
+        ['種類', trap.type], 
+        ['設置日', formatDate(trap.setup_date)],
+        ['状態', trap.is_open ? '設置中' : '撤去済'], 
+        ['撤去日', trap.close_date ? formatDate(trap.close_date) : '-'],
+        ['緯度', trap.latitude], 
+        ['経度', trap.longitude]
     ];
     rows.forEach(r => infoHTML += `<tr class="border-b"><th class="w-1/3 text-left p-1 bg-gray-50">${r[0]}</th><td class="p-1">${escapeHTML(r[1])}</td></tr>`);
     infoHTML += `</tbody></table>${mapBtn}</div>`;
@@ -220,17 +225,20 @@ async function showTrapDetailPage(id) {
 }
 
 async function showTrapEditForm(id) {
-    let trap = { trap_number: '', type: '', setup_date: new Date().toISOString().split('T')[0], memo: '', latitude: '', longitude: '', image_blob: null };
+    // ★ 1. 初期値に purpose: '狩猟' を追加
+    let trap = { trap_number: '', type: '', setup_date: new Date().toISOString().split('T')[0], memo: '', latitude: '', longitude: '', image_blob: null, purpose: '狩猟' };
     const types = await db.trap_type.toArray();
     
-    // ★追加写真用の変数
     let additionalPhotos = [];
     
     if (id) {
         const existing = await db.trap.get(id);
-        if (existing) trap = existing;
+        if (existing) {
+            trap = existing;
+            // 既存データに purpose が無い場合のフォールバック
+            if (!trap.purpose) trap.purpose = '狩猟';
+        }
         
-        // ★ネイティブアプリなら追加写真を取得
         if (typeof isNativeApp === 'function' && isNativeApp()) {
             additionalPhotos = await db.additional_photos
                 .where('[parent_type+parent_id]')
@@ -239,7 +247,6 @@ async function showTrapEditForm(id) {
         }
     }
     
-    // メイン写真のプレビュー生成
     let imgPreview = '';
     if (trap.image_blob) {
         const url = URL.createObjectURL(trap.image_blob);
@@ -247,7 +254,6 @@ async function showTrapEditForm(id) {
         imgPreview = `<div class="form-group"><label class="form-label">現在の写真:</label><div class="photo-preview"><img src="${url}"><button type="button" id="remove-image-btn" class="photo-preview-btn-delete">×</button></div></div>`;
     }
 
-    // ★追加写真エリアのHTML生成 (ネイティブアプリ判定時のみ)
     let additionalPhotosHTML = '';
     if (typeof isNativeApp === 'function' && isNativeApp()) {
         const photosList = await Promise.all(additionalPhotos.map(async (p) => {
@@ -275,10 +281,19 @@ async function showTrapEditForm(id) {
         `;
     }
 
+    // ★ 2. HTMLに「目的」のセレクトボックスを追加
     app.innerHTML = `
         <div class="card bg-white">
             <form id="trap-form" class="space-y-2">
                 <div class="form-group"><label class="form-label">罠番号 <span class="text-red-500">*</span>:</label><input type="text" id="trap-number" class="form-input" value="${escapeHTML(trap.trap_number)}" required></div>
+                
+                <div class="form-group">
+                    <label class="form-label">目的:</label>
+                    <select id="trap-purpose" class="form-select">
+                        ${['狩猟','有害駆除','調査研究','その他'].map(p => `<option value="${p}" ${p === trap.purpose ? 'selected' : ''}>${p}</option>`).join('')}
+                    </select>
+                </div>
+
                 <div class="form-group"><label class="form-label">種類:</label><select id="trap-type" class="form-select">${types.map(t=>`<option value="${t.name}" ${t.name===trap.type?'selected':''}>${t.name}</option>`).join('')}</select></div>
                 <div class="form-group"><label class="form-label">設置日:</label><input type="date" id="setup-date" class="form-input" value="${escapeHTML(trap.setup_date)}" required></div>
                 <div class="form-group">
@@ -327,13 +342,10 @@ async function showTrapEditForm(id) {
         document.getElementById('remove-image-btn').onclick = function() { this.closest('.form-group').remove(); trap.image_blob = null; };
     }
 
-    // ★追加写真イベント処理 (ネイティブアプリ判定時のみ)
-    let tempSubBlobs = []; // 新規追加分を一時保存
+    // 追加写真イベント処理
+    let tempSubBlobs = [];
     if (typeof isNativeApp === 'function' && isNativeApp()) {
-        // 追加ボタン
         document.getElementById('add-sub-photo-btn').onclick = () => document.getElementById('trap-sub-image').click();
-
-        // ファイル選択時
         document.getElementById('trap-sub-image').onchange = async (e) => {
             if (!e.target.files.length) return;
             for (let file of e.target.files) {
@@ -341,18 +353,14 @@ async function showTrapEditForm(id) {
                     const blob = await resizeImage(file, 800);
                     const url = URL.createObjectURL(blob);
                     appState.activeBlobUrls.push(url);
-                    
                     const div = document.createElement('div');
                     div.className = 'relative inline-block m-1 new-sub-photo';
                     div.innerHTML = `<img src="${url}" class="w-20 h-20 object-cover rounded border">`;
                     document.getElementById('sub-photos-container').appendChild(div);
-                    
-                    tempSubBlobs.push(blob); // 保存待ちリストに追加
+                    tempSubBlobs.push(blob);
                 } catch (err) { console.error(err); }
             }
         };
-
-        // 既存写真の削除ボタン
         document.querySelectorAll('.btn-del-sub').forEach(btn => {
             btn.onclick = async (e) => {
                 if(confirm('この追加写真を削除しますか？')) {
@@ -366,8 +374,10 @@ async function showTrapEditForm(id) {
     // 保存処理
     document.getElementById('trap-form').onsubmit = async (e) => {
         e.preventDefault();
+        // ★ 3. 保存データに purpose を含める
         const data = {
             trap_number: document.getElementById('trap-number').value,
+            purpose: document.getElementById('trap-purpose').value, // ここに追加
             type: document.getElementById('trap-type').value,
             setup_date: document.getElementById('setup-date').value,
             latitude: document.getElementById('trap-lat').value,
@@ -385,7 +395,6 @@ async function showTrapEditForm(id) {
             savedId = await db.trap.add(data); 
         }
 
-        // ★追加写真の一括保存 (ネイティブアプリ判定時のみ)
         if (typeof isNativeApp === 'function' && isNativeApp() && tempSubBlobs.length > 0) {
             const subPhotosData = tempSubBlobs.map(blob => ({
                 parent_type: 'trap',

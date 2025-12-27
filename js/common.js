@@ -48,7 +48,24 @@ const appState = {
 // ----------------------------------------------------------------------------
 const db = new Dexie('HuntingAppDB');
 
-db.version(16).stores({
+罠の設置（新規・編集）時に「目的（狩猟・有害駆除・その他）」を選択・保存できるようにする修正ですね。承知しました。
+
+以下の3ステップで修正を行います。
+
+common.js: データベースの定義を更新して、罠テーブルに purpose（目的）カラムを追加します。
+
+pages.js: 罠の編集画面に「目的」の選択プルダウンを追加します。
+
+pages.js: 罠の詳細画面に保存された「目的」を表示するようにします。
+
+1. common.js の修正 (データベース定義)
+データベースのバージョンを上げ、trap テーブルに purpose を追加します。
+
+修正前 (v16):
+
+JavaScript
+
+db.version(17).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose, [is_open+trap_number], [is_open+setup_date], [is_open+close_date]',
     trap_type: '++id, &name',
     catch_records: '++id, trap_id, gun_log_id, catch_date, species_name, weight, gender, age, memo, image_blob, latitude, longitude, [gender+catch_date], [age+catch_date], [trap_id+catch_date], [gun_log_id+catch_date], [gender+species_name], [age+species_name], [trap_id+species_name], [gun_log_id+species_name]',
@@ -60,7 +77,7 @@ db.version(16).stores({
     checklist_items: '++id, list_id, name, is_checked, &[list_id+name]',
     profile_images: '++id, type',
     settings: '&key',
-    hunter_profile: '&key', // ★ここにカンマを追加
+    hunter_profile: '&key',
     additional_photos: '++id, parent_type, parent_id, [parent_type+parent_id]'
 });
 
