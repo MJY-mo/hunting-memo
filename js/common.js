@@ -1,5 +1,5 @@
 // ============================================================================
-// js/common.js - 共通設定、DB定義、ユーティリティ (v6: 完全修正版)
+// js/common.js - 共通設定、DB定義、ユーティリティ (修正版)
 // ============================================================================
 
 // ----------------------------------------------------------------------------
@@ -48,23 +48,7 @@ const appState = {
 // ----------------------------------------------------------------------------
 const db = new Dexie('HuntingAppDB');
 
-罠の設置（新規・編集）時に「目的（狩猟・有害駆除・その他）」を選択・保存できるようにする修正ですね。承知しました。
-
-以下の3ステップで修正を行います。
-
-common.js: データベースの定義を更新して、罠テーブルに purpose（目的）カラムを追加します。
-
-pages.js: 罠の編集画面に「目的」の選択プルダウンを追加します。
-
-pages.js: 罠の詳細画面に保存された「目的」を表示するようにします。
-
-1. common.js の修正 (データベース定義)
-データベースのバージョンを上げ、trap テーブルに purpose を追加します。
-
-修正前 (v16):
-
-JavaScript
-
+// バージョン17 (purposeカラム追加対応)
 db.version(17).stores({
     trap: '++id, trap_number, type, setup_date, latitude, longitude, memo, image_blob, is_open, close_date, purpose, [is_open+trap_number], [is_open+setup_date], [is_open+close_date]',
     trap_type: '++id, &name',
@@ -82,12 +66,10 @@ db.version(17).stores({
 });
 
 // ----------------------------------------------------------------------------
-// ★追加: 環境判定フラグ (Androidアプリ版のみ true にする厳密な判定)
+// 環境判定フラグ (Androidアプリ版のみ true)
 // ----------------------------------------------------------------------------
 function isNativeApp() {
     const ua = navigator.userAgent;
-    // Android かつ、UserAgentに 'wv' (WebView) が含まれている場合のみ true
-    // ※一般的なAndroidアプリ化ツールでは wv が付きますが、Chromeブラウザには付きません
     return /Android/i.test(ua) && /wv/i.test(ua);
 }
 
@@ -132,15 +114,15 @@ function getCurrentLocation() {
     });
 }
 
-// HTMLエスケープ
+// ★修正箇所: HTMLエスケープ (正しい記述に修正)
 function escapeHTML(str) {
     if (str == null) return '';
     return str.toString()
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // 日付フォーマット
@@ -222,10 +204,10 @@ function resizeImage(file, maxSize = 800) {
     });
 }
 
-// Googleマップボタン生成 (記述ミスを完全に修正)
+// ★修正箇所: Googleマップボタン生成 (記述ミスを修正)
 function generateMapButton(lat, lon) {
     if (!lat || !lon) return '';
-    // 確実に動作するGoogle Maps URL形式
+    // $マークが抜けていたのと、URL形式を修正しました
     const url = `https://www.google.com/maps?q=${lat},${lon}`;
     
     return `
@@ -300,7 +282,6 @@ function closeImageModal() {
 
 async function exportAllData() {
     const data = {};
-    // additional_photos を追加
     const tables = [
         'hunter_profile', 'settings', 'trap', 'trap_type', 'gun', 'gun_log', 
         'catch_records', 'checklist_sets', 'checklist_items', 'game_animal_list', 
@@ -311,7 +292,6 @@ async function exportAllData() {
         data[t] = await db[t].toArray();
     }
 
-    // Blobを持つテーブルはBase64に変換 (additional_photos も追加)
     const blobTables = ['trap', 'catch_records', 'gun_log', 'profile_images', 'additional_photos'];
     for (const t of blobTables) {
         if(data[t]) {
@@ -350,7 +330,6 @@ async function importAllData(file) {
                 db.catch_records.bulkAdd(await conv('catch_records')),
                 db.gun_log.bulkAdd(await conv('gun_log')), 
                 db.profile_images.bulkAdd(await conv('profile_images')),
-                // additional_photos を追加
                 db.additional_photos.bulkAdd(await conv('additional_photos'))
             ]);
         });
@@ -508,9 +487,8 @@ function blobToBase64(b) { return new Promise((res,rej)=>{ if(!b){res(null);retu
 function base64ToBlob(base64) {
     if (!base64) return null;
     try {
-        // データURI形式 (data:image/jpeg;base64,...) か確認
         const arr = base64.split(',');
-        if (arr.length < 2) return null; // データが壊れている場合は無視
+        if (arr.length < 2) return null; 
         
         const mime = arr[0].match(/:(.*?);/)[1];
         const bstr = atob(arr[1]);
@@ -524,7 +502,7 @@ function base64ToBlob(base64) {
         return new Blob([u8arr], { type: mime });
     } catch (e) {
         console.error('画像の復元に失敗しました:', e);
-        return null; // エラー時は画像なしとしてデータを救済する
+        return null; 
     }
 }
 
