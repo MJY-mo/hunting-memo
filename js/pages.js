@@ -771,7 +771,7 @@ async function showGunLogEditForm(id) {
                 
                 ${additionalPhotosHTML}
 
-                <div class="form-group"><label class="form-label">メモ:</label><textarea id="l-memo" class="form-input">${escapeHTML(log.memo)}</textarea></div>
+               <div class="form-group"><label class="form-label">メモ:</label><textarea id="l-memo" class="form-input" placeholder="目撃した動物と数など">${escapeHTML(log.memo)}</textarea></div>
                 <button class="btn btn-primary w-full py-3">保存</button>
             </form>
         </div>
